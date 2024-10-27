@@ -1,0 +1,49 @@
+name: CMake CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout the code
+        uses: actions/checkout@v3
+
+      - name: Set up CMake
+        uses: jwlawson/actions-setup-cmake@v1
+
+      - name: Install dependencies (fmt and Doxygen)
+        run: sudo apt-get install -y doxygen graphviz
+
+      - name: Create build directory
+        run: mkdir build
+
+      - name: Configure CMake
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+
+      - name: Build the project
+        run: cmake --build build -- -j $(nproc)
+
+      - name: Run tests
+        run: |
+          cd build
+          tests
+
+      # - name: Generate Doxygen Documentation
+      #   run: |
+      #     cd doc
+      #     doxygen Doxyfile
+
+      # - name: Upload Doxygen documentation as artifact
+      #   uses: actions/upload-artifact@v3
+      #   with:
+      #     name: doxygen-docs
+      #     path: docs/html
+      #     retention-days: 7

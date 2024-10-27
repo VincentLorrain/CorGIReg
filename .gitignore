@@ -1,0 +1,5 @@
+# Ignore build directories
+/build/
+/build*/
+/.vscode*/
+/notes*/
