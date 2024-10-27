@@ -17,7 +17,7 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Set up CMake
-        uses: jwlawson/actions-setup-cmake@v1
+        uses: jwlawson/actions-setup-cmake@latest
 
       - name: Install dependencies (fmt and Doxygen)
         run: sudo apt-get install -y doxygen graphviz
@@ -33,7 +33,7 @@ jobs:
 
       - name: Run tests
         run: |
-          cd build
+          cd build/test
           tests
 
       # - name: Generate Doxygen Documentation
