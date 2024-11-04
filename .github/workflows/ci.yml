@@ -36,11 +36,13 @@ jobs:
           cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
 
       - name: Build the project
-        run: cmake --build build -- -j $(nproc)
+        run:
+          cd build
+          cmake --build build -- -j $(nproc)
 
       - name: Run tests
         run: |
-          cd build/test
+          cd test
           tests
 
       # - name: Generate Doxygen Documentation
