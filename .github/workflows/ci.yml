@@ -31,8 +31,9 @@ jobs:
         run: ls -la  # This will list the contents of the current directory
 
       - name: Configure CMake
-        pwd
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+        run: 
+          pwd
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
 
       - name: Build the project
         run: cmake --build build -- -j $(nproc)
