@@ -19,7 +19,7 @@ jobs:
       - name: Set up CMake
         uses: jwlawson/actions-setup-cmake@v2
         with:
-          cmake-version: '3.11.x'
+          cmake-version: '3.18.4'
 
       - name: Install dependencies (fmt and Doxygen)
         run: sudo apt-get install -y doxygen graphviz
