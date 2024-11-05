@@ -41,7 +41,7 @@ jobs:
 
       - name: Configure CMake
         run: |
-          cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+          cmake -S . -Bbuild -DCMAKE_BUILD_TYPE=Debug
           ls -la build  # Lists contents of the build directory
 
       - name: Build the project
