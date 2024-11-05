@@ -65,8 +65,8 @@ public:
         std::vector<T> result = currentPermutation;  // Copy the current permutation
 
         // Find the next permutation with repetition
-        for (int i = currentPermutation.size() - 1; i >= 0; --i) {
-            int nextIndex = std::find(elems.begin(), elems.end(), currentPermutation[i]) - elems.begin() + 1;
+        for (std::size_t i = currentPermutation.size() - 1; i >= 0; --i) {
+            std::size_t nextIndex = std::find(elems.begin(), elems.end(), currentPermutation[i]) - elems.begin() + 1;
             if (nextIndex < elems.size()) {
                 currentPermutation[i] = elems[nextIndex];
                 break;

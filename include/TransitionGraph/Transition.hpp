@@ -227,7 +227,7 @@ namespace CorGIReg{
         /**
          * @brief the common id test in this transition
         */
-        int mCommonIdx;
+        std::size_t mCommonIdx;
         /**
          * @brief this defined the comportment of the rejection node of the common transition 
         */
