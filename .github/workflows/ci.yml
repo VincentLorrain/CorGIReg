@@ -40,10 +40,14 @@ jobs:
         run: |
           pwd
           cmake --build build
-
+          ls -la build  # Lists contents of the build directory
       - name: Run tests
         run: |
-          cd /build/test/Debug/
+          cd /build
+          ls -la
+          cd test
+          ls -la
+          cd Debug
           ./tests
 
       # - name: Generate Doxygen Documentation
