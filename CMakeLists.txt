@@ -31,7 +31,27 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(fmt)
 
 # Add source files for the main application
-file(GLOB_RECURSE src_files "src/*.cpp")
+#file(GLOB_RECURSE src_files "src/*.cpp")
+
+
+set(src_files
+    ${PROJECT_SOURCE_DIR}/src/BasicGraphIr/Graph.cpp
+    ${PROJECT_SOURCE_DIR}/src/CompileTool/CompileTransitionGraph/PGInterpreterIR.cpp
+    ${PROJECT_SOURCE_DIR}/src/CompileTool/CompileTransitionGraph/PGInterpreterTG.cpp
+    ${PROJECT_SOURCE_DIR}/src/CompileTool/CompileTransitionGraph/PartitionGraphLexer.cpp
+    ${PROJECT_SOURCE_DIR}/src/CompileTool/CompileTransitionGraph/PartitionGraphParser.cpp
+    ${PROJECT_SOURCE_DIR}/src/NodeTest/Expression.cpp
+    ${PROJECT_SOURCE_DIR}/src/NodeTest/ExpressionParser.cpp
+    ${PROJECT_SOURCE_DIR}/src/NodeTest/FunctionBuilder.cpp
+    ${PROJECT_SOURCE_DIR}/src/NodeTest/NodeCondition.cpp
+    ${PROJECT_SOURCE_DIR}/src/NodeTest/NodeDictionary.cpp
+    ${PROJECT_SOURCE_DIR}/src/NodeTest/PredefinedNodeCondition.cpp
+    ${PROJECT_SOURCE_DIR}/src/TransitionGraph/MatchSolution.cpp
+    ${PROJECT_SOURCE_DIR}/src/TransitionGraph/RunTimeContext.cpp
+    ${PROJECT_SOURCE_DIR}/src/TransitionGraph/State.cpp
+    ${PROJECT_SOURCE_DIR}/src/TransitionGraph/Transition.cpp
+    ${PROJECT_SOURCE_DIR}/src/TransitionGraph/TransitionGraph.cpp
+)
 
 # Create a static library for CorGIReg to share across executables
 add_library(CorGIReg STATIC ${src_files})
