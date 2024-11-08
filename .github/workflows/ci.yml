@@ -43,6 +43,8 @@ jobs:
           ls -la build  # Lists contents of the build directory
       - name: Run tests
         run: |
+          pwd
+          ls -la
           cd /build
           ls -la
           cd test
