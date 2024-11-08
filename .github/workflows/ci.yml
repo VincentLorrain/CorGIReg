@@ -45,7 +45,7 @@ jobs:
         run: |
           pwd
           ls -la
-          cd /build
+          cd build
           ls -la
           cd test
           ls -la
