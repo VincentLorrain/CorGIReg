@@ -2,17 +2,17 @@ cmake_minimum_required(VERSION 3.12)
 project(CorGIReg VERSION 0.0)
 
 
-if(WIN32)
-  set(CMAKE_EXE_LINKER_FLAGS "-Wl,-subsystem,console")
-elseif(MSVC)
-  # For Visual Studio Compiler
-  set_target_properties(your_target PROPERTIES
-      LINK_FLAGS "/SUBSYSTEM:CONSOLE"
-  )
-else()
-  # For GCC or Clang on Unix-like systems
-  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,-subsystem,console")
-endif()
+# if(WIN32)
+#   set(CMAKE_EXE_LINKER_FLAGS "-Wl,-subsystem,console")
+# elseif(MSVC)
+#   # For Visual Studio Compiler
+#   set_target_properties(your_target PROPERTIES
+#       LINK_FLAGS "/SUBSYSTEM:CONSOLE"
+#   )
+# else()
+#   # For GCC or Clang on Unix-like systems
+#   set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,-subsystem,console")
+# endif()
 
 
 # Specify C++ standard
