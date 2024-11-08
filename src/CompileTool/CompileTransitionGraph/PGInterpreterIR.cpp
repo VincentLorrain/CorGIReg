@@ -6,7 +6,7 @@ namespace CorGIReg{
 PGInterpreterIR::PGInterpreterIR(const std::string graphMatchExpr):mParser(graphMatchExpr){
     mActGroupe = 0;
 }
-
+ 
 
 std::shared_ptr<GraphNN>  PGInterpreterIR::interpret(void){
     mActGroupe = 0;
