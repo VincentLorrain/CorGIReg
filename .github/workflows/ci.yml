@@ -46,7 +46,7 @@ jobs:
           if [ "${{ runner.os }}" == "Windows" ]; then
             .\build\test\Debug\tests.exe
           else
-            ./build/tests
+            ./build/test
           fi
 
       # - name: Generate Doxygen Documentation
