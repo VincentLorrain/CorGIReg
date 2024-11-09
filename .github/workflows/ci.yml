@@ -43,14 +43,11 @@ jobs:
           ls -la build  # Lists contents of the build directory
       - name: Run tests
         run: |
-          pwd
-          ls -la
-          cd build
-          ls -la
-          cd test
-          ls -la
-          cd Debug
-          ./tests
+          if [ "${{ runner.os }}" == "Windows" ]; then
+            .\build\test\Debug\tests.exe
+          else
+            ./build/tests
+          fi
 
       # - name: Generate Doxygen Documentation
       #   run: |
