@@ -66,6 +66,7 @@ target_link_libraries(CorGIReg PRIVATE fmt::fmt)
 
 # Optionally include tests only in Debug mode
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+  enable_testing()
   add_subdirectory(test) # Include the test subdirectory
 endif()
 

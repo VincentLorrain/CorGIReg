@@ -1,4 +1,4 @@
-name: CMake CI
+name: CorGIReg CI
 
 on:
   push:
@@ -24,30 +24,19 @@ jobs:
       - name: Install dependencies (fmt and Doxygen)
         run: sudo apt-get install -y doxygen graphviz
 
-      - name: Create build directory
-        run: mkdir build
-
-      - name: List directory contents
-        run: ls -la  # This will list the contents of the current directory
-
       - name: Configure CMake
         run: |
-          pwd
           cmake -S . -Bbuild -DCMAKE_BUILD_TYPE=Debug
           ls -la build  # Lists contents of the build directory
 
       - name: Build the project
         run: |
-          pwd
           cmake --build build
           ls -la build  # Lists contents of the build directory
       - name: Run tests
         run: |
-          if [ "${{ runner.os }}" == "Windows" ]; then
-            .\build\test\Debug\tests.exe
-          else
-            ./build/test
-          fi
+          cd build
+          ctest
 
       # - name: Generate Doxygen Documentation
       #   run: |
