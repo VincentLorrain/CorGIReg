@@ -7,7 +7,7 @@ namespace CorGIReg{
  * \section Transition general
  */
 
-Transition::Transition(std::shared_ptr<State>& source,std::shared_ptr<State>& dest,std::string nodeTestKey)
+Transition::Transition(std::shared_ptr<State> source,std::shared_ptr<State> dest,std::string nodeTestKey)
 :mNodeTestKey(nodeTestKey)
 {
     mStateSource = source;
@@ -46,6 +46,7 @@ void Transition::reSetSourceState(const std::shared_ptr<State> newSource){
     propagateRelativePos();
 
 }
+
 
 void Transition::propagateRelativePos(void){
 
@@ -148,7 +149,7 @@ void Transition::updateRelative( const std::map<size_t,int>& relative ){
  * \section Transition Unique
  */
 
-TransitionUnique::TransitionUnique(std::shared_ptr<State>& source,std::shared_ptr<State>& dest,const std::string nodeTestKey)
+TransitionUnique::TransitionUnique(std::shared_ptr<State> source,std::shared_ptr<State> dest,const std::string nodeTestKey)
 :Transition(source,dest,nodeTestKey){}
 
 const TransitionResult TransitionUnique::test(const std::shared_ptr<RunTimeContext>& context){
@@ -191,7 +192,7 @@ TransitionCommon
 */
 std::map<std::string,std::size_t> TransitionCommon::mCommonIdxMap;
 
-TransitionCommon::TransitionCommon(std::shared_ptr<State>& source,std::shared_ptr<State>& dest, const std::string nodeTestKey, 
+TransitionCommon::TransitionCommon(std::shared_ptr<State> source,std::shared_ptr<State> dest, const std::string nodeTestKey, 
 const std::string commonKey,CommonMode flag)
 :Transition(source,dest,nodeTestKey)
 {
@@ -285,7 +286,7 @@ std::string TransitionCommon::strRep(void) const{
 /*
 TransitionRef
 */
-TransitionRef::TransitionRef(std::shared_ptr<State>& source,std::shared_ptr<State>& dest)
+TransitionRef::TransitionRef(std::shared_ptr<State> source,std::shared_ptr<State> dest)
 :Transition(source,dest,""),mAnchor(getAnchor(dest)){   
 
 }
@@ -329,7 +330,7 @@ std::string TransitionRef::strRep(void) const{
 /*
 TransitionEmpty
 */
-TransitionEmpty::TransitionEmpty(std::shared_ptr<State>& source,std::shared_ptr<State>& dest)
+TransitionEmpty::TransitionEmpty(std::shared_ptr<State> source,std::shared_ptr<State> dest)
 :Transition(source,dest,"")
 {}
 const TransitionResult TransitionEmpty::test(const std::shared_ptr<RunTimeContext>& context){
@@ -355,7 +356,7 @@ std::string TransitionEmpty::strRep(void) const{
 /*
 TransitionNone
 */
-TransitionNone::TransitionNone(std::shared_ptr<State>& source,std::shared_ptr<State>& dest)
+TransitionNone::TransitionNone(std::shared_ptr<State> source,std::shared_ptr<State> dest)
 :Transition(source,dest,"")
 {}
  const TransitionResult TransitionNone::test(const std::shared_ptr<RunTimeContext>& /*context*/){
@@ -376,7 +377,7 @@ std::string TransitionNone::strRep(void) const{
 /*
 TransitionNull
 */
-TransitionNull::TransitionNull(std::shared_ptr<State>& source,std::shared_ptr<State>& dest)
+TransitionNull::TransitionNull(std::shared_ptr<State> source,std::shared_ptr<State> dest)
 :Transition(source,dest,""){
 }
 

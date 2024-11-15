@@ -44,14 +44,11 @@ private:
     bool mIsFinished;
 };
 
-
-
-
 template<typename T>
 class PermutationIterator {
 public:
     PermutationIterator(const std::vector<T>& elements, size_t permutationSize)
-        : elems(elements), currentPermutation(permutationSize, elements[0]), isFinished(elements.empty()) {}
+        : elems(elements), indices(permutationSize, 0), isFinished(elements.empty()) {}
 
     bool hasNext() const {
         return !isFinished;
@@ -62,18 +59,21 @@ public:
             throw std::out_of_range("No more permutations");
         }
 
-        std::vector<T> result = currentPermutation;  // Copy the current permutation
+        // Build the current permutation based on indices
+        std::vector<T> result;
+        for (size_t idx : indices) {
+            result.push_back(elems[idx]);
+        }
 
-        // Find the next permutation with repetition
-        for (std::size_t i = currentPermutation.size() - 1; i >= 0; --i) {
-            std::size_t nextIndex = std::find(elems.begin(), elems.end(), currentPermutation[i]) - elems.begin() + 1;
-            if (nextIndex < elems.size()) {
-                currentPermutation[i] = elems[nextIndex];
+        // Generate the next indices
+        for (int i = indices.size() - 1; i >= 0; --i) {
+            if (indices[i] + 1 < elems.size()) {
+                ++indices[i];
                 break;
             } else {
-                currentPermutation[i] = elems[0];
+                indices[i] = 0;
                 if (i == 0) {
-                    isFinished = true;  // All elements are rolled over to the start, end of permutations
+                    isFinished = true;
                 }
             }
         }
@@ -83,10 +83,7 @@ public:
 
 private:
     const std::vector<T>& elems;
-    std::vector<T> currentPermutation;
+    std::vector<size_t> indices;
     bool isFinished;
 };
-
-
-
 }

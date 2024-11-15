@@ -51,17 +51,17 @@ TEST_CASE("APP") {
     SECTION("test match from start auto test") {
         
         std::vector<std::string> querys = {
-            // "A->B",
-            // "A->B->C",
-            // "A->B->C->D",
-            // "A#->B;A#->C",
+            "A->B",
 
-            "A->B+",
-            // "A#->B+;A#->C*",
+            "A->B->C",
+            "A->B->C->D",
+            "A#->B;A#->C",
+            "A#->B;A#->C",
+            "A#->B+;A#->C*",
 
-            // "(A#->B)*",
-            // "(A#->B)+",
-            // "(A#->B->C#)*",
+            "(A#->B)*",
+            "(A#->B)+",
+            "(A#->B->C#)*",
         };
         /*
         somme nodes type
@@ -80,7 +80,8 @@ TEST_CASE("APP") {
 
             bool found = false;
             while (combIt.hasNext()) {
-                auto match = transactionGraph->test(combIt.next());
+                auto start = combIt.next();
+                auto match = transactionGraph->test(start);
                 if (match->isMatch()) {
                     found = true;
                     break;

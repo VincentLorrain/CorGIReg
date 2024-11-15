@@ -13,7 +13,7 @@ TEST_CASE("PartitionGraphLexer") {
     SECTION("RandomGenerateTest") {
         // Use modern C++ random number generation
         std::random_device rd;
-        std::mt19937 gen(rd());
+        std::mt19937 gen(1021655632);
 
         // Define character sets
         const std::string characters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890_";

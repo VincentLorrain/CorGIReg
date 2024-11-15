@@ -9,8 +9,8 @@
 using namespace CorGIReg;
 
     std::string generateRandomString() {
-        std::random_device rd;
-        std::mt19937 gen(rd());
+        //std::random_device rd;
+        std::mt19937 gen(1021655632);
         std::uniform_int_distribution<int> dis('A', 'Z');
 
         std::string randomString;

@@ -93,7 +93,7 @@ namespace CorGIReg{
          * @param toTest the condition to validate to cross the transition
          * @details during construction, the transition is added to the source and destination state
          */
-        Transition(std::shared_ptr<State>& source,std::shared_ptr<State>& dest, const std::string odeTestKey);
+        Transition(std::shared_ptr<State> source,std::shared_ptr<State> dest, const std::string odeTestKey);
         virtual  ~Transition(){};
         Transition() : weakPtr(shared_from_this()) {}       
 
@@ -195,7 +195,7 @@ namespace CorGIReg{
     class TransitionUnique:public Transition
     {
         public:
-        TransitionUnique(std::shared_ptr<State>& source,std::shared_ptr<State>& dest, const std::string odeTestKey);
+        TransitionUnique(std::shared_ptr<State> source,std::shared_ptr<State> dest, const std::string odeTestKey);
         const TransitionResult test(const std::shared_ptr<RunTimeContext>& context)  override;
         std::string strRep(void) const override;
     };
@@ -239,7 +239,7 @@ namespace CorGIReg{
          * @details during construction,
          * the node key found by the lexer is converted to a unique id and the relative positions are updated.
         */
-        TransitionCommon(std::shared_ptr<State>& source,std::shared_ptr<State>& dest, const std::string nodeTestKey,
+        TransitionCommon(std::shared_ptr<State> source,std::shared_ptr<State> dest, const std::string nodeTestKey,
         const std::string commonKey,CommonMode flag);
 
  
@@ -274,7 +274,7 @@ namespace CorGIReg{
          * @param refCommonIdx the id of one common node that we use as an anchor
          * @param deltaCommonIdx the delta in term of child or parent refer to the anchor
          */
-        TransitionRef(std::shared_ptr<State>& source,std::shared_ptr<State>& dest);
+        TransitionRef(std::shared_ptr<State> source,std::shared_ptr<State> dest);
         const TransitionResult test(const std::shared_ptr<RunTimeContext>& context) override;
         std::string strRep(void) const override;
 
@@ -290,7 +290,7 @@ namespace CorGIReg{
     class TransitionEmpty:public Transition
     {
         public:
-        TransitionEmpty(std::shared_ptr<State>& source,std::shared_ptr<State>& dest);
+        TransitionEmpty(std::shared_ptr<State> source,std::shared_ptr<State> dest);
         const TransitionResult test(const std::shared_ptr<RunTimeContext>& context) override;
         std::string strRep(void) const override;
     };
@@ -303,7 +303,7 @@ namespace CorGIReg{
     class TransitionNone:public Transition
     {
         public:
-        TransitionNone(std::shared_ptr<State>& source,std::shared_ptr<State>& dest);
+        TransitionNone(std::shared_ptr<State> source,std::shared_ptr<State> dest);
         const TransitionResult test(const std::shared_ptr<RunTimeContext>& context) override;
         std::string strRep(void) const override;
 
@@ -316,7 +316,7 @@ namespace CorGIReg{
     class TransitionNull:public Transition
     {
         public:
-        TransitionNull(std::shared_ptr<State>& source,std::shared_ptr<State>& dest);
+        TransitionNull(std::shared_ptr<State> source,std::shared_ptr<State> dest);
         const TransitionResult test(const std::shared_ptr<RunTimeContext>& context) override;
         std::string strRep(void) const override;
     };
