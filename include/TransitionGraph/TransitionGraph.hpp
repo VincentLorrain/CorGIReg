@@ -69,9 +69,10 @@ public:
 
     /**
      * @brief export a mermaid of the FSM
-     * @param path  path of the mermaid
     */
-    void save(const std::string& path) const ;
+    std::string exportToMermaid(void);
+
+    
 };
 
 

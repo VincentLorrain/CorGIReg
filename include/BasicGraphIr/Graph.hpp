@@ -10,6 +10,10 @@
 #include <stdexcept>   // For exception handling
 #include <algorithm>
 
+
+#include <sstream>//mmd export to mermaid
+
+
 namespace CorGIReg {
 
 class NodeNN : public std::enable_shared_from_this<NodeNN> {
@@ -102,6 +106,13 @@ public:
      * @param nodesToMerge A set of NodeNN::Ptr representing the nodes to be merged.
      */
     void mergeNodes(const std::set<NodeNN::Ptr>& nodesToMerge);
+
+
+    /**
+     * @brief string representation of the graph
+     * @return string
+     */
+    std::string exportToMermaid() const ;
 
 
 private:

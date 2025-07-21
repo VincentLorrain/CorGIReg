@@ -2,17 +2,15 @@ cmake_minimum_required(VERSION 3.12)
 project(CorGIReg VERSION 0.0)
 
 
-# if(WIN32)
-#   set(CMAKE_EXE_LINKER_FLAGS "-Wl,-subsystem,console")
-# elseif(MSVC)
-#   # For Visual Studio Compiler
-#   set_target_properties(your_target PROPERTIES
-#       LINK_FLAGS "/SUBSYSTEM:CONSOLE"
-#   )
-# else()
-#   # For GCC or Clang on Unix-like systems
-#   set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,-subsystem,console")
+
+# if(MSVC)
+#     # For Visual Studio Compiler
+#     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /SUBSYSTEM:CONSOLE")
+# elseif(WIN32)
+#     # For MinGW or similar on Windows not using MSVC
+#     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,-subsystem,console")
 # endif()
+
 
 
 # Specify C++ standard
@@ -65,6 +63,17 @@ target_include_directories(CorGIReg
 target_link_libraries(CorGIReg PRIVATE fmt::fmt)
 
 # Optionally include tests only in Debug mode
+
+
+# Set compiler options
+# if(MSVC)
+#     set(CMAKE_CXX_FLAGS_DEBUG "/Zi /Od")
+#     set(CMAKE_CXX_FLAGS_RELEASE "/O2")
+# else()
+#     set(CMAKE_CXX_FLAGS_DEBUG "-g -O0")
+#     set(CMAKE_CXX_FLAGS_RELEASE "-O3")
+# endif()
+
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
   enable_testing()
   add_subdirectory(test) # Include the test subdirectory

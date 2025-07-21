@@ -32,7 +32,7 @@ TEST_CASE("NodeNN and GraphNN: Extended Tests") {
         REQUIRE(node->hasArgument("nonexistentKey") == false);
 
         // Test getType method
-        node->setInfo("type", std::string("CustomType"));
+        node->setInfo("Type", std::string("CustomType"));
         REQUIRE(node->getType() == "CustomType");
     }
 
@@ -161,7 +161,7 @@ TEST_CASE("NodeNN and GraphNN: Extended Tests") {
         REQUIRE(node->getType() == "");
 
         // Setting type
-        node->setInfo("type", std::string("NodeType"));
+        node->setInfo("Type", std::string("NodeType"));
         REQUIRE(node->getType() == "NodeType");
     }
 

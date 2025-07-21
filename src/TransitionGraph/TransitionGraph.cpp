@@ -44,6 +44,23 @@ std::size_t TGCompiled::getNbStart(void){
     return getStartStates().size();
 }
 
+std::string TGCompiled::exportToMermaid(void) {
+    std::stringstream ss;
+    ss << "graph TD\n"; // Define the type of graph (TD - top down)
+
+    // First, add all state definitions
+    auto states = getStates();
+    for (const auto& state : states) {
+        ss << state->strRep() << "\n";
+    }
+
+    // Next, define all transitions
+    for (const auto& transition : mTransitions) {
+        ss << transition->strRep()<< "\n";
+    }
+
+    return ss.str();
+}
 
 
 

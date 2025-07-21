@@ -24,12 +24,11 @@ void Transition::updateWeak(void){
 }
 
 std::string Transition::strRep(void) const{
-    std::string out;
-    out +=  mStateSource->strRep() ;
-    out += "--"+ mDirSourceToDest ? ">" : "o";
-    out +=  mStateDest->strRep();
-    out += "\n";
-    return out;
+    std::stringstream ss;
+    ss <<  mStateSource->getId() ;
+    ss << "--"+ mDirSourceToDest ? ">" : "o";
+    ss <<  mStateDest->getId();
+    return ss.str();
 }
 
 void Transition::reSetDestState(const std::shared_ptr<State> newDest){
@@ -179,12 +178,11 @@ const TransitionResult TransitionUnique::test(const std::shared_ptr<RunTimeConte
 }
 
 std::string TransitionUnique::strRep(void) const{
-    std::string out;
-    out += mStateSource->strRep();
-    out += fmt::format("--{}|{}|",mDirSourceToDest ? ">" : "o", mNodeTestKey);
-    out += mStateDest->strRep();
-    out += "\n";
-    return out;
+    std::stringstream ss;
+    ss << mStateSource->getId();
+    ss << fmt::format("--{}|{}|",mDirSourceToDest ? ">" : "o", mNodeTestKey);
+    ss << mStateDest->getId();
+    return ss.str();
 }
 
 /*
@@ -273,12 +271,11 @@ const TransitionResult TransitionCommon::test(const std::shared_ptr<RunTimeConte
 
 
 std::string TransitionCommon::strRep(void) const{
-    std::string out;
-    out += mStateSource->strRep();
-    out += fmt::format("--{}|{}{}|",mDirSourceToDest ? ">" : "o",mFlag== CommonMode::ALL ? "$" : "#",mNodeTestKey);
-    out += mStateDest->strRep();
-    out += "\n";
-    return out;
+    std::stringstream ss;
+    ss << mStateSource->getId();
+    ss << fmt::format("--{}|{}{}|",mDirSourceToDest ? ">" : "o",mFlag== CommonMode::ALL ? "$" : "#",mNodeTestKey);
+    ss << mStateDest->getId();
+    return ss.str();
 }
 
 
@@ -320,12 +317,11 @@ const TransitionResult TransitionRef::test(const std::shared_ptr<RunTimeContext>
     return  {false,std::set<std::shared_ptr<NodeNN>>()};
 }
 std::string TransitionRef::strRep(void) const{
-    std::string out;
-    out += mStateSource->strRep();
-    out += fmt::format("-->|REF{} {}|", mAnchor.first,mAnchor.second);
-    out += mStateDest->strRep();
-    out += "\n";
-    return out;
+    std::stringstream ss;
+    ss << mStateSource->getId();
+    ss << fmt::format("-->|REF{} {}|", mAnchor.first,mAnchor.second);
+    ss << mStateDest->getId();
+    return ss.str();
 }
 /*
 TransitionEmpty
@@ -345,12 +341,11 @@ const TransitionResult TransitionEmpty::test(const std::shared_ptr<RunTimeContex
 }
 
 std::string TransitionEmpty::strRep(void) const{
-    std::string out;
-    out += mStateSource->strRep();
-    out += "-->|Empty|";
-    out += mStateDest->strRep();
-    out += "\n";
-    return out;
+    std::stringstream ss;
+    ss << mStateSource->getId();
+    ss << "-->|Empty|";
+    ss << mStateDest->getId();
+    return ss.str();
 }
 
 /*
@@ -366,12 +361,11 @@ TransitionNone::TransitionNone(std::shared_ptr<State> source,std::shared_ptr<Sta
     return {false,std::set<std::shared_ptr<NodeNN>>()};
  }
 std::string TransitionNone::strRep(void) const{
-    std::string out;
-    out += mStateSource->strRep();
-    out += "-->|None|";
-    out += mStateDest->strRep();
-    out += "\n";
-    return out;
+    std::stringstream ss;
+    ss << mStateSource->getId();
+    ss << "-->|None|";
+    ss << mStateDest->getId();
+    return ss.str();
 }
 
 /*
@@ -391,12 +385,11 @@ const TransitionResult TransitionNull::test(const std::shared_ptr<RunTimeContext
 }
 
 std::string TransitionNull::strRep(void) const{
-    std::string out;
-    out += mStateSource->strRep();
-    out += "-->|Null|";
-    out += mStateDest->strRep();
-    out += "\n";
-    return out;
+    std::stringstream ss;
+    ss << mStateSource->getId();
+    ss << "-->|Null|";
+    ss << mStateDest->getId();
+    return ss.str();
 }
 
 /*

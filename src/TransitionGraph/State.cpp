@@ -84,15 +84,15 @@ std::string State::strRep(void) const{
     }
     else if (!mStart && mValid)
     {
-         out += fmt::format("{}([{}_{}])",mId, mGroupId,  fmt::join(mFromTransitionGraph, ", "));
+         out += fmt::format("{}([v{}_{}])",mId, mGroupId,  fmt::join(mFromTransitionGraph, ", "));
     }
     else if (mStart && !mValid)
     {
-         out += fmt::format("{}[{}_{}]",mId, mGroupId,  fmt::join(mFromTransitionGraph, ", "));
+         out += fmt::format("{}[s{}_{}]",mId, mGroupId,  fmt::join(mFromTransitionGraph, ", "));
     }
     else if (mStart && mValid)
     {
-         out += fmt::format("{} [{}_{}]",mId, mGroupId,  fmt::join(mFromTransitionGraph, ", "));
+         out += fmt::format("{} [sv{}_{}]",mId, mGroupId,  fmt::join(mFromTransitionGraph, ", "));
     }
    
     return out;

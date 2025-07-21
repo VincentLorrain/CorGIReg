@@ -39,7 +39,7 @@ private:
     */
     static std::size_t sID;
     /**
-     * the unique id of the state (TODO quite useless)
+     * the unique id of the state 
     */
     const std::size_t mId;
 
@@ -96,7 +96,13 @@ public:
     inline void setGroupe(std::size_t id){
         mGroupId = id;
     }
-
+    /**
+     * @brief return the id of the state
+     * @return the id of the state
+    */
+    inline std::size_t getId(void){
+        return mId;
+    }
     /**
      * @brief return true if the state is a valid state, false otherwise
     */

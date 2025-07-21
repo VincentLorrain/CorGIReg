@@ -124,7 +124,14 @@ std::shared_ptr<TransitionGraph> PGInterpreterTG::precF(std::shared_ptr<Transiti
            B    A
         SB -x> q -x> VA
     */
-    return rightTG->setTransitionChildToParent()->mergeOneStartOneValid(leftTG->setTransitionChildToParent());
+    // For the PRECEDENCE operator (<-), the resulting graph should match
+    // a predecessor relationship.  The left graph represents the node that
+    // is preceded, while the right graph represents the preceding node.
+    // We simply merge the valid state of the left graph with the start of
+    // the right graph without flipping the transition directions.
+    // This keeps the transitions directed from the preceding node to the
+    // preceded node.
+    return rightTG->mergeOneStartOneValid(leftTG);
 }
 
 std::shared_ptr<TransitionGraph> PGInterpreterTG::qomF(std::shared_ptr<TransitionGraph> tg){

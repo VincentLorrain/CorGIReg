@@ -1,4 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
+#include <algorithm>
+#include <vector>
 
 #include "BasicGraphIr/Graph.hpp"
 #include "CompileTool/CompileTransitionGraph/PGInterpreterTG.hpp"
@@ -53,6 +55,8 @@ TEST_CASE("APP") {
         std::vector<std::string> querys = {
             "A->B",
 
+            "A<-B",
+
             "A->B->C",
             "A->B->C->D",
             "A#->B;A#->C",
@@ -73,22 +77,36 @@ TEST_CASE("APP") {
         
         
         for (auto query : querys) {
+            INFO("QUERY");
+            INFO(query);
+            INFO("\n");
+
             auto transactionGraph = PGInterpreterTG(query).interpret();
             auto graph = PGInterpreterIR(query).interpret();
-            
-            PermutationIterator<std::shared_ptr<NodeNN>> combIt(graph->getNodes(), transactionGraph->getNbStart());
+            std::size_t nbStart = transactionGraph->getNbStart();
+            INFO("NB START");
+            INFO(nbStart);
+            INFO("\n");
+            auto nodes = graph->getNodes();
+            INFO("NB NODES");
+            INFO(nodes.size());
+            INFO("\n");
+            PermutationIterator<std::shared_ptr<NodeNN>> combIt(nodes, nbStart);
 
             bool found = false;
             while (combIt.hasNext()) {
-                auto start = combIt.next();
-                auto match = transactionGraph->test(start);
+                auto starts = combIt.next();
+                auto match = transactionGraph->test(starts);
                 if (match->isMatch()) {
                     found = true;
                     break;
-
                 }
             }
-            INFO(query);
+
+            INFO(transactionGraph->exportToMermaid());
+            INFO("\n");
+            INFO(graph->exportToMermaid());
+            INFO("\n");
             REQUIRE(found);
         }
 

@@ -33,7 +33,7 @@ void NodeNN::removeChild(const Ptr& child) {
     children_.erase(child);
 }
 std::string NodeNN::getType() const {
-    return getInfo<std::string>("type", "");
+    return getInfo<std::string>("Type", "");
 }
 
 std::set<NodeNN::Ptr> NodeNN::getNodeDelta(int delta, std::set<Ptr> nodeSee) {
@@ -254,4 +254,33 @@ void GraphNN::mergeNodes(const std::set<NodeNN::Ptr>& nodesToMerge) {
     addNode(mergedNode);
 }
 
+
+std::string GraphNN::exportToMermaid() const {
+    std::stringstream ss;
+    ss << "graph TD;\n";  // Directed graph in Mermaid syntax
+
+    std::unordered_map<NodeNN::Ptr, int> nodeIds;
+    int idCounter = 0;
+
+    // Assign IDs to all nodes
+    for (const auto& node : nodes_) {
+        if (nodeIds.find(node) == nodeIds.end()) {
+            nodeIds[node] = idCounter++;
+        }
+    }
+
+    // Define nodes with labels (optional customization)
+    for (const auto& node : nodes_) {
+        ss << "N" << nodeIds[node] << "[\"" << node->getType() << "\"];\n";
+    }
+
+    // Define edges
+    for (const auto& node : nodes_) {
+        for (const auto& child : node->getChildren()) {
+            ss << "N" << nodeIds[node] << " --> N" << nodeIds[child] << ";\n";
+        }
+    }
+
+    return ss.str();
+}
 } // namespace CorGIReg

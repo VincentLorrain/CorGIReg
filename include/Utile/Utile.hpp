@@ -65,6 +65,17 @@ public:
             result.push_back(elems[idx]);
         }
 
+        // // Generate the next indices
+        // for (int i = indices.size() - 1; i >= 0; --i) {
+        //     if (indices[i] + 1 < elems.size()) {
+        //         ++indices[i];
+        //         for (int j = i + 1; j < indices.size(); ++j) {
+        //             indices[j] = indices[i];  // Ensure non-decreasing order
+        //         }
+        //         break;
+        //     }
+        //     if (i == 0) isFinished = true;
+        // }
         // Generate the next indices
         for (int i = indices.size() - 1; i >= 0; --i) {
             if (indices[i] + 1 < elems.size()) {
