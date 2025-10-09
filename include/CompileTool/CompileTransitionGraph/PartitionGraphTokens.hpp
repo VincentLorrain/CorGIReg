@@ -16,8 +16,8 @@ namespace CorGIReg {
         QZM,    /**< * */
         QZO,    /**< ?*/
 
-        KEY,    /**< [A-Za-z_0-9]+ */
-        CKEY,   /**< [A-Za-z_0-9]+#[0-9]* */
+        KEY,    /**< [A-Za-z_0-9]+ */ //a unique key in the graph 
+        CKEY,   /**< [A-Za-z_0-9]+#[0-9]* */ // a key that is common to different query
         SCKEY,   /**< [A-Za-z_0-9]+$[0-9]* */
 
         SEP,    /**< ; */

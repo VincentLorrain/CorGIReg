@@ -59,7 +59,6 @@ private:
      */
     void ackToken(tGTokensTypes  tokenType);
 
-    //TODO TODO
     /**
      * @ingroup ParsingFunctions
      * @brief Function of grammar rules for key :  KEY(QOM | QZM)? | CKEY

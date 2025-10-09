@@ -62,8 +62,6 @@ std::string TGCompiled::exportToMermaid(void) {
     return ss.str();
 }
 
-
-
 std::shared_ptr<SolutionFromStartingPoint> TGCompiled::test(const std::vector<std::shared_ptr<NodeNN>>& startNodes){
     /*
     create the initial walks with the start nodes on the graph NN and the start States on the TransitionGraph

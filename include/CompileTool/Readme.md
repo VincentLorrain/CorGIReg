@@ -1,3 +1,1 @@
-# 
-
-tool to make the AST Abstract syntax tree
+# tool to make the AST Abstract syntax tree
