@@ -49,6 +49,7 @@ set(src_files
     ${PROJECT_SOURCE_DIR}/src/TransitionGraph/State.cpp
     ${PROJECT_SOURCE_DIR}/src/TransitionGraph/Transition.cpp
     ${PROJECT_SOURCE_DIR}/src/TransitionGraph/TransitionGraph.cpp
+    ${PROJECT_SOURCE_DIR}/src/Grexgex/RandomExpressionGenerator.cpp
 )
 
 # Create a static library for CorGIReg to share across executables
