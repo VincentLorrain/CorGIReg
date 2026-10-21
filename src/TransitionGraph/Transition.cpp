@@ -1,4 +1,5 @@
 #include "TransitionGraph/Transition.hpp"
+#include "GraphAccess/GraphTraversal.hpp"
 #include <deque>
 
 
@@ -155,26 +156,26 @@ TransitionUnique::TransitionUnique(std::shared_ptr<State> source,std::shared_ptr
 const TransitionResult TransitionUnique::test(const std::shared_ptr<RunTimeContext>& context){
     //get the actual node of the graph 
     auto opNode = context->getActNode();
-    if(opNode == nullptr){
-        return {false,std::set<std::shared_ptr<NodeNN>>()};//none
+    if(!opNode){
+        return {false,std::set<NodeId>()};//none
     }
     // if the node have more than one parent or child it is not unique by definition
-    if(NodeDictionary::at(mNodeTestKey)(opNode) && opNode->getChildren().size() <= 1  && opNode->getParents().size() <= 1){
+    if(context->testNode(mNodeTestKey, *opNode) && context->graph().children(*opNode).size() <= 1  && context->graph().parents(*opNode).size() <= 1){
         //the actual node is unique and pass the test so we set it as valid
-        context->setValid(opNode,mNodeTestKey);
+        context->setValid(*opNode,mNodeTestKey);
         // get the successor of the node depending on the direction
-        std::set<std::shared_ptr<NodeNN>> nextNode;
+        std::set<NodeId> nextNode;
         if(mDirSourceToDest){
-            nextNode = opNode->getChildren();
+            nextNode = context->graph().children(*opNode);
         }else{
-            std::set<std::shared_ptr<NodeNN>>tmp = opNode->getParents();
-            nextNode = std::set<std::shared_ptr<NodeNN>>(tmp.begin(), tmp.end()) ;
+            std::set<NodeId>tmp = context->graph().parents(*opNode);
+            nextNode = std::set<NodeId>(tmp.begin(), tmp.end()) ;
         }
         return {true,nextNode} ;
 
     }else{
         //context->addRejectedNode(opNode);
-        return {false,std::set<std::shared_ptr<NodeNN>>()};
+        return {false,std::set<NodeId>()};
     }
 }
 
@@ -207,37 +208,37 @@ const TransitionResult TransitionCommon::test(const std::shared_ptr<RunTimeConte
     
     auto opNode = context->getActNode();
 
-    if(opNode == nullptr){
-        return {false,std::set<std::shared_ptr<NodeNN>>()};//none
+    if(!opNode){
+        return {false,std::set<NodeId>()};//none
     }
-    if(NodeDictionary::at(mNodeTestKey)(opNode)){
-        context->setCommon(opNode,mCommonIdx);
-        context->setValid(opNode,mNodeTestKey);
+    if(context->testNode(mNodeTestKey, *opNode)){
+        context->setCommon(*opNode,mCommonIdx);
+        context->setValid(*opNode,mNodeTestKey);
 
 
-        std::set<std::shared_ptr<NodeNN>> nextNode;
+        std::set<NodeId> nextNode;
 
         if(mDirSourceToDest){
-            nextNode = opNode->getChildren();
+            nextNode = context->graph().children(*opNode);
         }else{
-            std::set<std::shared_ptr<NodeNN>>tmp = opNode->getParents();
-            nextNode = std::set<std::shared_ptr<NodeNN>>(tmp.begin(), tmp.end()) ;
+            std::set<NodeId>tmp = context->graph().parents(*opNode);
+            nextNode = std::set<NodeId>(tmp.begin(), tmp.end()) ;
         }
         
-        std::set<std::shared_ptr<NodeNN>> childNode=opNode->getChildren();
-        std::set<std::shared_ptr<NodeNN>>tmp = opNode->getParents();
-        std::set<std::shared_ptr<NodeNN>> parentNode = std::set<std::shared_ptr<NodeNN>>(tmp.begin(), tmp.end()) ;
+        std::set<NodeId> childNode=context->graph().children(*opNode);
+        std::set<NodeId>tmp = context->graph().parents(*opNode);
+        std::set<NodeId> parentNode = std::set<NodeId>(tmp.begin(), tmp.end()) ;
 
         //to be sure to valid all the branch (child and parent) of a common node
         // the logic is add the child and parent of the node to the rejected node
         // depending of the flag 
-        std::set<std::shared_ptr<NodeNN>> nodeThatMustBeValid ={};
+        std::set<NodeId> nodeThatMustBeValid ={};
         if(mFlag == CommonMode::ALL || (mDirSourceToDest && mFlag == CommonMode::BACK) 
         || (!mDirSourceToDest && mFlag == CommonMode::FRONT)){
-            nodeThatMustBeValid =  opNode->getParents();
+            nodeThatMustBeValid =  context->graph().parents(*opNode);
         }
 
-        std::set<std::shared_ptr<NodeNN>> children = opNode->getChildren();
+        std::set<NodeId> children = context->graph().children(*opNode);
         // Append the children vector to the end of the parents vector
         if(mFlag == CommonMode::ALL || (mDirSourceToDest && mFlag == CommonMode::FRONT) 
         || (!mDirSourceToDest && mFlag == CommonMode::BACK)){
@@ -247,10 +248,10 @@ const TransitionResult TransitionCommon::test(const std::shared_ptr<RunTimeConte
         
         //be sure that no null ptr on the node that rejected
         //nodeThatMustBeValid.erase(std::remove(nodeThatMustBeValid.begin(), nodeThatMustBeValid.end(), nullptr), nodeThatMustBeValid.end());
-        nodeThatMustBeValid.erase(nullptr);
+
         
         // the connection of the common node depending on the flag are add to the rejected node
-        if (children.size() > 1 || opNode->getParents().size() > 1){
+        if (children.size() > 1 || context->graph().parents(*opNode).size() > 1){
             if (nodeThatMustBeValid.size() > 1){
                 for (const auto& next : nodeThatMustBeValid){
                     context->addRejectedNode(next); 
@@ -266,7 +267,7 @@ const TransitionResult TransitionCommon::test(const std::shared_ptr<RunTimeConte
 
     }else{
         //context->addRejectedNode(opNode);
-        return  {false,std::set<std::shared_ptr<NodeNN>>()};
+        return  {false,std::set<NodeId>()};
     }
 }
 
@@ -318,13 +319,13 @@ std::pair<std::size_t,int> TransitionRef::getAnchor(std::shared_ptr<State>& dest
 
 const TransitionResult TransitionRef::test(const std::shared_ptr<RunTimeContext>& context){
     //from all common node defined in the context we try to get the anchor
-    std::shared_ptr<NodeNN> refNode = context->getCommonNodeFromIdx(mAnchor.first);
+    std::optional<NodeId> refNode = context->getCommonNodeFromIdx(mAnchor.first);
     if (refNode){
         //from the anchor we get the next node depending on the delta
-        std::set<std::shared_ptr<NodeNN>> see;
-        return {true,refNode->getNodeDelta(mAnchor.second,see)};
+        std::set<NodeId> see;
+        return {true,nodesAtDelta(context->graph(), *refNode, mAnchor.second, see)};
     }
-    return  {false,std::set<std::shared_ptr<NodeNN>>()};
+    return  {false,std::set<NodeId>()};
 }
 std::string TransitionRef::strRep(void) const{
     std::stringstream ss;
@@ -344,10 +345,10 @@ const TransitionResult TransitionEmpty::test(const std::shared_ptr<RunTimeContex
      * accept all type of nodes if there existing in the graph
      */
     auto opNode = context->getActNode();
-    if(opNode == nullptr){
-        return {false,std::set<std::shared_ptr<NodeNN>>()};
+    if(!opNode){
+        return {false,std::set<NodeId>()};
     }
-    return {true,std::set<std::shared_ptr<NodeNN>>({opNode})};//none
+    return {true,std::set<NodeId>({*opNode})};//none
 }
 
 std::string TransitionEmpty::strRep(void) const{
@@ -368,7 +369,7 @@ TransitionNone::TransitionNone(std::shared_ptr<State> source,std::shared_ptr<Sta
     /**
      * refuse all the node, can not build the transition 
      */
-    return {false,std::set<std::shared_ptr<NodeNN>>()};
+    return {false,std::set<NodeId>()};
  }
 std::string TransitionNone::strRep(void) const{
     std::stringstream ss;
@@ -437,14 +438,7 @@ TransitionTypes type,const std::string lexeme)
             size_t commonIdx = commonId.empty() ? 0 : std::stoi(commonId) + 1;
             std::string commonKey = nodeConditionKey + std::to_string(commonIdx);
         
-            if(!NodeDictionary::hasFunction(nodeConditionKey)){
-                //if the key is not linked to a condition 
-                //by default, it is initialized by a edge that is always false
-                auto transitionNone = std::make_shared<TransitionNone>(source, dest);
-                transitionNone->updateWeak();
-                return transitionNone;
-                //throw std::invalid_argument("Bad Node Test " + nodeConditionKey );
-            }
+
             auto transitionCommon = std::make_shared<TransitionCommon> (source, dest, nodeConditionKey, commonKey,CommonMode::NONE);
             transitionCommon->updateWeak();
             return transitionCommon;
@@ -461,14 +455,7 @@ TransitionTypes type,const std::string lexeme)
             size_t commonIdx = commonId.empty() ? 0 : std::stoi(commonId) + 1;
             std::string commonKey = nodeConditionKey + std::to_string(commonIdx);
         
-            if(!NodeDictionary::hasFunction(nodeConditionKey)){
-                //if the key is not linked to a condition 
-                //by default, it is initialized by a edge that is always false
-                auto transitionNone = std::make_shared<TransitionNone>(source, dest);
-                transitionNone->updateWeak();
-                return transitionNone;
-                //throw std::invalid_argument("Bad Node Test " + nodeConditionKey );
-            }
+
             auto transitionCommon = std::make_shared<TransitionCommon> (source, dest, nodeConditionKey, commonKey,CommonMode::ALL);
             transitionCommon->updateWeak();
             return transitionCommon;
@@ -483,15 +470,7 @@ TransitionTypes type,const std::string lexeme)
         if (std::regex_match(lexeme, m, uniqueRegex)) {
             std::string nodeConditionKey = m[1];
 
-            if(!NodeDictionary::hasFunction(nodeConditionKey)){
 
-                //if the key is not linked to a condition 
-                //by default, it is initialized by a edge that is always false
-                auto transitionNone = std::make_shared<TransitionNone>(source, dest);
-                transitionNone->updateWeak();
-                return transitionNone;
-                //throw std::invalid_argument("Bad Node Test " + nodeConditionKey );
-            }
             auto transitionUnique = std::make_shared<TransitionUnique>(source, dest, nodeConditionKey);
             transitionUnique->updateWeak();
             return transitionUnique;

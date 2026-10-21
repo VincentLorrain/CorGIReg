@@ -58,12 +58,12 @@ const std::vector<std::shared_ptr<RunTimeContext>> State::test( std::shared_ptr<
                             out.push_back( std::make_shared<RunTimeContext>(newContext,nextState,nextNode));
                            
                         }else{
-                            out.push_back( std::make_shared<RunTimeContext>(newContext,nextState,nullptr));
+                            out.push_back( std::make_shared<RunTimeContext>(newContext,nextState,std::nullopt));
                         }
 
                     }
                 }else{
-                    out.push_back( std::make_shared<RunTimeContext>(newContext,nextState,nullptr));
+                    out.push_back( std::make_shared<RunTimeContext>(newContext,nextState,std::nullopt));
                 }
             }
             newContext.reset();

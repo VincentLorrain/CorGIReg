@@ -12,7 +12,6 @@
 
 #include "TransitionGraph/TransitionGraph.hpp"
 #include "CompileTool/Common/AstNode.hpp"
-#include "NodeTest/NodeCondition.hpp"
 #include "CompileTool/CompileTransitionGraph/PartitionGraphLexer.hpp"
 #include "CompileTool/CompileTransitionGraph/PartitionGraphParser.hpp"
 #include "CompileTool/CompileTransitionGraph/PartitionGraphTokens.hpp"

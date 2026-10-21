@@ -1,4 +1,5 @@
 #include <catch2/catch_test_macros.hpp>
+#include "NodeTest/NodeDictionary.hpp"
 #include "BasicGraphIr/Graph.hpp"
 #include "TransitionGraph/TransitionGraph.hpp"
 

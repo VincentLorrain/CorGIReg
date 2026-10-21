@@ -1,5 +1,7 @@
 
 #include "TransitionGraph/TransitionGraph.hpp"
+#include "GraphAdapters/BasicGraphAdapter.hpp"
+#include "NodeTest/NodeDictionary.hpp"
 
 namespace CorGIReg{
 
@@ -7,6 +9,10 @@ TGCompiled::TGCompiled(std::set<std::size_t> origins,std::set<std::shared_ptr<Tr
 
     mAllOrigin = origins;
     mTransitions = transitions;
+    for (const auto& transition : mTransitions) {
+        const auto key = transition->getTestKey();
+        if (NodeDictionary::hasFunction(key)) mLegacyPredicates.emplace(key, NodeDictionary::at(key));
+    }
 }
 
 const std::set<std::shared_ptr<State>> TGCompiled::getStates(void){
@@ -63,6 +69,27 @@ std::string TGCompiled::exportToMermaid(void) {
 }
 
 std::shared_ptr<SolutionFromStartingPoint> TGCompiled::test(const std::vector<std::shared_ptr<NodeNN>>& startNodes){
+    auto graph = std::make_shared<BasicGraphAdapter>(startNodes);
+    std::vector<std::optional<NodeId>> starts;
+    for (const auto& node : startNodes) {
+        starts.push_back(node ? std::optional<NodeId>(graph->id(node)) : std::nullopt);
+    }
+    NodePredicates predicates;
+    for (const auto& entry : mLegacyPredicates) {
+        predicates.emplace(entry.first, [graph, condition = entry.second](NodeId id) {
+            return condition(graph->node(id));
+        });
+    }
+    return test(graph, starts, std::move(predicates));
+}
+
+std::shared_ptr<SolutionFromStartingPoint> TGCompiled::test(
+    std::shared_ptr<const GraphView> graph,
+    const std::vector<std::optional<NodeId>>& startNodes,
+    NodePredicates predicates){
+    if (!graph) throw std::invalid_argument("Null graph view");
+    auto environment = std::make_shared<MatchEnvironment>(MatchEnvironment{graph, std::move(predicates)});
+
     /*
     create the initial walks with the start nodes on the graph NN and the start States on the TransitionGraph
     */
@@ -73,7 +100,11 @@ std::shared_ptr<SolutionFromStartingPoint> TGCompiled::test(const std::vector<st
 
     std::vector<std::shared_ptr<RunTimeContext>> walks;
     for(std::size_t i = 0; i < startNodes.size(); i++){
-        walks.push_back(std::make_shared<RunTimeContext>(startNodesFsm[i],startNodes[i]));
+        if (startNodes[i]) {
+            graph->parents(*startNodes[i]);
+            graph->children(*startNodes[i]);
+        }
+        walks.push_back(std::make_shared<RunTimeContext>(startNodesFsm[i],startNodes[i],environment));
     }
 
     std::vector<std::shared_ptr<RunTimeContext>> nextWalks;
@@ -119,7 +150,7 @@ std::shared_ptr<SolutionFromStartingPoint> TGCompiled::test(const std::vector<st
 
 
     
-    return std::make_shared<SolutionFromStartingPoint>(allValidContext,mAllOrigin,mQuery,startNodes);
+    return std::make_shared<SolutionFromStartingPoint>(allValidContext,mAllOrigin,mQuery,startNodes,graph);
 
     // MatchResult allMatch(allValidContext,getNbSubFsm(),mQuery,startNodes);
     // RunTimeContext::rst();

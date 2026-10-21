@@ -1,14 +1,13 @@
 
 #pragma once
 
-#include "BasicGraphIr/Graph.hpp"
+#include "GraphAccess/GraphView.hpp"
 #include "TransitionGraph/State.hpp"
-#include "NodeTest/NodeCondition.hpp"
 #include "TransitionGraph/RunTimeContext.hpp"
-#include "NodeTest/NodeDictionary.hpp"
 
 
 #include <set>
+#include <sstream>
 #include <memory>
 #include <map>
 #include <algorithm>
@@ -44,7 +43,7 @@ namespace CorGIReg{
 
     struct TransitionResult {
         bool success;
-        std::set<std::shared_ptr<NodeNN>> node;
+        NodeIds node;
     };
 
 

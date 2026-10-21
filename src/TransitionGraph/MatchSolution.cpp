@@ -1,12 +1,13 @@
 #include "TransitionGraph/MatchSolution.hpp"
+#include "TransitionGraph/State.hpp"
 
 
 namespace CorGIReg {
 
 MatchSolution::MatchSolution(std::vector<std::shared_ptr<RunTimeContext>>& precedence,
                              const std::string& query,
-                             const std::vector<NodePtr>& startNode)
-    : mQueryFrom(query), mStartNode(startNode) {
+                             const std::vector<std::optional<NodeId>>& startNode, std::shared_ptr<const GraphView> graph)
+    : mGraph(std::move(graph)), mQueryFrom(query), mStartNode(startNode) {
     //TODO
     //ASSERT all precedence must be compatible
     //ASSERT all precedence must be valid
@@ -24,9 +25,9 @@ MatchSolution::MatchSolution(std::vector<std::shared_ptr<RunTimeContext>>& prece
     }
 }
 
-const std::set<NodePtr> MatchSolution::getAll() const {
+const std::set<NodeId> MatchSolution::getAll() const {
     // Create a unique set to store all the elements
-    std::set<NodePtr> uniqueSet;
+    std::set<NodeId> uniqueSet;
 
     // Iterate through the map and insert elements from each set into the unique set
     for (const auto& pair : mSolution) {
@@ -37,9 +38,10 @@ const std::set<NodePtr> MatchSolution::getAll() const {
 }
 
 bool MatchSolution::areCompatible(const std::shared_ptr<MatchSolution>& solution) const {
-    std::set<NodePtr> set1 = solution->getAll();
-    std::set<NodePtr> set2 = getAll();
-    std::set<NodePtr> intersection;
+    if (mGraph != solution->mGraph) return true;
+    std::set<NodeId> set1 = solution->getAll();
+    std::set<NodeId> set2 = getAll();
+    std::set<NodeId> intersection;
     std::set_intersection(set1.begin(), set1.end(), set2.begin(), set2.end(),
                           std::inserter(intersection, intersection.begin()));
     return intersection.empty();
@@ -51,7 +53,8 @@ bool MatchSolution::areCompatible(const std::shared_ptr<MatchSolution>& solution
  */
 
     SolutionFromStartingPoint::SolutionFromStartingPoint(const std::vector<std::shared_ptr<RunTimeContext>> validRunTime, 
-    const std::set<std::size_t> allGraphOrigin,const std::string query,const std::vector<NodePtr> startNode):
+    const std::set<std::size_t> allGraphOrigin,const std::string query,const std::vector<std::optional<NodeId>> startNode, std::shared_ptr<const GraphView> graph):
+    mGraph(std::move(graph)),
     mAllGraphOrigin(allGraphOrigin),mValidRunTime(validRunTime),mQuery(query),mStartNode(startNode){
         std::vector<std::shared_ptr<RunTimeContext>> precedence;
         _makeTheMatch(precedence);
@@ -66,23 +69,23 @@ bool MatchSolution::areCompatible(const std::shared_ptr<MatchSolution>& solution
             // We have a set of RunTimeContext that are compatible
             // and cover all the graph origin (in others words, all the sub query)
 
-            std::set<NodePtr> validNode;
+            std::set<NodeId> validNode;
             for (const auto& contextPtr : precedence) {
-                std::set<std::shared_ptr<NodeNN>>  tmp =  contextPtr->getValidNodes();
+                std::set<NodeId>  tmp =  contextPtr->getValidNodes();
 
                 validNode.insert(tmp.begin(), tmp.end());
             }
-            std::set<NodePtr> rejectNode;
+            std::set<NodeId> rejectNode;
             for (const auto& contextPtr : precedence) {
-                std::set<std::shared_ptr<NodeNN>>  tmp = contextPtr->getRejectedNodes();
+                std::set<NodeId>  tmp = contextPtr->getRejectedNodes();
                 rejectNode.insert(tmp.begin(),tmp.end());
             }
 
             if (std::includes(validNode.begin(), validNode.end(), rejectNode.begin(), rejectNode.end())) {
-                mMatches.push_back(std::make_shared<MatchSolution>(precedence, mQuery, mStartNode));
+                mMatches.push_back(std::make_shared<MatchSolution>(precedence, mQuery, mStartNode, mGraph));
             }
 
-            precedence.pop_back();
+            if (!precedence.empty()) precedence.pop_back();
             return;
         }
 
@@ -117,7 +120,7 @@ bool MatchSolution::areCompatible(const std::shared_ptr<MatchSolution>& solution
         }
 
         if (!precedence.empty()) {
-            precedence.pop_back();
+            if (!precedence.empty()) precedence.pop_back();
         }
         return;
     }

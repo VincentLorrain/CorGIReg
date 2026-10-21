@@ -11,16 +11,16 @@
 
 #include "TransitionGraph/Transition.hpp"
 #include "TransitionGraph/MatchSolution.hpp"
-#include "BasicGraphIr/Graph.hpp"
-#include "NodeTest/NodeCondition.hpp"
-
-#include "BasicGraphIr/Graph.hpp"
+#include "GraphAccess/GraphView.hpp"
 
 namespace CorGIReg{
+
+class NodeNN;
 
 class TGCompiled
 {
 private:
+    std::map<std::string, std::function<bool(const std::shared_ptr<NodeNN>&)>> mLegacyPredicates;
     std::set<std::size_t> mAllOrigin;
     std::set<std::shared_ptr<Transition>> mTransitions;
     const std::string mQuery;
@@ -32,8 +32,16 @@ public:
 
     TGCompiled(std::set<std::size_t> origins,std::set<std::shared_ptr<Transition>> transitions,CommonMode,const std::string query);
     ~TGCompiled() =default;
-    // TODO
+    // Compatibility entry point. Captured IDs can be resolved through the
+    // BasicGraphAdapter returned by SolutionFromStartingPoint::getGraph().
     std::shared_ptr<SolutionFromStartingPoint> test(const std::vector<std::shared_ptr<NodeNN>>& StartNodes);
+    // Predicates and topology belong to this call. Missing predicates reject
+    // their nodes; nullopt is terminal absence, whereas NodeId{0} is valid.
+    std::shared_ptr<SolutionFromStartingPoint> test(
+        std::shared_ptr<const GraphView> graph,
+        const std::vector<std::optional<NodeId>>& startNodes,
+        NodePredicates predicates);
+
     
     /**
      * @brief get the number of start state

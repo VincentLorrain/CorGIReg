@@ -7,13 +7,11 @@
 #include <memory>
 #include <algorithm> // For std::set_intersection
 
-#include "NodeTest/NodeDictionary.hpp"
-#include "BasicGraphIr/Graph.hpp"
+#include "GraphAccess/GraphView.hpp"
 #include "TransitionGraph/RunTimeContext.hpp"
 
 namespace CorGIReg {
 
-using NodePtr = std::shared_ptr<NodeNN>; // Assuming Node is defined elsewhere
 
 
 /**
@@ -23,27 +21,29 @@ using NodePtr = std::shared_ptr<NodeNN>; // Assuming Node is defined elsewhere
  */
 class MatchSolution {
 private:
-    std::map<std::string, std::set<NodePtr>> mSolution;
+    std::shared_ptr<const GraphView> mGraph;
+    std::map<std::string, std::set<NodeId>> mSolution;
     const std::string mQueryFrom;
-    const std::vector<NodePtr> mStartNode;
+    const std::vector<std::optional<NodeId>> mStartNode;
 
 public:
     MatchSolution() = delete;
 
     MatchSolution(std::vector<std::shared_ptr<RunTimeContext>>& precedence,
                   const std::string& query,
-                  const std::vector<NodePtr>& startNode);
+                  const std::vector<std::optional<NodeId>>& startNode, std::shared_ptr<const GraphView> graph);
 
-    inline const std::set<NodePtr>& at(const std::string& key) const {
+    inline const std::set<NodeId>& at(const std::string& key) const {
         return mSolution.at(key);
     }
 
-    const std::set<NodePtr> getAll() const;
+    const std::set<NodeId> getAll() const;
+    const auto& getGraph() const noexcept { return mGraph; }
 
     bool areCompatible(const std::shared_ptr<MatchSolution>& solution) const;
 
     inline const std::string& getQuery() const noexcept { return mQueryFrom; }
-    inline const std::vector<NodePtr>& getStartNode() const noexcept { return mStartNode; }
+    inline const std::vector<std::optional<NodeId>>& getStartNode() const noexcept { return mStartNode; }
 };
 
 /**
@@ -55,6 +55,7 @@ private:
     /**
      * @brief The all valid RunTimeContext from the starting point
      */
+    std::shared_ptr<const GraphView> mGraph;
     const std::vector<std::shared_ptr<RunTimeContext>> mValidRunTime;
     /**
      * @brief The query
@@ -64,7 +65,7 @@ private:
     /**
      * @brief The start node
      */
-    const std::vector<NodePtr> mStartNode;
+    const std::vector<std::optional<NodeId>> mStartNode;
     /**
      * @brief The all graph origin
      */
@@ -74,8 +75,10 @@ private:
     std::vector<std::shared_ptr<MatchSolution>> mMatches;
 
 public:
-    SolutionFromStartingPoint(const std::vector<std::shared_ptr<RunTimeContext>> validRunTime, const std::set<std::size_t> allGraphOrigin,const std::string query,const std::vector<NodePtr> startNode);
+    SolutionFromStartingPoint(const std::vector<std::shared_ptr<RunTimeContext>> validRunTime, const std::set<std::size_t> allGraphOrigin,const std::string query,const std::vector<std::optional<NodeId>> startNode, std::shared_ptr<const GraphView> graph);
     ~SolutionFromStartingPoint() = default;
+    const auto& getMatches() const noexcept { return mMatches; }
+    const auto& getGraph() const noexcept { return mGraph; }
     bool isMatch() const{
         return !mMatches.empty();
     }
