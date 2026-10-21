@@ -34,6 +34,9 @@ namespace CorGIReg {
         
     public:
         PGInterpreterIR(const std::string graphMatchExpr);
+        // Upper bound for '*' repetitions and additional '+' repetitions.
+        // Zero produces no '*' copies and keeps the mandatory '+' occurrence.
+        PGInterpreterIR(const std::string graphMatchExpr, size_t maxLoops);
         virtual ~PGInterpreterIR() =default;
 
         std::shared_ptr<GraphNN>  interpret(void);

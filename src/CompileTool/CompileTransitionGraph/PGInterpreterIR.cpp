@@ -3,13 +3,18 @@
 
 namespace CorGIReg{
 
-PGInterpreterIR::PGInterpreterIR(const std::string graphMatchExpr):mParser(graphMatchExpr){
+PGInterpreterIR::PGInterpreterIR(const std::string graphMatchExpr)
+    : PGInterpreterIR(graphMatchExpr, 10) {}
+
+PGInterpreterIR::PGInterpreterIR(const std::string graphMatchExpr, size_t maxLoops)
+    : mMaxLoops(maxLoops), mParser(graphMatchExpr){
     mActGroupe = 0;
 }
  
 
 std::shared_ptr<GraphNN>  PGInterpreterIR::interpret(void){
     mActGroupe = 0;
+    mCommonNodes.clear();
     std::shared_ptr<AstNode<tGTokensTypes>> tree = mParser.parse();
     std::shared_ptr<GraphNN> out = visit(tree);
 
@@ -221,6 +226,14 @@ std::shared_ptr<GraphNN> PGInterpreterIR::qomF(std::shared_ptr<GraphNN> tg){
 
     auto qzmfPart = qzmF(tg);
 
+    // qzmF removes the template from the common-node registry. For '+',
+    // that template is the mandatory occurrence and remains in the result.
+    for (const auto& node : tg->getNodes()) {
+        if (node->hasArgument("isCommon")) {
+            mCommonNodes[node->getInfo<std::string>("Key")].insert(node);
+        }
+    }
+
     if (!hasCommon){
         return nextF(tg,qzmfPart);
     }
@@ -246,7 +259,7 @@ std::shared_ptr<GraphNN> PGInterpreterIR::qzmF(std::shared_ptr<GraphNN> tg){
 
     std::shared_ptr<GraphNN> newTg = std::make_shared<GraphNN>();
 
-    for (size_t i = 0; i < randomIterations -1; i++) {
+    for (size_t i = 0; i < randomIterations; i++) {
         std::shared_ptr<GraphNN> tgFixed = tg->deepCopy({});
         /*
         add the common nodes to the list of common nodes
