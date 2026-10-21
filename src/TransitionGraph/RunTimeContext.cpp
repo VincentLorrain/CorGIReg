@@ -101,6 +101,7 @@ bool RunTimeContext::isOnValidState(void){
         }else{
             mValidNodes[tag] = {node};
         }
+        mCaptures.push_back({node, tag});
 
      }
 

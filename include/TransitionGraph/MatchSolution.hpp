@@ -23,6 +23,7 @@ class MatchSolution {
 private:
     std::shared_ptr<const GraphView> mGraph;
     std::map<std::string, std::set<NodeId>> mSolution;
+    std::vector<MatchWalk> mWalks;
     const std::string mQueryFrom;
     const std::vector<std::optional<NodeId>> mStartNode;
 
@@ -39,6 +40,8 @@ public:
 
     const std::set<NodeId> getAll() const;
     const auto& getGraph() const noexcept { return mGraph; }
+    const auto& getWalks() const noexcept { return mWalks; }
+    std::string getNodeName(NodeId node) const { return mGraph->nodeName(node); }
 
     bool areCompatible(const std::shared_ptr<MatchSolution>& solution) const;
 

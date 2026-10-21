@@ -2,6 +2,7 @@
 #include <memory>
 #include <optional>
 #include "GraphAccess/GraphView.hpp"
+#include "TransitionGraph/MatchTrace.hpp"
 namespace CorGIReg {
 class State;
 struct MatchEnvironment {
@@ -16,6 +17,7 @@ class RunTimeContext {
     std::optional<NodeId> mActOpNode;
     std::map<NodeId, std::size_t> mCommonNodes;
     std::map<std::string, NodeIds> mValidNodes;
+    std::vector<NodeCapture> mCaptures;
 public:
     RunTimeContext(std::shared_ptr<State> state, std::optional<NodeId> node,
                    std::shared_ptr<const MatchEnvironment> environment);
@@ -31,6 +33,7 @@ public:
     NodeIds getRejectedNodes() const { return *mRejectedNodes; }
     std::optional<NodeId> getActNode() const { return mActOpNode; }
     const std::map<std::string, NodeIds>& getValid() const { return mValidNodes; }
+    const auto& getCaptures() const noexcept { return mCaptures; }
     void setCommon(NodeId node, std::size_t commonIdx);
     std::optional<NodeId> getCommonNodeFromIdx(const std::size_t& commonIdx);
     NodeIds getCommonNodes() const;

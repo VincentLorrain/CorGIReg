@@ -21,6 +21,8 @@ public:
     virtual ~GraphView() = default;
     virtual NodeIds parents(NodeId node) const = 0;
     virtual NodeIds children(NodeId node) const = 0;
+    // Optional presentation metadata. IDs, not names, establish identity.
+    virtual std::string nodeName(NodeId node) const { return std::to_string(node); }
 };
 
 } // namespace CorGIReg
