@@ -247,6 +247,7 @@ namespace CorGIReg{
         bool isCommon(void) override {
             return true;
         }
+        size_t getCommonIdx(void) override { return mCommonIdx; }
 
         std::string strRep(void) const override;
 

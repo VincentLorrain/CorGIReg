@@ -1,4 +1,5 @@
 #include "TransitionGraph/Transition.hpp"
+#include <deque>
 
 
 namespace CorGIReg{
@@ -290,20 +291,29 @@ TransitionRef::TransitionRef(std::shared_ptr<State> source,std::shared_ptr<State
 
 
 std::pair<std::size_t,int> TransitionRef::getAnchor(std::shared_ptr<State>& dest) const{
-    for (const auto& edgeStart : dest->getTransitions()){
-        if (auto sharedEdge = edgeStart.lock()) {
-            const std::map<size_t, int> commonRef = sharedEdge->getRelative();
-            //is not obligatoery the min distant 
-            auto minPair = std::min_element(commonRef.begin(), commonRef.end(),
-            [](const auto& p1, const auto& p2) {return std::abs(p1.second) < std::abs(p2.second); });
-            if (minPair != commonRef.end()) {
-                return *minPair;
+    // Find an actual common transition in the repeated body. Falling back to
+    // global ID zero made matches depend on which query was compiled first.
+    std::deque<std::pair<std::shared_ptr<State>, int>> pending{{dest, 0}};
+    std::set<std::shared_ptr<State>> visited;
+    while (!pending.empty()) {
+        auto [state, delta] = pending.front();
+        pending.pop_front();
+        if (!visited.insert(state).second) continue;
+        for (const auto& edge : state->getTransitions()) {
+            auto transition = edge.lock();
+            if (!transition) throw std::runtime_error("Expired transition while finding common anchor");
+            if (transition->isCommon()) return {transition->getCommonIdx(), delta};
+            // Do not follow another repetition's jump when locating its body.
+            if (std::dynamic_pointer_cast<TransitionRef>(transition)) continue;
+            if (std::dynamic_pointer_cast<TransitionEmpty>(transition)) {
+                pending.push_front({transition->getDestState(), delta});
+            } else {
+                pending.push_back({transition->getDestState(),
+                    delta + (transition->isDirectionIsChildren() ? -1 : 1)});
             }
-        }else{
-            throw std::runtime_error("Error in TransitionRef bad weak ptr");
         }
     }
-    return {0,0};
+    throw std::runtime_error("No common anchor reachable in repeated body");
 }
 
 const TransitionResult TransitionRef::test(const std::shared_ptr<RunTimeContext>& context){
