@@ -4,6 +4,10 @@
 
 CorGIReg is an C++ library designed to apply regular expression operations on graph structures. This library extends traditional text-based regular expressions to graphs, allowing for powerful and flexible pattern matching in complex data structures.
 
+To run patterns directly on an existing graph through a minimal read-only
+interface, see [Graph adapters](doc/graph-adapters.md). Results expose graph-local
+node IDs, with an adapter for resolving existing `NodeNN` objects.
+
 # Graph-Regex Token Types
 
 CorGIReg extends conventional regular-expression syntax with tokens that describe how a node condition should be interpreted inside a transition graph.  The lexer recognises three flavours of "key" tokens, each mapping to a distinct transition type:
