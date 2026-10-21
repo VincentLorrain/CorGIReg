@@ -9,6 +9,28 @@
 
 using namespace CorGIReg;
 
+TEST_CASE("Common keys preserve the complete predicate name", "[regression]") {
+    for (const std::string key : {"RegressionConv", "Regression_12"}) {
+        NodeDictionary::registerFunction(key, [key](NodeNN::Ptr node) {
+            return node->getType() == key;
+        });
+        auto matching = std::make_shared<NodeNN>();
+        matching->setInfo("Type", key);
+        auto different = std::make_shared<NodeNN>();
+        different->setInfo("Type", std::string("Other"));
+
+        for (const std::string suffix : {"#", "#2", "$", "$3"}) {
+            INFO(key + suffix);
+            auto compiled = PGInterpreterTG(key + suffix).interpret();
+            REQUIRE(compiled->getTransitions().size() == 1);
+            REQUIRE((*compiled->getTransitions().begin())->getTestKey() == key);
+            REQUIRE(compiled->test({matching})->isMatch());
+            REQUIRE_FALSE(compiled->test({different})->isMatch());
+            REQUIRE(compiled->test({matching})->isMatch());
+        }
+    }
+}
+
 TEST_CASE("PGInterpreterTG") {
 
     SECTION("Parsing result") {

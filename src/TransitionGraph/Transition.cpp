@@ -420,7 +420,7 @@ TransitionTypes type,const std::string lexeme)
     } else if (type == TransitionTypes::COMMON) {
         // TODO make common mode Strict input or output
         std::smatch m;
-        std::regex commonRegex("\\s*([A-Za-z_0-9])+\\#([0-9]*)");
+        std::regex commonRegex("\\s*([A-Za-z_0-9]+)\\#([0-9]*)");
         if (std::regex_match(lexeme, m, commonRegex)) {
             std::string nodeConditionKey = m[1];
             std::string commonId =  m[2];
@@ -443,7 +443,7 @@ TransitionTypes type,const std::string lexeme)
         }
     } else if (type == TransitionTypes::STRICTCOMMON){
         std::smatch m;
-        std::regex commonRegex("\\s*([A-Za-z_0-9])+\\$([0-9]*)");
+        std::regex commonRegex("\\s*([A-Za-z_0-9]+)\\$([0-9]*)");
         
         if (std::regex_match(lexeme, m, commonRegex)) {
             std::string nodeConditionKey = m[1];
