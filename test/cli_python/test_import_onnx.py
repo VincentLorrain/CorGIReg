@@ -73,6 +73,37 @@ class OnnxTests(unittest.TestCase):
         self.assertEqual(len(graph["nodes"]), 2)
         self.assertEqual(graph["edges"], [(0, 1)])
 
+    def test_declared_attributes_and_absent_optional_inputs_reach_node_test(self):
+        value = lambda name, shape: helper.make_tensor_value_info(name, TensorProto.FLOAT, shape)
+        graph = helper.make_graph([helper.make_node("Conv", ["x", "w", ""], ["z"],
+                                                    name="encoder/conv_0", kernel_shape=[3, 3])],
+                                  "attributes", [value("x", [1, 1, 5, 5]), value("w", [1, 1, 3, 3])],
+                                  [value("z", [1, 1, 3, 3])])
+        model = helper.make_model(graph)
+        onnx.checker.check_model(model)
+        onnx.save_model(model, self.path)
+        node = load_onnx(self.path)["nodes"][0]
+        self.assertEqual(node["attributes"], {"kernel_shape": [3, 3]})
+        self.assertEqual(node["inputs"], ["x", "w", ""])
+        definition = {"schema_version": 2, "name": "conv3", "formats": {"onnx": {
+            "op_types": ["Conv"], "where": {"all": [
+                {"path": ["attributes", "kernel_shape"], "eq": [3, 3]},
+                {"path": ["attributes", "group"], "exists": False},
+                {"path": ["inputs", 2], "exists": False},
+                {"path": ["name"], "regex": "encoder/conv_[0-9]+"}]}}}}
+        library = self.path.with_suffix(".json")
+        for expected, bias_present in [([0], False), ([], True)]:
+            definition["formats"]["onnx"]["where"]["all"][2]["exists"] = bias_present
+            library.write_text(json.dumps(definition), encoding="utf-8")
+            result = subprocess.run([sys.executable, "-m", "corgireg_cli", "-i", str(self.path),
+                                     "--node-library", str(library), "-r", "conv3"],
+                                    env={**os.environ, "PYTHONPATH": str(ROOT / "python")},
+                                    capture_output=True, text=True, timeout=20)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            report = json.loads(result.stdout)
+            self.assertEqual(report["node_definitions"]["conv3"]["node_ids"], expected)
+            self.assertEqual([m["node_ids"][0] for m in report["matches"]], expected)
+
     def test_invalid_values_and_nested_graphs_are_rejected(self):
         for nodes in [[helper.make_node("Relu", ["missing"], ["z"])],
                       [helper.make_node("Relu", ["x"], ["z"]), helper.make_node("Relu", ["x"], ["z"])]]:

@@ -52,6 +52,7 @@ NodeValue readValue(std::istream& input, unsigned depth = 0) {
     if (depth > 64) throw std::invalid_argument("Node document nesting exceeds 64");
     const auto type = token(input);
     if (type == "n") return nullptr;
+    if (type == "m") return NodeValue::Missing{};
     if (type == "b") {
         auto value = number(input);
         if (value > 1) throw std::invalid_argument("Invalid boolean value");

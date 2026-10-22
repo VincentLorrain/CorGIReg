@@ -1,5 +1,37 @@
 """Import top-level ONNX operations using the official protobuf reader."""
 from .graph import validate_graph
+import math
+
+
+def _attribute_value(attribute, onnx):
+    """Expose declared scalar/list values; retain structured metadata for tensors."""
+    kind = onnx.AttributeProto
+
+    def string(value):
+        try:
+            return value.decode("utf-8")
+        except UnicodeDecodeError:
+            return {"bytes_hex": value.hex()}
+
+    def number(value):
+        return value if math.isfinite(value) else {"nonfinite": str(value)}
+
+    def tensor(value):
+        return {"kind": "tensor", "shape": list(value.dims), "data_type": value.data_type}
+
+    converters = {
+        kind.INT: lambda: attribute.i,
+        kind.FLOAT: lambda: number(attribute.f),
+        kind.STRING: lambda: string(attribute.s),
+        kind.INTS: lambda: list(attribute.ints),
+        kind.FLOATS: lambda: [number(value) for value in attribute.floats],
+        kind.STRINGS: lambda: [string(value) for value in attribute.strings],
+        kind.TENSOR: lambda: tensor(attribute.t),
+        kind.TENSORS: lambda: [tensor(value) for value in attribute.tensors],
+    }
+    if attribute.ref_attr_name:
+        return {"reference": attribute.ref_attr_name}
+    return converters.get(attribute.type, lambda: {"onnx_attribute_type": attribute.type})()
 
 
 def load_onnx(path):
@@ -23,9 +55,14 @@ def load_onnx(path):
         if not operation.op_type:
             raise ValueError(f"Missing operation type at node {index}")
         op = operation.op_type if operation.domain in ("", "ai.onnx") else f"{operation.domain}.{operation.op_type}"
+        attributes = {}
+        for attribute in operation.attribute:
+            if attribute.name in attributes:
+                raise ValueError(f"Duplicate ONNX attribute {attribute.name!r} at node {index}")
+            attributes[attribute.name] = _attribute_value(attribute, onnx)
         nodes.append({"id": index, "op": op, "name": operation.name or f"node_{index}",
                       "inputs": list(operation.input), "outputs": list(operation.output),
-                      "domain": operation.domain})
+                      "domain": operation.domain, "attributes": attributes})
         for output in operation.output:
             if not output:  # Optional absent outputs do not denote a value.
                 continue

@@ -3,6 +3,8 @@ import json
 import re
 import math
 
+_ABSENT_INPUT = object()
+
 
 def node_id(value):
     if type(value) is not int or not 0 <= value < 2**64:
@@ -49,6 +51,8 @@ def encode_value(value, depth=0):
     """Typed transport only: rules are compiled and evaluated by C++ NodeTest."""
     if depth > 64:
         raise ValueError("Node document nesting exceeds 64")
+    if value is _ABSENT_INPUT:
+        return "m"
     if value is None:
         return "n"
     if type(value) is bool:
@@ -83,7 +87,10 @@ def encode_request(graph, query, max_starts, memberships=None, definition_report
     for node in graph["nodes"]:
         lines.append(f'{node["id"]} {text(node["predicate"])} {text(node["name"])}')
         if definition_report is not None:
-            lines.append(encode_value(node))
+            document = dict(node)
+            if isinstance(document.get("inputs"), list):
+                document["inputs"] = [_ABSENT_INPUT if item == "" else item for item in document["inputs"]]
+            lines.append(encode_value(document))
     lines.append(str(len(graph["edges"])))
     lines.extend(f"{a} {b}" for a, b in graph["edges"])
     if memberships is not None:

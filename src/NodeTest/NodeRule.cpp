@@ -42,7 +42,8 @@ bool equal(const V& a, const V& b) {
     return false;
 }
 bool compatible(const V& a, const V& b) {
-    return !as<V::Unsupported>(a) && !as<V::Unsupported>(b) &&
+    if ((as<double>(a) && !numeric(a)) || (as<double>(b) && !numeric(b))) return false;
+    return !as<V::Unsupported>(a) && !as<V::Unsupported>(b) && !as<V::Missing>(a) && !as<V::Missing>(b) &&
         ((numeric(a) && numeric(b)) || a.data.index() == b.data.index());
 }
 A pathOf(const V& value, const std::string& path) {
@@ -71,7 +72,7 @@ const V* lookup(const V& root, const A& path) {
             current = &(*array)[index];
         }
     }
-    return current;
+    return as<V::Missing>(*current) ? nullptr : current;
 }
 std::regex regexOf(const V& value, const std::string& path) {
     auto pattern = as<std::string>(value);
@@ -213,7 +214,15 @@ NodeValue nodeDocument(const NodeNN& node) {
     O result{{"attributes", attributes}, {"op", node.getType()}};
     for (const auto& key : {"name", "domain", "inputs"}) {
         auto it = attributes.find(key);
-        if (it != attributes.end()) result.emplace(key, it->second);
+        if (it != attributes.end()) {
+            auto value = it->second;
+            if (std::string(key) == "inputs") {
+                if (auto array = std::get_if<A>(&value.data))
+                    for (auto& item : *array)
+                        if (auto name = as<std::string>(item); name && name->empty()) item = V::Missing{};
+            }
+            result.emplace(key, std::move(value));
+        }
     }
     return result;
 }

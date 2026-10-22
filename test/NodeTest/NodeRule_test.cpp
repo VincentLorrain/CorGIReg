@@ -32,6 +32,10 @@ TEST_CASE("Node rules compare typed values arrays and regexes", "[NodeTest][rule
     REQUIRE(compileNodeRule(field({"inputs"}, "length", O{{"eq", 2}}))(doc));
     REQUIRE(compileNodeRule(field({"inputs", 1}, "eq", "w"))(doc));
     REQUIRE(compileNodeRule(field({"inputs", 2}, "exists", false))(doc));
+    V optionalInputs = O{{"inputs", A{"x", V::Missing{}, nullptr, ""}}};
+    REQUIRE(compileNodeRule(field({"inputs", 1}, "exists", false))(optionalInputs));
+    REQUIRE(compileNodeRule(field({"inputs", 2}, "exists", true))(optionalInputs));
+    REQUIRE(compileNodeRule(field({"inputs", 3}, "exists", true))(optionalInputs));
     REQUIRE(compileNodeRule(field({"name"}, "regex", "encoder/conv_[0-9]+"))(doc));
     REQUIRE_FALSE(compileNodeRule(field({"name"}, "regex", "conv_[0-9]+"))(doc));
     REQUIRE_FALSE(compileNodeRule(field({"attributes", "group"}, "regex", ".*"))(doc));
@@ -72,6 +76,8 @@ TEST_CASE("NodeCondition evaluates legacy expressions and declarative NodeNN rul
     node->setInfo("Type", std::string("Conv"));
     node->setInfo("kernel", std::vector<int>{3, 3});
     node->setInfo("bias", false);
+    node->setInfo("inputs", std::vector<std::string>{"x", "w", ""});
+    REQUIRE(compileNodeRule(field({"inputs", 2}, "exists", false))(nodeDocument(*node)));
     node->setInfo("custom", std::make_shared<int>(2));
     NodeCondition legacy("LegacyRuleTest", "getType() == Conv && hasArgument(kernel)");
     REQUIRE(legacy.test(node));

@@ -10,11 +10,12 @@ namespace CorGIReg {
 
 // A format-independent document. Null is a value; absence is a failed path lookup.
 struct NodeValue {
+    struct Missing {};
     struct Unsupported { bool operator==(const Unsupported&) const { return true; } };
     using Array = std::vector<NodeValue>;
     using Object = std::map<std::string, NodeValue>;
     using Data = std::variant<std::nullptr_t, bool, std::int64_t, std::uint64_t,
-                              double, std::string, Array, Object, Unsupported>;
+                              double, std::string, Array, Object, Unsupported, Missing>;
     Data data = nullptr;
     NodeValue() = default;
     NodeValue(std::nullptr_t) : data(nullptr) {}
@@ -28,6 +29,7 @@ struct NodeValue {
     NodeValue(Array value) : data(std::move(value)) {}
     NodeValue(Object value) : data(std::move(value)) {}
     NodeValue(Unsupported value) : data(value) {}
+    NodeValue(Missing value) : data(value) {}
 };
 
 using NodeRule = std::function<bool(const NodeValue&)>;

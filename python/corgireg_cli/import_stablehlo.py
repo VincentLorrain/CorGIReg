@@ -1,10 +1,42 @@
 """Read textual StableHLO through the MLIR bindings shipped with jaxlib."""
 import os
+import math
 from pathlib import Path
 
 from .graph import validate_graph
 
 _dll_directory = None
+
+
+def _attribute_value(attribute, ir):
+    """Decode builtin MLIR values; keep dialect-specific attributes explicit."""
+    if isinstance(attribute, (ir.StringAttr, ir.BoolAttr, ir.IntegerAttr)):
+        return attribute.value
+    if isinstance(attribute, ir.FloatAttr):
+        value = attribute.value
+        return value if math.isfinite(value) else {"nonfinite": str(value)}
+    if isinstance(attribute, ir.ArrayAttr):
+        return [_attribute_value(value, ir) for value in attribute]
+    if isinstance(attribute, (ir.DenseBoolArrayAttr, ir.DenseI8ArrayAttr, ir.DenseI16ArrayAttr,
+                              ir.DenseI32ArrayAttr, ir.DenseI64ArrayAttr,
+                              ir.DenseF32ArrayAttr, ir.DenseF64ArrayAttr)):
+        return [value if not isinstance(value, float) or math.isfinite(value)
+                else {"nonfinite": str(value)} for value in attribute]
+    if isinstance(attribute, (ir.DenseIntElementsAttr, ir.DenseFPElementsAttr)):
+        shape = list(ir.ShapedType(attribute.type).shape)
+        if math.prod(shape) > 4096:
+            return {"kind": "dense_elements", "shape": shape,
+                    "element_type": str(ir.ShapedType(attribute.type).element_type)}
+        values = iter(attribute)
+
+        def reshape(dimensions):
+            if dimensions:
+                return [reshape(dimensions[1:]) for _ in range(dimensions[0])]
+            value = next(values)
+            return value if not isinstance(value, float) or math.isfinite(value) else {"nonfinite": str(value)}
+
+        return reshape(shape)
+    return {"mlir": str(attribute)}
 
 
 def load_stablehlo(path, function=None):
@@ -58,7 +90,10 @@ def load_stablehlo(path, function=None):
                 raise ValueError(f"Unsupported operation or nested region: {op} (index {index})")
             results = [result.get_name() for result in operation.results]
             nodes.append({"id": index, "op": op, "name": f"{function}/" + (",".join(results) or f"op_{index}"),
-                          "function": function, "results": results, "location": str(operation.location)})
+                          "function": function, "results": results, "location": str(operation.location),
+                          "inputs": [operand.get_name() for operand in operation.operands],
+                          "attributes": {name: _attribute_value(operation.attributes[name], ir)
+                                         for name in operation.attributes}})
             for operand in operation.operands:
                 if operand in producers:
                     edges.append((producers[operand], index))

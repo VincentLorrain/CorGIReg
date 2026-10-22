@@ -55,3 +55,26 @@ including `ne`. Explicit `not` negates its entire child result; combine it with
 `exists: true` if absence should be rejected. Key-count rules fail if their
 target object is absent or has the wrong type. Attribute defaults are never
 injected by this evaluator.
+
+## Imported documents
+
+JSON graphs may include an `attributes` object and an `inputs` array on each
+node. ONNX imports expose declared int, float, string and list attributes, plus
+input names. Absent ONNX default attributes remain absent. Tensor attributes
+expose only `kind`, `shape` and `data_type`, not their payload. Non-UTF8 strings
+use a `bytes_hex` object; unsupported attribute types retain type metadata.
+
+StableHLO imports expose builtin scalar/array attributes, input SSA names and
+small dense numeric attributes as nested arrays. Dense attributes exceeding
+4096 elements expose shape and element-type metadata only. Dialect-specific
+attributes use an object with their textual `mlir` representation. Nonfinite
+numbers use an explicit `nonfinite` object in both importers.
+
+In an `inputs` array, the empty-string convention denotes an omitted optional
+input. The adapter converts that slot to an internal missing value, preserving
+all subsequent indices; `exists: false` recognizes it. `null` remains present.
+`length` counts slots, including omitted ones. Source reports preserve original
+input strings. The same convention applies to NodeNN's `inputs` metadata.
+
+The CLI reports the applied rule and its filtered source node IDs in
+`node_definitions`. It does not currently provide a per-clause rejection trace.

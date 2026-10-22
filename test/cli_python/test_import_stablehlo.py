@@ -70,6 +70,35 @@ class StablehloTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "not found"):
             load_stablehlo(self.path, "missing")
 
+    def test_typed_attributes_reach_native_rules(self):
+        source = ROOT / "examples/library/conv.mlir"
+        node = load_stablehlo(source)["nodes"][0]
+        self.assertEqual(node["attributes"]["feature_group_count"], 1)
+        self.assertEqual(node["attributes"]["window_strides"], [1, 1])
+        self.assertEqual(node["attributes"]["padding"], [[0, 0], [0, 0]])
+        self.assertEqual(len(node["inputs"]), 2)
+        definition = {"schema_version": 2, "name": "unitconv", "formats": {"stablehlo": {
+            "op_types": ["stablehlo.convolution"], "where": {"all": [
+                {"path": ["attributes", "feature_group_count"], "eq": 1},
+                {"path": ["attributes", "window_strides"], "eq": [1, 1]},
+                {"path": ["inputs"], "length": {"eq": 2}}]}}}}
+        library = self.path.with_suffix(".json")
+        for group, expected in [(1, [0, 1]), (2, [])]:
+            definition["formats"]["stablehlo"]["where"]["all"][0]["eq"] = group
+            library.write_text(json.dumps(definition), encoding="utf-8")
+            result = subprocess.run([sys.executable, "-m", "corgireg_cli", "-i", str(source),
+                                     "--node-library", str(library), "-r", "unitconv+->$"],
+                                    env={**os.environ, "PYTHONPATH": str(ROOT / "python")},
+                                    capture_output=True, text=True, timeout=20)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            report = json.loads(result.stdout)
+            self.assertEqual(report["node_definitions"]["unitconv"]["node_ids"], expected)
+            if expected:
+                match = next(m for m in report["matches"] if m["starts"] == [0])
+                self.assertEqual(match["walks"][0]["quantifiers"][0]["count"], 2)
+            else:
+                self.assertEqual(report["matches"], [])
+
     def test_duplicate_operands_do_not_duplicate_edges(self):
         self.path.write_text(MODULE.replace("stablehlo.abs %1", "stablehlo.add %1, %1"), encoding="utf-8")
         self.assertEqual(load_stablehlo(self.path)["edges"], [(0, 1), (1, 2)])
