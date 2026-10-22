@@ -33,6 +33,7 @@ FetchContent_MakeAvailable(fmt)
 
 
 set(src_files
+    ${PROJECT_SOURCE_DIR}/src/Cli/MatchRequest.cpp
     ${PROJECT_SOURCE_DIR}/src/BasicGraphIr/Graph.cpp
     ${PROJECT_SOURCE_DIR}/src/CompileTool/CompileTransitionGraph/PGInterpreterIR.cpp
     ${PROJECT_SOURCE_DIR}/src/CompileTool/CompileTransitionGraph/PGInterpreterTG.cpp
@@ -62,6 +63,11 @@ target_include_directories(CorGIReg
 
 # Link fmt to the library
 target_link_libraries(CorGIReg PRIVATE fmt::fmt)
+
+add_executable(corgireg-match src/Cli/main.cpp)
+target_include_directories(corgireg-match PRIVATE ${PROJECT_SOURCE_DIR}/include)
+target_link_libraries(corgireg-match PRIVATE CorGIReg)
+install(TARGETS corgireg-match RUNTIME DESTINATION bin)
 
 # Optionally include tests only in Debug mode
 
