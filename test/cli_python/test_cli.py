@@ -12,6 +12,20 @@ from corgireg_cli.graph import validate_graph
 
 
 class CliTests(unittest.TestCase):
+    def test_example_script_runs_outside_repository(self):
+        output = self.folder / "example results"
+        process = subprocess.run([sys.executable, str(ROOT / "examples/matches/run_matches.py"),
+                                  "--output-dir", str(output)], cwd=self.folder,
+                                 env={**os.environ, "PYTHONPATH": str(ROOT / "python")},
+                                 capture_output=True, text=True, timeout=30)
+        self.assertEqual(process.returncode, 0, process.stderr)
+        reports = {path.stem: json.loads(path.read_text(encoding="utf-8")) for path in output.glob("*.json")}
+        self.assertEqual(set(reports), {"convolutions", "arithmetic", "no-match"})
+        self.assertEqual(reports["no-match"]["matches"], [])
+        self.assertEqual(reports["arithmetic"]["matches"][0]["node_ids"], [0, 9, 17, 42])
+        full = next(m for m in reports["convolutions"]["matches"] if m["starts"] == [42])
+        self.assertEqual(full["walks"][0]["quantifiers"][0]["count"], 2)
+
     def test_bundled_node_library_maps_each_format_without_false_positives(self):
         from corgireg_cli.node_library import load_definitions, resolve_definitions
         definitions = load_definitions([ROOT / "examples/library/nodes"])

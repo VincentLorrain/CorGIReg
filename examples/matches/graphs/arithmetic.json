@@ -1,0 +1,38 @@
+{
+  "nodes": [
+    {
+      "id": 42,
+      "op": "Add",
+      "name": "arithmetic_0_Add"
+    },
+    {
+      "id": 0,
+      "op": "Mul",
+      "name": "arithmetic_1_Mul"
+    },
+    {
+      "id": 9,
+      "op": "Neg",
+      "name": "arithmetic_2_Neg"
+    },
+    {
+      "id": 17,
+      "op": "Abs",
+      "name": "arithmetic_3_Abs"
+    }
+  ],
+  "edges": [
+    [
+      42,
+      0
+    ],
+    [
+      0,
+      9
+    ],
+    [
+      9,
+      17
+    ]
+  ]
+}

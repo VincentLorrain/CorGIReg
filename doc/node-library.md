@@ -61,7 +61,9 @@ JSON graphs, ONNX and StableHLO, not OpenVX.
 
 Patterns can be kept as ordinary UTF-8 text files and selected with `-R`.
 There is no additional named-pattern registry. The example library includes
-`conv`, `negate`, and `abs` definitions plus a convolution pattern file.
+11 operation definitions plus a convolution pattern file. See the
+[library catalog](../examples/library/README.md) and
+[runnable matching scripts](../examples/matches/README.md).
 
 The result retains the complete query, source graph metadata, captured IDs,
 names and quantifier traces. Captured predicate names are the names used in the

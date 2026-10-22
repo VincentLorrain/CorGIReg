@@ -1,0 +1,29 @@
+{
+  "nodes": [
+    {
+      "id": 42,
+      "op": "Conv",
+      "name": "convolutions_0_Conv"
+    },
+    {
+      "id": 0,
+      "op": "Conv",
+      "name": "convolutions_1_Conv"
+    },
+    {
+      "id": 9,
+      "op": "Abs",
+      "name": "convolutions_2_Abs"
+    }
+  ],
+  "edges": [
+    [
+      42,
+      0
+    ],
+    [
+      0,
+      9
+    ]
+  ]
+}
