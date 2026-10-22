@@ -30,3 +30,11 @@ include(Catch)
 catch_discover_tests(tests
     EXTRA_ARGS "--durations=yes"
 )
+
+find_package(Python3 COMPONENTS Interpreter QUIET)
+if(Python3_Interpreter_FOUND)
+    add_test(NAME CLI_Python COMMAND ${Python3_EXECUTABLE} -m unittest discover
+        -s ${PROJECT_SOURCE_DIR}/test/cli_python -p test_cli.py -v)
+    set_tests_properties(CLI_Python PROPERTIES
+        ENVIRONMENT "CORGIREG_ENGINE=$<TARGET_FILE:corgireg-match>")
+endif()

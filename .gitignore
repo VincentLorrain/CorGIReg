@@ -3,3 +3,5 @@
 /build*/
 /.vscode*/
 /notes*/
+__pycache__/
+*.egg-info/
