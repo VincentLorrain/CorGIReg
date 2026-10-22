@@ -114,8 +114,10 @@ Put format-specific code in `GraphAdapters/`. For ONNX, an adapter can index
 operations and map value producers to consumers. For StableHLO, an adapter can
 index native operations and expose operand/use relationships within an explicitly
 chosen region. Keep format-specific loading, ownership and source lookup there.
-These adapters are extension points: ONNX and StableHLO file loaders are not
-implemented by this change.
+The [CLI](cli.md) includes file readers in `python/corgireg_cli/import_onnx.py`
+and `import_stablehlo.py`. They pass an operation graph to `ImportedGraph` through
+the native worker. The CLI documents the supported regions and source ID mapping;
+in-process adapters can still expose native objects directly through `GraphView`.
 
 Tests in `test/GraphAccess` cover topology and signed traversal. Tests in
 `test/App/external_graph_test.cpp` use an independent integer graph and verify

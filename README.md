@@ -8,6 +8,17 @@ To run patterns directly on an existing graph through a minimal read-only
 interface, see [Graph adapters](doc/graph-adapters.md). Results expose graph-local
 node IDs, with an adapter for resolving existing `NodeNN` objects.
 
+The [command-line guide](doc/cli.md) covers JSON, ONNX and textual StableHLO input:
+
+```sh
+corgireg -i network.onnx -r "Relu+->Neg" -o matches.json
+corgireg -i network.mlir --format stablehlo --regex-file pattern.txt -o matches.json
+```
+
+Reports include the complete pattern, original operation IDs, ordered captures
+and the actual quantifier counts. Build the native worker and install the Python
+front end as described in the guide before using these commands.
+
 # Graph-Regex Token Types
 
 CorGIReg extends conventional regular-expression syntax with tokens that describe how a node condition should be interpreted inside a transition graph.  The lexer recognises three flavours of "key" tokens, each mapping to a distinct transition type:
