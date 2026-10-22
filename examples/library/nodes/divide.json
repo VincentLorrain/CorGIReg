@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "name": "divide",
+  "description": "Elementwise divide operation; attributes and numerical semantics are not constrained.",
+  "formats": {
+    "onnx": {
+      "op_types": [
+        "Div"
+      ]
+    },
+    "stablehlo": {
+      "op_types": [
+        "stablehlo.divide"
+      ]
+    },
+    "json": {
+      "op_types": [
+        "Div",
+        "stablehlo.divide"
+      ]
+    }
+  }
+}

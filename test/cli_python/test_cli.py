@@ -12,6 +12,24 @@ from corgireg_cli.graph import validate_graph
 
 
 class CliTests(unittest.TestCase):
+    def test_bundled_node_library_maps_each_format_without_false_positives(self):
+        from corgireg_cli.node_library import load_definitions, resolve_definitions
+        definitions = load_definitions([ROOT / "examples/library/nodes"])
+        expected = {"conv": ("Conv", "convolution"), "negate": ("Neg", "negate"),
+                    "abs": ("Abs", "abs"), "add": ("Add", "add"),
+                    "multiply": ("Mul", "multiply"), "subtract": ("Sub", "subtract"),
+                    "divide": ("Div", "divide"), "exponential": ("Exp", "exponential"),
+                    "log": ("Log", "log"), "sqrt": ("Sqrt", "sqrt"), "tanh": ("Tanh", "tanh")}
+        self.assertEqual(set(definitions), set(expected))
+        for name, (onnx, hlo) in expected.items():
+            for format_name, op in [("onnx", onnx), ("stablehlo", "stablehlo." + hlo), ("json", onnx)]:
+                with self.subTest(name=name, format=format_name):
+                    graph = validate_graph({"nodes": [{"id": 42, "op": op},
+                                                       {"id": 9, "op": "Unrelated"}], "edges": []})
+                    memberships, _ = resolve_definitions(definitions, graph, format_name)
+                    self.assertEqual(memberships[name], [42])
+                    self.assertTrue(all(ids == [] for key, ids in memberships.items() if key != name))
+
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory(prefix="corgireg-test-", dir=ROOT / "build")
         self.addCleanup(self.directory.cleanup)

@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "name": "log",
+  "description": "Elementwise log operation; attributes and numerical semantics are not constrained.",
+  "formats": {
+    "onnx": {
+      "op_types": [
+        "Log"
+      ]
+    },
+    "stablehlo": {
+      "op_types": [
+        "stablehlo.log"
+      ]
+    },
+    "json": {
+      "op_types": [
+        "Log",
+        "stablehlo.log"
+      ]
+    }
+  }
+}

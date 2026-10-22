@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "name": "subtract",
+  "description": "Elementwise subtract operation; attributes and numerical semantics are not constrained.",
+  "formats": {
+    "onnx": {
+      "op_types": [
+        "Sub"
+      ]
+    },
+    "stablehlo": {
+      "op_types": [
+        "stablehlo.subtract"
+      ]
+    },
+    "json": {
+      "op_types": [
+        "Sub",
+        "stablehlo.subtract"
+      ]
+    }
+  }
+}

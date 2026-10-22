@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "name": "exponential",
+  "description": "Elementwise exponential operation; attributes and numerical semantics are not constrained.",
+  "formats": {
+    "onnx": {
+      "op_types": [
+        "Exp"
+      ]
+    },
+    "stablehlo": {
+      "op_types": [
+        "stablehlo.exponential"
+      ]
+    },
+    "json": {
+      "op_types": [
+        "Exp",
+        "stablehlo.exponential"
+      ]
+    }
+  }
+}

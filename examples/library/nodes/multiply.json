@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "name": "multiply",
+  "description": "Elementwise multiply operation; attributes and numerical semantics are not constrained.",
+  "formats": {
+    "onnx": {
+      "op_types": [
+        "Mul"
+      ]
+    },
+    "stablehlo": {
+      "op_types": [
+        "stablehlo.multiply"
+      ]
+    },
+    "json": {
+      "op_types": [
+        "Mul",
+        "stablehlo.multiply"
+      ]
+    }
+  }
+}

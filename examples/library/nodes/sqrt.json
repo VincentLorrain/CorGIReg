@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "name": "sqrt",
+  "description": "Elementwise sqrt operation; attributes and numerical semantics are not constrained.",
+  "formats": {
+    "onnx": {
+      "op_types": [
+        "Sqrt"
+      ]
+    },
+    "stablehlo": {
+      "op_types": [
+        "stablehlo.sqrt"
+      ]
+    },
+    "json": {
+      "op_types": [
+        "Sqrt",
+        "stablehlo.sqrt"
+      ]
+    }
+  }
+}
