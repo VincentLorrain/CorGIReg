@@ -20,7 +20,8 @@ def positive_int(value):
 def parser():
     cli = argparse.ArgumentParser(description="Match a CorGIReg pattern against an external operation graph.")
     cli.add_argument("-i", "--input", type=Path, required=True, help="source graph file")
-    cli.add_argument("-f", "--format", choices=["json", "onnx"], help="input format (otherwise inferred from extension)")
+    cli.add_argument("-f", "--format", choices=["json", "onnx", "stablehlo"], help="input format (otherwise inferred from extension)")
+    cli.add_argument("--function", help="StableHLO function (default: main, or the only function)")
     regex = cli.add_mutually_exclusive_group(required=True)
     regex.add_argument("-r", "--regex", help="complete graph pattern")
     regex.add_argument("-R", "--regex-file", type=Path, help="UTF-8 file containing one complete graph pattern")
@@ -75,12 +76,18 @@ def run(args):
             if source is not None and (destination.resolve() == source.resolve() or
                                       (destination.exists() and source.exists() and destination.samefile(source))):
                 raise ValueError("Output must not overwrite an input file")
-    format_name = args.format or {".json": "json", ".onnx": "onnx"}.get(args.input.suffix.lower())
+    format_name = args.format or {".json": "json", ".onnx": "onnx", ".mlir": "stablehlo",
+                                 ".stablehlo": "stablehlo"}.get(args.input.suffix.lower())
+    if args.function and format_name != "stablehlo":
+        raise ValueError("--function is only available for StableHLO input")
     if format_name == "json":
         graph = load_json(args.input)
     elif format_name == "onnx":
         from .import_onnx import load_onnx
         graph = load_onnx(args.input)
+    elif format_name == "stablehlo":
+        from .import_stablehlo import load_stablehlo
+        graph = load_stablehlo(args.input, args.function)
     else:
         raise ValueError("Unknown input format; specify --format")
     process = subprocess.run([str(find_engine(args.engine))], input=encode_request(graph, query, args.max_starts),
