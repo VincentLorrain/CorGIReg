@@ -1,6 +1,10 @@
 #include "Cli/MatchRequest.hpp"
 #include "GraphAdapters/ImportedGraph.hpp"
 #include "CompileTool/CompileTransitionGraph/PGInterpreterTG.hpp"
+#include "NodeTest/NodeRule.hpp"
+#include <cmath>
+#include <locale>
+#include <sstream>
 #include <istream>
 #include <ostream>
 
@@ -43,6 +47,50 @@ void jsonString(std::ostream& out, const std::string& text) {
         else out << c;
     }
     out << '"';
+}
+NodeValue readValue(std::istream& input, unsigned depth = 0) {
+    if (depth > 64) throw std::invalid_argument("Node document nesting exceeds 64");
+    const auto type = token(input);
+    if (type == "n") return nullptr;
+    if (type == "b") {
+        auto value = number(input);
+        if (value > 1) throw std::invalid_argument("Invalid boolean value");
+        return value != 0;
+    }
+    if (type == "u") return NodeValue(number(input));
+    if (type == "i") {
+        auto value = token(input);
+        auto digits = value.substr(!value.empty() && value[0] == '-' ? 1 : 0);
+        if (digits.empty() || digits.find_first_not_of("0123456789") != std::string::npos)
+            throw std::invalid_argument("Invalid signed value");
+        return NodeValue(std::int64_t(std::stoll(value)));
+    }
+    if (type == "d") {
+        std::istringstream stream(token(input));
+        stream.imbue(std::locale::classic());
+        double value;
+        if (!(stream >> value) || !stream.eof() || !std::isfinite(value))
+            throw std::invalid_argument("Invalid finite numeric value");
+        return value;
+    }
+    if (type == "s") return unhex(input);
+    if (type == "a" || type == "o") {
+        const auto count = number(input);
+        if (count > 1000000) throw std::invalid_argument("Node value collection exceeds 1000000 items");
+        if (type == "a") {
+            NodeValue::Array result;
+            for (std::uint64_t i = 0; i < count; ++i) result.push_back(readValue(input, depth + 1));
+            return result;
+        }
+        NodeValue::Object result;
+        for (std::uint64_t i = 0; i < count; ++i) {
+            const auto key = unhex(input);
+            auto value = readValue(input, depth + 1);
+            if (!result.emplace(key, std::move(value)).second) throw std::invalid_argument("Duplicate node document key");
+        }
+        return result;
+    }
+    throw std::invalid_argument("Unknown node value type");
 }
 template<class Range> void numbers(std::ostream& out, const Range& values) {
     out << '[';
@@ -95,9 +143,10 @@ void writeMatch(std::ostream& out, const MatchSolution& match) {
 
 void matchRequest(std::istream& input, std::ostream& output) {
     const auto protocol = token(input);
-    if (protocol != "CORGiReg1" && protocol != "CORGiReg2")
+    if (protocol != "CORGiReg1" && protocol != "CORGiReg2" && protocol != "CORGiReg3")
         throw std::invalid_argument("Unsupported matching protocol");
     auto graph = std::make_shared<ImportedGraph>();
+    std::map<NodeId, NodeValue> documents;
     const auto nodeCount = number(input);
     for (std::uint64_t i = 0; i < nodeCount; ++i) {
         const auto id = number(input);
@@ -105,6 +154,7 @@ void matchRequest(std::istream& input, std::ostream& output) {
         if (key.empty() || key.find_first_not_of("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_0123456789") != std::string::npos)
             throw std::invalid_argument("Invalid node predicate");
         graph->addNode(id, std::move(key), unhex(input));
+        if (protocol == "CORGiReg3") documents.emplace(id, readValue(input));
     }
     const auto edgeCount = number(input);
     for (std::uint64_t i = 0; i < edgeCount; ++i) {
@@ -114,7 +164,7 @@ void matchRequest(std::istream& input, std::ostream& output) {
     }
     // Definitions are per request, never added to the legacy global dictionary.
     std::map<std::string, std::optional<NodeIds>> definitions;
-    if (protocol == "CORGiReg2") {
+    if (protocol != "CORGiReg1") {
         const auto count = number(input);
         for (std::uint64_t i = 0; i < count; ++i) {
             const auto key = unhex(input);
@@ -130,6 +180,21 @@ void matchRequest(std::istream& input, std::ostream& output) {
                     const auto id = number(input);
                     graph->getNodes().at(id);
                     ids->insert(id);
+                }
+                if (protocol == "CORGiReg3") {
+                    auto rule = readValue(input);
+                    const auto source = unhex(input);
+                    if (!std::holds_alternative<std::nullptr_t>(rule.data)) {
+                        NodeRule check;
+                        try { check = compileNodeRule(rule); }
+                        catch (const std::invalid_argument& error) {
+                            throw std::invalid_argument(source + " (" + key + "): " + error.what());
+                        }
+                        for (auto it = ids->begin(); it != ids->end();) {
+                            if (check(documents.at(*it))) ++it;
+                            else it = ids->erase(it);
+                        }
+                    }
                 }
             }
             if (!definitions.emplace(key, std::move(ids)).second)
@@ -182,6 +247,18 @@ void matchRequest(std::istream& input, std::ostream& output) {
             writeMatch(output, *match);
         }
     }
-    output << "]}\n";
+    output << ']';
+    if (protocol == "CORGiReg3") {
+        output << ",\"definition_nodes\":{";
+        bool firstDefinition = true;
+        for (const auto& definition : definitions) {
+            if (!firstDefinition) output << ',';
+            firstDefinition = false;
+            jsonString(output, definition.first); output << ':';
+            if (definition.second) numbers(output, *definition.second); else output << "null";
+        }
+        output << '}';
+    }
+    output << "}\n";
 }
 }

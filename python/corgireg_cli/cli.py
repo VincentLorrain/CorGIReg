@@ -96,7 +96,8 @@ def run(args):
     else:
         raise ValueError("Unknown input format; specify --format")
     memberships, definition_report = resolve_definitions(definitions, graph, format_name)
-    request = encode_request(graph, query, args.max_starts, memberships if args.node_library else None)
+    request = encode_request(graph, query, args.max_starts, memberships if args.node_library else None,
+                             definition_report if args.node_library else None)
     process = subprocess.run([str(find_engine(args.engine))], input=request,
                              text=True, encoding="utf-8", capture_output=True, timeout=args.timeout, check=False)
     if process.returncode:
@@ -105,6 +106,8 @@ def run(args):
     result.update(schema_version=1, query=query, source=str(args.input.resolve()), format=format_name,
                   graph=graph)
     if args.node_library:
+        for name, ids in result.pop("definition_nodes").items():
+            definition_report[name]["node_ids"] = ids
         result["node_definitions"] = definition_report
     write_report(args.output, result)
     return 0

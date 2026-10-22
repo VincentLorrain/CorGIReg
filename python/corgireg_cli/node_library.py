@@ -17,7 +17,7 @@ def load_definitions(paths):
             definition = json.loads(path.read_text(encoding="utf-8-sig"))
             if not isinstance(definition, dict) or set(definition) - {"schema_version", "name", "description", "formats"}:
                 raise ValueError(f"Invalid node definition fields in {path}")
-            if type(definition.get("schema_version")) is not int or definition["schema_version"] != 1:
+            if type(definition.get("schema_version")) is not int or definition["schema_version"] not in (1, 2):
                 raise ValueError(f"Unsupported node definition schema in {path}")
             name = definition.get("name")
             if not isinstance(name, str) or re.fullmatch(r"[A-Za-z_0-9]+", name) is None:
@@ -32,8 +32,11 @@ def load_definitions(paths):
             for format_name, rule in formats.items():
                 if not isinstance(format_name, str) or not format_name:
                     raise ValueError(f"Invalid format name for {name}")
-                if not isinstance(rule, dict) or set(rule) != {"op_types"}:
-                    raise ValueError(f"Only op_types rules are supported for {name}/{format_name}")
+                allowed = {"op_types", "where"} if definition["schema_version"] == 2 else {"op_types"}
+                if not isinstance(rule, dict) or "op_types" not in rule or set(rule) - allowed:
+                    raise ValueError(f"Only {' and '.join(sorted(allowed))} rules are supported for {name}/{format_name}")
+                if "where" in rule and not isinstance(rule["where"], dict):
+                    raise ValueError(f"where must be a rule object in {path}: {name}/{format_name}")
                 types = rule["op_types"]
                 if not isinstance(types, list) or not types or any(not isinstance(op, str) or not op for op in types):
                     raise ValueError(f"op_types must be a nonempty array of strings for {name}/{format_name}")

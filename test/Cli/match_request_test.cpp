@@ -5,6 +5,16 @@
 
 using namespace CorGIReg;
 
+TEST_CASE("Typed matching protocol rejects malformed document values", "[cli][rules]") {
+    for (const auto* value : {"b 2", "i -", "u -1", "d nan", "d 1x", "a 1000001",
+                              "o 2 78 n 78 n", "unknown"}) {
+        std::istringstream input(std::string("CORGiReg3 1 0 41 61 ") + value + " 0 0 41 100");
+        std::ostringstream output;
+        REQUIRE_THROWS(matchRequest(input, output));
+        REQUIRE(output.str().empty());
+    }
+}
+
 TEST_CASE("Imported operation graphs preserve IDs names and reciprocal edges", "[cli]") {
     ImportedGraph graph;
     graph.addNode(42, "A", "first"); graph.addNode(0, "B", "last");

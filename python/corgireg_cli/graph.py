@@ -1,6 +1,7 @@
 """Validated operation graph shared by all file importers."""
 import json
 import re
+import math
 
 
 def node_id(value):
@@ -44,12 +45,45 @@ def load_json(path):
     return validate_graph(json.loads(path.read_text(encoding="utf-8-sig")))
 
 
-def encode_request(graph, query, max_starts, memberships=None):
+def encode_value(value, depth=0):
+    """Typed transport only: rules are compiled and evaluated by C++ NodeTest."""
+    if depth > 64:
+        raise ValueError("Node document nesting exceeds 64")
+    if value is None:
+        return "n"
+    if type(value) is bool:
+        return f"b {int(value)}"
+    if type(value) is int:
+        if not -(2**63) <= value < 2**64:
+            raise ValueError("Node integer is outside the supported 64-bit range")
+        return f"{'i' if value < 0 else 'u'} {value}"
+    if type(value) is float:
+        if not math.isfinite(value):
+            raise ValueError("Node numeric values must be finite")
+        return f"d {value!r}"
+    if isinstance(value, str):
+        return "s " + (value.encode("utf-8").hex() or "-")
+    if isinstance(value, (list, dict)):
+        if len(value) > 1000000:
+            raise ValueError("Node value collection exceeds 1000000 items")
+        if isinstance(value, list):
+            return f"a {len(value)} " + " ".join(encode_value(item, depth + 1) for item in value)
+        if any(not isinstance(key, str) for key in value):
+            raise ValueError("Node object keys must be strings")
+        return f"o {len(value)} " + " ".join((key.encode("utf-8").hex() or "-") + " " +
+                                              encode_value(item, depth + 1) for key, item in value.items())
+    raise ValueError(f"Unsupported node value type: {type(value).__name__}")
+
+
+def encode_request(graph, query, max_starts, memberships=None, definition_report=None):
     def text(value):
         return value.encode("utf-8").hex() or "-"
-    lines = ["CORGiReg1" if memberships is None else "CORGiReg2", str(len(graph["nodes"]))]
+    version = "CORGiReg3" if definition_report is not None else ("CORGiReg1" if memberships is None else "CORGiReg2")
+    lines = [version, str(len(graph["nodes"]))]
     for node in graph["nodes"]:
         lines.append(f'{node["id"]} {text(node["predicate"])} {text(node["name"])}')
+        if definition_report is not None:
+            lines.append(encode_value(node))
     lines.append(str(len(graph["edges"])))
     lines.extend(f"{a} {b}" for a, b in graph["edges"])
     if memberships is not None:
@@ -59,6 +93,10 @@ def encode_request(graph, query, max_starts, memberships=None):
                 lines.append(f"{text(name)} 0")
             else:
                 lines.append(f"{text(name)} 1 {len(ids)} " + " ".join(map(str, ids)))
+                if definition_report is not None:
+                    definition = definition_report[name]
+                    lines.append(encode_value(definition["rule"].get("where")))
+                    lines.append(text(definition["source"]))
     # The existing lexer accepts spaces; text files can contain CRLF and tabs.
     lines.extend([text(re.sub(r"\s", " ", query)), str(max_starts)])
     return "\n".join(lines) + "\n"

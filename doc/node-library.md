@@ -42,8 +42,38 @@ One JSON file defines one predicate:
 normalized into raw predicate keys. ONNX custom-domain operations use
 `domain.Op`. Names contain ASCII letters, digits or underscores. Description is
 optional; the other fields are required. Unknown fields and rule kinds are
-rejected. Version 1 supports JSON and operation types only: no YAML, attribute
-conditions or composite subgraph definitions.
+rejected. Version 1 supports JSON and operation types only. Version 2 adds an
+optional `where` condition per format, evaluated by native C++ `NodeTest`.
+Neither version supports YAML or composite subgraph definitions.
+
+For example, a version 2 definition selects a declared 3-by-3 kernel:
+
+```json
+{
+  "schema_version": 2,
+  "name": "conv3x3",
+  "formats": {
+    "json": {
+      "op_types": ["Conv"],
+      "where": {
+        "all": [
+          {"path": ["attributes", "kernel_shape"], "eq": [3, 3]},
+          {"path": ["name"], "regex": "encoder/conv_[0-9]+"},
+          {"keys": ["attributes"], "regex": "debug_.*", "count": {"eq": 0}}
+        ]
+      }
+    }
+  }
+}
+```
+
+The imported node is the rule document: `op`, `name`, `attributes`, `inputs`
+and other metadata can be addressed by paths. See [NodeTest rules](node-rules.md)
+for operators, presence semantics and the C++ API. Python transports documents
+and rules; C++ compiles the selected format's rules and evaluates them before
+graph matching. Invalid rules report the definition file, predicate and rule
+path, including when no source operation is a candidate. Format rules for other
+input formats are not compiled during this invocation.
 
 Pass `--node-library` repeatedly for several files or directories. Directories
 load their immediate `*.json` files in sorted order, without recursion. Duplicate

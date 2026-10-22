@@ -115,6 +115,50 @@ class CliTests(unittest.TestCase):
                                     "formats": formats or {"json": {"op_types": ["A"]}}}), encoding="utf-8")
         return path
 
+    def test_native_node_rules_filter_memberships_and_preserve_traces(self):
+        graph = json.loads(self.graph.read_text(encoding="utf-8"))
+        for node in graph["nodes"]:
+            node["attributes"] = {"kernel": [3, 3], "group": 1, "nullable": None}
+        self.graph.write_text(json.dumps(graph), encoding="utf-8")
+        path = self.definition()
+        definition = json.loads(path.read_text(encoding="utf-8"))
+        definition["schema_version"] = 2
+        definition["formats"]["json"]["where"] = {"all": [
+            {"path": ["attributes", "kernel"], "eq": [3, 3]},
+            {"path": ["attributes", "group"], "gte": 1},
+            {"path": ["attributes", "nullable"], "exists": True},
+            {"keys": ["attributes"], "regex": "debug_.*", "count": {"eq": 0}}]}
+        path.write_text(json.dumps(definition), encoding="utf-8")
+        result = self.invoke("-i", self.graph, "-r", "conv+->B", "--node-library", path)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        report = json.loads(result.stdout)
+        full = next(m for m in report["matches"] if m["starts"] == [42])
+        self.assertEqual(full["walks"][0]["quantifiers"][0]["count"], 2)
+        self.assertEqual(report["node_definitions"]["conv"]["node_ids"], [0, 42])
+        graph["nodes"][0]["attributes"]["debug_trace"] = False
+        self.graph.write_text(json.dumps(graph), encoding="utf-8")
+        result = self.invoke("-i", self.graph, "-r", "conv+->B", "--node-library", path)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        report = json.loads(result.stdout)
+        self.assertEqual(report["node_definitions"]["conv"]["node_ids"], [0])
+        self.assertFalse(any(m["starts"] == [42] for m in report["matches"]))
+
+    def test_invalid_native_rules_fail_even_without_candidates_and_preserve_output(self):
+        path = self.definition(formats={"json": {"op_types": ["MissingOp"]}})
+        definition = json.loads(path.read_text(encoding="utf-8"))
+        definition["schema_version"] = 2
+        output = self.folder / "keep.json"
+        output.write_text("keep", encoding="utf-8")
+        for rule in [{"path": ["name"], "regex": "["}, {"path": ["x"], "exists": 1},
+                     {"path": ["x"], "gt": "3"}, {"unknown": True}]:
+            definition["formats"]["json"]["where"] = rule
+            path.write_text(json.dumps(definition), encoding="utf-8")
+            result = self.invoke("-i", self.graph, "-r", "conv", "--node-library", path, "-o", output)
+            self.assertEqual(result.returncode, 2)
+            self.assertIn("where", result.stderr)
+            self.assertIn(str(path), result.stderr)
+            self.assertEqual(output.read_text(encoding="utf-8"), "keep")
+
     def test_node_library_preserves_pattern_and_original_source_names(self):
         definition = self.definition()
         result = self.invoke("-i", self.graph, "-r", "conv+->B", "--node-library", definition)
