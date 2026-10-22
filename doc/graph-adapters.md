@@ -107,6 +107,9 @@ This change does not make the compiler or legacy global registries thread-safe.
 
 ## Adding an IR adapter
 
+See [match traces](match-traces.md) for the complete query, ordered source captures,
+source names and the actual counts of `+`, `*` and `?` in each result.
+
 Put format-specific code in `GraphAdapters/`. For ONNX, an adapter can index
 operations and map value producers to consumers. For StableHLO, an adapter can
 index native operations and expose operand/use relationships within an explicitly
