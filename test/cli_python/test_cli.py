@@ -12,6 +12,17 @@ from corgireg_cli.graph import validate_graph
 
 
 class CliTests(unittest.TestCase):
+    def test_conditional_node_example_runs_outside_repository(self):
+        output = self.folder / "conditional report.json"
+        process = subprocess.run([sys.executable, str(ROOT / "examples/matches/run_rules.py"),
+                                  "--output", str(output)], cwd=self.folder,
+                                 env={**os.environ, "PYTHONPATH": str(ROOT / "python")},
+                                 capture_output=True, text=True, timeout=30)
+        self.assertEqual(process.returncode, 0, process.stderr)
+        report = json.loads(output.read_text(encoding="utf-8"))
+        self.assertEqual([m["node_ids"] for m in report["matches"]], [[0, 42]])
+        self.assertEqual(report["node_definitions"]["conv3x3"]["node_ids"], [42])
+
     def test_example_script_runs_outside_repository(self):
         output = self.folder / "example results"
         process = subprocess.run([sys.executable, str(ROOT / "examples/matches/run_matches.py"),

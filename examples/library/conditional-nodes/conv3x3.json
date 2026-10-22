@@ -1,0 +1,139 @@
+{
+  "schema_version": 2,
+  "name": "conv3x3",
+  "description": "Declared 3x3 convolution without bias or automatic padding, named encoder/conv_N, without debug attributes.",
+  "formats": {
+    "json": {
+      "op_types": [
+        "Conv"
+      ],
+      "where": {
+        "all": [
+          {
+            "path": [
+              "attributes",
+              "kernel_shape"
+            ],
+            "eq": [
+              3,
+              3
+            ]
+          },
+          {
+            "path": [
+              "inputs",
+              2
+            ],
+            "exists": false
+          },
+          {
+            "path": [
+              "inputs",
+              1
+            ],
+            "exists": true
+          },
+          {
+            "path": [
+              "name"
+            ],
+            "regex": "encoder/conv_[0-9]+"
+          },
+          {
+            "any": [
+              {
+                "path": [
+                  "attributes",
+                  "auto_pad"
+                ],
+                "exists": false
+              },
+              {
+                "path": [
+                  "attributes",
+                  "auto_pad"
+                ],
+                "eq": "NOTSET"
+              }
+            ]
+          },
+          {
+            "keys": [
+              "attributes"
+            ],
+            "regex": "debug_.*",
+            "count": {
+              "eq": 0
+            }
+          }
+        ]
+      }
+    },
+    "onnx": {
+      "op_types": [
+        "Conv"
+      ],
+      "where": {
+        "all": [
+          {
+            "path": [
+              "attributes",
+              "kernel_shape"
+            ],
+            "eq": [
+              3,
+              3
+            ]
+          },
+          {
+            "path": [
+              "inputs",
+              2
+            ],
+            "exists": false
+          },
+          {
+            "path": [
+              "inputs",
+              1
+            ],
+            "exists": true
+          },
+          {
+            "path": [
+              "name"
+            ],
+            "regex": "encoder/conv_[0-9]+"
+          },
+          {
+            "any": [
+              {
+                "path": [
+                  "attributes",
+                  "auto_pad"
+                ],
+                "exists": false
+              },
+              {
+                "path": [
+                  "attributes",
+                  "auto_pad"
+                ],
+                "eq": "NOTSET"
+              }
+            ]
+          },
+          {
+            "keys": [
+              "attributes"
+            ],
+            "regex": "debug_.*",
+            "count": {
+              "eq": 0
+            }
+          }
+        ]
+      }
+    }
+  }
+}

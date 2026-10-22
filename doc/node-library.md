@@ -75,6 +75,9 @@ graph matching. Invalid rules report the definition file, predicate and rule
 path, including when no source operation is a candidate. Format rules for other
 input formats are not compiled during this invocation.
 
+A complete example and verification script are available in
+[conditional matching examples](../examples/matches/README.md#conditional-nodes-with-nodetest).
+
 Pass `--node-library` repeatedly for several files or directories. Directories
 load their immediate `*.json` files in sorted order, without recursion. Duplicate
 predicate names are errors. An explicit library predicate overrides a raw

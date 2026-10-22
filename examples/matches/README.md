@@ -43,3 +43,22 @@ corgireg -i examples/library/conv.mlir --node-library examples/library/nodes -R 
 
 This last example requires the StableHLO extra. Replace the input with an ONNX
 model containing convolutions to reuse that pattern with the ONNX extra.
+
+## Conditional nodes with NodeTest
+
+```sh
+python examples/matches/run_rules.py --output build/conditional-matches.json
+```
+
+This additional script loads the version 2 definition
+[`conv3x3.json`](../library/conditional-nodes/conv3x3.json), alongside the base
+library. It matches only nodes 42 -> 0. The independent branches contain a 1x1
+convolution and a 3x3 convolution with `debug_trace: false`; both are rejected.
+The definition tests the kernel value, absent bias, present weight input,
+operation name regex, optional padding attribute and absence of `debug_*` keys.
+The output directory must already exist. This example also needs only the base
+CLI, with no optional model readers.
+
+`conv3x3` currently defines JSON and ONNX mappings. It deliberately has no
+StableHLO mapping: kernel dimensions are carried by the operand tensor type
+there, rather than a `kernel_shape` attribute. See [rule documentation](../../doc/node-rules.md).

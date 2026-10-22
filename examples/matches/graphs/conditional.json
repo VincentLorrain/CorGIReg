@@ -1,0 +1,82 @@
+{
+  "nodes": [
+    {
+      "id": 42,
+      "op": "Conv",
+      "name": "encoder/conv_0",
+      "attributes": {
+        "kernel_shape": [
+          3,
+          3
+        ]
+      },
+      "inputs": [
+        "x",
+        "w",
+        ""
+      ]
+    },
+    {
+      "id": 0,
+      "op": "Abs",
+      "name": "abs_0"
+    },
+    {
+      "id": 7,
+      "op": "Conv",
+      "name": "encoder/conv_1",
+      "attributes": {
+        "kernel_shape": [
+          1,
+          1
+        ]
+      },
+      "inputs": [
+        "x",
+        "w",
+        ""
+      ]
+    },
+    {
+      "id": 9,
+      "op": "Abs",
+      "name": "abs_1"
+    },
+    {
+      "id": 12,
+      "op": "Conv",
+      "name": "encoder/conv_2",
+      "attributes": {
+        "kernel_shape": [
+          3,
+          3
+        ],
+        "debug_trace": false
+      },
+      "inputs": [
+        "x",
+        "w",
+        ""
+      ]
+    },
+    {
+      "id": 15,
+      "op": "Abs",
+      "name": "abs_2"
+    }
+  ],
+  "edges": [
+    [
+      42,
+      0
+    ],
+    [
+      7,
+      9
+    ],
+    [
+      12,
+      15
+    ]
+  ]
+}
