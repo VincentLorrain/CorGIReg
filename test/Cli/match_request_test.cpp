@@ -47,3 +47,39 @@ TEST_CASE("Matching protocol rejects invalid requests before search", "[cli]") {
     matchRequest(noMatch, out);
     REQUIRE(out.str() == "{\"query\":\"B\",\"matches\":[]}\n");
 }
+
+TEST_CASE("Request-scoped library predicates preserve semantic capture names", "[cli]") {
+    // Raw C -> R, semantic conv -> relu; also expose C as the predicate layer.
+    const std::string prefix = "CORGiReg2 2 42 43 63 7 52 72 1 42 7 3 "
+        "636f6e76 1 1 42 72656c75 1 1 7 6c61796572 1 1 42 ";
+    for (const auto* query : {"636f6e762d3e72656c75", "6c617965722d3e72656c75"}) {
+        std::istringstream input(prefix + query + " 100");
+        std::ostringstream output;
+        matchRequest(input, output);
+        REQUIRE(output.str().find("\"node_ids\":[7,42]") != std::string::npos);
+        REQUIRE(output.str().find("\"predicate\":\"relu\"") != std::string::npos);
+    }
+    // The alias must not leak into a subsequent request.
+    std::istringstream next("CORGiReg1 1 42 43 63 0 636f6e76 100");
+    std::ostringstream output;
+    matchRequest(next, output);
+    REQUIRE(output.str().find("\"matches\":[]") != std::string::npos);
+}
+
+TEST_CASE("Node library protocol validates memberships and unavailable definitions", "[cli]") {
+    const std::string prefix = "CORGiReg2 1 42 43 63 0 ";
+    for (const auto* definitions : {"1 636f6e76 1 1 99", "1 636f6e76 2",
+                                   "2 636f6e76 0 636f6e76 0", "1 2e 0"}) {
+        std::istringstream input(prefix + definitions + " 636f6e76 100");
+        std::ostringstream output;
+        REQUIRE_THROWS(matchRequest(input, output));
+        REQUIRE(output.str().empty());
+    }
+    std::istringstream unavailable(prefix + "1 636f6e76 0 636f6e76 100");
+    std::ostringstream unused;
+    REQUIRE_THROWS_AS(matchRequest(unavailable, unused), std::invalid_argument);
+    // Missing mappings are allowed for definitions not used by the query.
+    std::istringstream other(prefix + "1 636f6e76 0 43 100");
+    matchRequest(other, unused);
+    REQUIRE(unused.str().find("\"node_ids\":[42]") != std::string::npos);
+}

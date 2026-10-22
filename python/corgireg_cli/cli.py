@@ -8,6 +8,7 @@ import sys
 import tempfile
 
 from .graph import encode_request, load_json
+from .node_library import load_definitions, resolve_definitions
 
 
 def positive_int(value):
@@ -22,6 +23,8 @@ def parser():
     cli.add_argument("-i", "--input", type=Path, required=True, help="source graph file")
     cli.add_argument("-f", "--format", choices=["json", "onnx", "stablehlo"], help="input format (otherwise inferred from extension)")
     cli.add_argument("--function", help="StableHLO function (default: main, or the only function)")
+    cli.add_argument("--node-library", action="append", type=Path, default=[],
+                     help="JSON node definition file or directory (repeatable)")
     regex = cli.add_mutually_exclusive_group(required=True)
     regex.add_argument("-r", "--regex", help="complete graph pattern")
     regex.add_argument("-R", "--regex-file", type=Path, help="UTF-8 file containing one complete graph pattern")
@@ -70,9 +73,11 @@ def run(args):
     query = args.regex if args.regex is not None else args.regex_file.read_text(encoding="utf-8-sig")
     if not query.strip():
         raise ValueError("The regex must not be empty")
+    definitions = load_definitions(args.node_library)
     if args.output != "-":
         destination = Path(args.output)
-        for source in (args.input, args.regex_file):
+        sources = [args.input, args.regex_file, *(Path(value["source"]) for value in definitions.values())]
+        for source in sources:
             if source is not None and (destination.resolve() == source.resolve() or
                                       (destination.exists() and source.exists() and destination.samefile(source))):
                 raise ValueError("Output must not overwrite an input file")
@@ -90,13 +95,17 @@ def run(args):
         graph = load_stablehlo(args.input, args.function)
     else:
         raise ValueError("Unknown input format; specify --format")
-    process = subprocess.run([str(find_engine(args.engine))], input=encode_request(graph, query, args.max_starts),
+    memberships, definition_report = resolve_definitions(definitions, graph, format_name)
+    request = encode_request(graph, query, args.max_starts, memberships if args.node_library else None)
+    process = subprocess.run([str(find_engine(args.engine))], input=request,
                              text=True, encoding="utf-8", capture_output=True, timeout=args.timeout, check=False)
     if process.returncode:
         raise ValueError(process.stderr.strip() or f"Native matching failed ({process.returncode})")
     result = json.loads(process.stdout)
     result.update(schema_version=1, query=query, source=str(args.input.resolve()), format=format_name,
                   graph=graph)
+    if args.node_library:
+        result["node_definitions"] = definition_report
     write_report(args.output, result)
     return 0
 

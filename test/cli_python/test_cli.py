@@ -77,6 +77,73 @@ class CliTests(unittest.TestCase):
             with self.subTest(graph=graph), self.assertRaises(ValueError):
                 validate_graph(graph)
 
+    def definition(self, name="conv", formats=None):
+        path = self.folder / (name + ".json")
+        path.write_text(json.dumps({"schema_version": 1, "name": name, "description": "Portable predicate",
+                                    "formats": formats or {"json": {"op_types": ["A"]}}}), encoding="utf-8")
+        return path
+
+    def test_node_library_preserves_pattern_and_original_source_names(self):
+        definition = self.definition()
+        result = self.invoke("-i", self.graph, "-r", "conv+->B", "--node-library", definition)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        report = json.loads(result.stdout)
+        match = next(m for m in report["matches"] if m["starts"] == [42])
+        self.assertEqual(report["query"], "conv+->B")
+        self.assertEqual(match["walks"][0]["quantifiers"][0]["count"], 2)
+        self.assertEqual(match["walks"][0]["nodes"][0]["predicate"], "conv")
+        self.assertEqual(match["walks"][0]["nodes"][1]["name"], "zéro")
+        self.assertEqual(report["node_definitions"]["conv"]["node_ids"], [0, 42])
+        self.assertEqual(report["graph"]["nodes"][0]["op"], "A")
+
+    def test_multiple_definitions_can_match_one_source_type(self):
+        conv, layer = self.definition(), self.definition("layer")
+        result = self.invoke("-i", self.graph, "-r", "conv->layer->B", "--node-library", conv,
+                             "--node-library", layer)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        nodes = json.loads(result.stdout)["matches"][0]["walks"][0]["nodes"]
+        self.assertEqual([node["predicate"] for node in nodes], ["conv", "layer", "B"])
+        # Explicit definitions take precedence over raw operation predicate names.
+        override = self.definition("A", {"json": {"op_types": ["B"]}})
+        result = self.invoke("-i", self.graph, "-r", "A", "--node-library", override)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout)["matches"][0]["node_ids"], [9])
+
+    def test_missing_mapping_differs_from_no_matching_operations(self):
+        definition = self.definition(formats={"onnx": {"op_types": ["Conv"]}})
+        result = self.invoke("-i", self.graph, "-r", "conv+", "--node-library", definition)
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("No definition for predicate 'conv'", result.stderr)
+        self.assertEqual(self.invoke("-i", self.graph, "-r", "A", "--node-library", definition).returncode, 0)
+        definition = self.definition(formats={"json": {"op_types": ["MissingOp"]}})
+        result = self.invoke("-i", self.graph, "-r", "conv+", "--node-library", definition)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout)["matches"], [])
+
+    def test_invalid_libraries_and_overwrite_are_rejected(self):
+        definition = self.definition()
+        before = definition.read_bytes()
+        result = self.invoke("-i", self.graph, "-r", "conv", "--node-library", definition, "-o", definition)
+        self.assertEqual(result.returncode, 2)
+        self.assertEqual(definition.read_bytes(), before)
+        self.assertEqual(self.invoke("-i", self.graph, "-r", "conv", "--node-library", definition,
+                                     "--node-library", definition).returncode, 2)
+        data = json.loads(before)
+        data["formats"]["json"]["attributes"] = {"ignored": True}
+        definition.write_text(json.dumps(data), encoding="utf-8")
+        result = self.invoke("-i", self.graph, "-r", "conv", "--node-library", definition)
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("Only op_types", result.stderr)
+
+    def test_definition_directory_is_loaded_deterministically(self):
+        directory = self.folder / "nodes"
+        directory.mkdir()
+        self.definition().rename(directory / "conv.json")
+        self.definition("layer").rename(directory / "layer.json")
+        result = self.invoke("-i", self.graph, "-r", "conv->layer->B", "--node-library", directory)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(list(json.loads(result.stdout)["node_definitions"]), ["conv", "layer"])
+
 
 if __name__ == "__main__":
     unittest.main()

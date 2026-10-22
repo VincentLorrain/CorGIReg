@@ -94,7 +94,9 @@ void writeMatch(std::ostream& out, const MatchSolution& match) {
 }
 
 void matchRequest(std::istream& input, std::ostream& output) {
-    if (token(input) != "CORGiReg1") throw std::invalid_argument("Unsupported matching protocol");
+    const auto protocol = token(input);
+    if (protocol != "CORGiReg1" && protocol != "CORGiReg2")
+        throw std::invalid_argument("Unsupported matching protocol");
     auto graph = std::make_shared<ImportedGraph>();
     const auto nodeCount = number(input);
     for (std::uint64_t i = 0; i < nodeCount; ++i) {
@@ -110,6 +112,30 @@ void matchRequest(std::istream& input, std::ostream& output) {
         const auto to = number(input);
         graph->addEdge(from, to);
     }
+    // Definitions are per request, never added to the legacy global dictionary.
+    std::map<std::string, std::optional<NodeIds>> definitions;
+    if (protocol == "CORGiReg2") {
+        const auto count = number(input);
+        for (std::uint64_t i = 0; i < count; ++i) {
+            const auto key = unhex(input);
+            if (key.empty() || key.find_first_not_of("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_0123456789") != std::string::npos)
+                throw std::invalid_argument("Invalid library predicate name");
+            const auto available = number(input);
+            if (available > 1) throw std::invalid_argument("Invalid definition availability flag");
+            std::optional<NodeIds> ids;
+            if (available) {
+                ids.emplace();
+                const auto size = number(input);
+                for (std::uint64_t j = 0; j < size; ++j) {
+                    const auto id = number(input);
+                    graph->getNodes().at(id);
+                    ids->insert(id);
+                }
+            }
+            if (!definitions.emplace(key, std::move(ids)).second)
+                throw std::invalid_argument("Duplicate library predicate: " + key);
+        }
+    }
     const auto query = unhex(input);
     if (query.empty()) throw std::invalid_argument("Empty regex");
     const auto budget = number(input);
@@ -117,10 +143,19 @@ void matchRequest(std::istream& input, std::ostream& output) {
     std::string extra;
     if (input >> extra) throw std::invalid_argument("Unexpected request data");
     const auto pattern = PGInterpreterTG(query).interpret();
+    for (const auto& transition : pattern->getTransitions()) {
+        const auto found = definitions.find(transition->getTestKey());
+        if (found != definitions.end() && !found->second)
+            throw std::invalid_argument("No definition for predicate '" + found->first + "' in the selected input format");
+    }
     NodePredicates predicates;
     for (const auto& entry : graph->getNodes()) {
         const auto key = entry.second.predicate;
         predicates.emplace(key, [graph, key](NodeId id) { return graph->getNodes().at(id).predicate == key; });
+    }
+    for (const auto& definition : definitions) {
+        if (definition.second)
+            predicates[definition.first] = [ids = *definition.second](NodeId id) { return ids.count(id) != 0; };
     }
     std::vector<std::optional<NodeId>> candidates;
     for (const auto& entry : graph->getNodes()) candidates.push_back(entry.first);

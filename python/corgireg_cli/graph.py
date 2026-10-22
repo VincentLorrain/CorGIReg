@@ -44,14 +44,21 @@ def load_json(path):
     return validate_graph(json.loads(path.read_text(encoding="utf-8-sig")))
 
 
-def encode_request(graph, query, max_starts):
+def encode_request(graph, query, max_starts, memberships=None):
     def text(value):
         return value.encode("utf-8").hex() or "-"
-    lines = ["CORGiReg1", str(len(graph["nodes"]))]
+    lines = ["CORGiReg1" if memberships is None else "CORGiReg2", str(len(graph["nodes"]))]
     for node in graph["nodes"]:
         lines.append(f'{node["id"]} {text(node["predicate"])} {text(node["name"])}')
     lines.append(str(len(graph["edges"])))
     lines.extend(f"{a} {b}" for a, b in graph["edges"])
+    if memberships is not None:
+        lines.append(str(len(memberships)))
+        for name, ids in sorted(memberships.items()):
+            if ids is None:
+                lines.append(f"{text(name)} 0")
+            else:
+                lines.append(f"{text(name)} 1 {len(ids)} " + " ".join(map(str, ids)))
     # The existing lexer accepts spaces; text files can contain CRLF and tabs.
     lines.extend([text(re.sub(r"\s", " ", query)), str(max_starts)])
     return "\n".join(lines) + "\n"
