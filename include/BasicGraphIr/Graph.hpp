@@ -72,6 +72,7 @@ public:
     }
 
     std::string getType() const;
+    const Dictionary& getInfoDictionary() const { return info_; }
 
 private:
     std::set<Ptr> parents_;

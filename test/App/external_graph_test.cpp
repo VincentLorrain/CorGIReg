@@ -1,8 +1,32 @@
 #include <catch2/catch_test_macros.hpp>
 #include "GraphAccess/GraphView.hpp"
 #include "CompileTool/CompileTransitionGraph/PGInterpreterTG.hpp"
+#include "NodeTest/NodeCondition.hpp"
+#include "GraphAdapters/BasicGraphAdapter.hpp"
 
 using namespace CorGIReg;
+
+TEST_CASE("NodeTest rules filter actual graph matches by arguments", "[app][rules]") {
+    auto conv = std::make_shared<NodeNN>();
+    auto end = std::make_shared<NodeNN>();
+    conv->setInfo("kernel", std::vector<int>{3, 3});
+    GraphNN source;
+    source.addNode(conv);
+    source.addNode(end);
+    source.addEdge(conv, end);
+    auto graph = std::make_shared<BasicGraphAdapter>(source);
+    using V = NodeValue;
+    NodeCondition condition("RuleConv3", V::Object{{"path", V::Array{"attributes", "kernel"}},
+                                                   {"eq", V::Array{3, 3}}});
+    NodePredicates predicates{{"RuleConv3", [condition, graph](NodeId id) { return condition.test(graph->node(id)); }},
+                              {"RuleEnd", [](NodeId id) { return id == 1; }}};
+    auto pattern = PGInterpreterTG("RuleConv3->RuleEnd").interpret();
+    auto result = pattern->test(graph, {0}, predicates);
+    REQUIRE(result->isMatch());
+    REQUIRE(result->getMatches()[0]->getAll() == NodeIds{0, 1});
+    conv->setInfo("kernel", std::vector<int>{1, 1});
+    REQUIRE_FALSE(pattern->test(graph, {0}, predicates)->isMatch());
+}
 
 namespace {
 // This graph owns only integer IDs and adjacency lists: no NodeNN instances.

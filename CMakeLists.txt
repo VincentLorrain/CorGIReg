@@ -43,6 +43,7 @@ set(src_files
     ${PROJECT_SOURCE_DIR}/src/NodeTest/ExpressionParser.cpp
     ${PROJECT_SOURCE_DIR}/src/NodeTest/FunctionBuilder.cpp
     ${PROJECT_SOURCE_DIR}/src/NodeTest/NodeCondition.cpp
+    ${PROJECT_SOURCE_DIR}/src/NodeTest/NodeRule.cpp
     ${PROJECT_SOURCE_DIR}/src/NodeTest/NodeDictionary.cpp
     ${PROJECT_SOURCE_DIR}/src/NodeTest/PredefinedNodeCondition.cpp
     ${PROJECT_SOURCE_DIR}/src/TransitionGraph/MatchSolution.cpp
