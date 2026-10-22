@@ -38,3 +38,11 @@ if(Python3_Interpreter_FOUND)
     set_tests_properties(CLI_Python PROPERTIES
         ENVIRONMENT "CORGIREG_ENGINE=$<TARGET_FILE:corgireg-match>")
 endif()
+
+set(CORGIREG_IMPORT_PYTHON "" CACHE FILEPATH "Python environment with optional ONNX and StableHLO readers for integration tests")
+if(CORGIREG_IMPORT_PYTHON)
+    add_test(NAME CLI_IR_Imports COMMAND ${CORGIREG_IMPORT_PYTHON} -m unittest discover
+        -s ${PROJECT_SOURCE_DIR}/test/cli_python -p "test_import_*.py" -v)
+    set_tests_properties(CLI_IR_Imports PROPERTIES
+        ENVIRONMENT "CORGIREG_ENGINE=$<TARGET_FILE:corgireg-match>")
+endif()

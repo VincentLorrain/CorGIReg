@@ -8,6 +8,9 @@ version = "0.1.0"
 description = "Command-line graph pattern matching with the CorGIReg C++ engine"
 requires-python = ">=3.10"
 
+[project.optional-dependencies]
+onnx = ["onnx>=1.16,<2"]
+
 [project.scripts]
 corgireg = "corgireg_cli.cli:main"
 
