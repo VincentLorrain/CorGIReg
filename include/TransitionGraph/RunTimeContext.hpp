@@ -18,6 +18,8 @@ class RunTimeContext {
     std::map<NodeId, std::size_t> mCommonNodes;
     std::map<std::string, NodeIds> mValidNodes;
     std::vector<NodeCapture> mCaptures;
+    std::vector<QuantifierCapture> mQuantifiers;
+    std::vector<std::pair<std::size_t, std::size_t>> mActiveQuantifiers;
 public:
     RunTimeContext(std::shared_ptr<State> state, std::optional<NodeId> node,
                    std::shared_ptr<const MatchEnvironment> environment);
@@ -34,6 +36,10 @@ public:
     std::optional<NodeId> getActNode() const { return mActOpNode; }
     const std::map<std::string, NodeIds>& getValid() const { return mValidNodes; }
     const auto& getCaptures() const noexcept { return mCaptures; }
+    const auto& getQuantifiers() const noexcept { return mQuantifiers; }
+    void beginQuantifier(std::size_t index, char symbol);
+    bool completeIteration(std::size_t index);
+    void endQuantifier(std::size_t index);
     void setCommon(NodeId node, std::size_t commonIdx);
     std::optional<NodeId> getCommonNodeFromIdx(const std::size_t& commonIdx);
     NodeIds getCommonNodes() const;

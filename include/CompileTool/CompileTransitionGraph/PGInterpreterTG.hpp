@@ -25,6 +25,10 @@ namespace CorGIReg {
         PartitionGraphParser mParser;
         std::size_t mActGroupe;
         const std::string mGraphMatchExpr;
+        std::map<const AstNode<tGTokensTypes>*, std::size_t> mQuantifierIndices;
+        void indexQuantifiers(const std::shared_ptr<AstNode<tGTokensTypes>>& node);
+        std::shared_ptr<TransitionGraph> quantify(std::shared_ptr<TransitionGraph> body,
+                                               std::size_t index, char symbol);
         
     public:
         PGInterpreterTG(const std::string graphMatchExpr);
@@ -65,21 +69,6 @@ namespace CorGIReg {
          */
         std::shared_ptr<TransitionGraph> precF(std::shared_ptr<TransitionGraph> leftFsm,std::shared_ptr<TransitionGraph> rightFsm);
             
-        /**
-         * @ingroup graphFsmInterpreterF
-         * @brief make the fsm match +
-         */
-        std::shared_ptr<TransitionGraph> qomF(std::shared_ptr<TransitionGraph> fsm);
-        /**
-         * @ingroup graphFsmInterpreterF
-         * @brief  make the fsm match *
-         */
-        std::shared_ptr<TransitionGraph> qzmF(std::shared_ptr<TransitionGraph> fsm);
-        /**
-         * @ingroup graphFsmInterpreterF
-         * @brief  make the fsm match ?
-         */
-        std::shared_ptr<TransitionGraph> qzoF(std::shared_ptr<TransitionGraph> fsm);
 
     };
 

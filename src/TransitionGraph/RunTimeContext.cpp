@@ -2,6 +2,32 @@
 #include "TransitionGraph/State.hpp"
 
 namespace CorGIReg {
+void RunTimeContext::beginQuantifier(std::size_t index, char symbol) {
+    std::optional<std::size_t> parent;
+    if (!mActiveQuantifiers.empty()) parent = mActiveQuantifiers.back().first;
+    mQuantifiers.push_back({index, symbol, parent, mCaptures.size(), mCaptures.size(), {}});
+    mActiveQuantifiers.push_back({mQuantifiers.size() - 1, getValidNodes().size()});
+}
+
+bool RunTimeContext::completeIteration(std::size_t index) {
+    auto& active = mActiveQuantifiers.at(mActiveQuantifiers.size() - 1);
+    auto& capture = mQuantifiers.at(active.first);
+    if (capture.index != index) throw std::logic_error("Unbalanced quantifier iteration");
+    const auto size = getValidNodes().size();
+    // Canonical finite traces: another iteration must cover a new source node.
+    // This also bounds nullable and common-node-only repetition cycles.
+    if (capture.count() != 0 && size == active.second) return false;
+    active.second = size;
+    capture.iterationEnds.push_back(mCaptures.size());
+    return true;
+}
+
+void RunTimeContext::endQuantifier(std::size_t index) {
+    auto& capture = mQuantifiers.at(mActiveQuantifiers.at(mActiveQuantifiers.size() - 1).first);
+    if (capture.index != index) throw std::logic_error("Unbalanced quantifier exit");
+    capture.end = mCaptures.size();
+    mActiveQuantifiers.pop_back();
+}
     
 
 RunTimeContext::RunTimeContext(std::shared_ptr<State> state, std::optional<NodeId> node,
@@ -111,6 +137,8 @@ bool RunTimeContext::areEqual(const std::shared_ptr<RunTimeContext>& context) co
     A Context is equal all the evaluation are the same
     */
     if (mEnvironment != context->mEnvironment) return false;
+    if ((!mQuantifiers.empty() && mCaptures != context->mCaptures) || mQuantifiers != context->mQuantifiers ||
+        mActiveQuantifiers != context->mActiveQuantifiers) return false;
     if(mActOpNode != context->mActOpNode){
         return false;
     }

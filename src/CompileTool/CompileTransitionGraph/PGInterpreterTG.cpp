@@ -1,4 +1,5 @@
 #include "CompileTool/CompileTransitionGraph/PGInterpreterTG.hpp"
+#include "TransitionGraph/TransitionTrace.hpp"
 
 
 namespace CorGIReg{
@@ -10,6 +11,8 @@ PGInterpreterTG::PGInterpreterTG(const std::string graphMatchExpr):mParser(graph
 std::shared_ptr<TGCompiled>  PGInterpreterTG::interpret(void){
     mActGroupe = 0;
     std::shared_ptr<AstNode<tGTokensTypes>> tree = mParser.parse();
+    mQuantifierIndices.clear();
+    indexQuantifiers(tree);
     return visit(tree)->compile();
 }
 
@@ -24,11 +27,11 @@ std::shared_ptr<TransitionGraph> PGInterpreterTG::visit(std::shared_ptr<AstNode<
     }else if(AstTree->getType() == tGTokensTypes::PREC){
         return precF(visit(nextAstNodes[0]),visit(nextAstNodes[1]));
     }else if(AstTree->getType() == tGTokensTypes::QOM){
-        return qomF(visit(nextAstNodes[0]));
+        return quantify(visit(nextAstNodes[0]), mQuantifierIndices.at(AstTree.get()), '+');
     }else if(AstTree->getType() == tGTokensTypes::QZM){
-        return qzmF(visit(nextAstNodes[0]));
+        return quantify(visit(nextAstNodes[0]), mQuantifierIndices.at(AstTree.get()), '*');
     }else if(AstTree->getType() == tGTokensTypes::QZO){
-        return qzoF(visit(nextAstNodes[0]));
+        return quantify(visit(nextAstNodes[0]), mQuantifierIndices.at(AstTree.get()), '?');
     }else if(AstTree->getType() == tGTokensTypes::KEY || AstTree->getType() == tGTokensTypes::CKEY || AstTree->getType() == tGTokensTypes::SCKEY){
         return keyF(AstTree);
     }else if (AstTree->getType() == tGTokensTypes::END){
@@ -134,39 +137,42 @@ std::shared_ptr<TransitionGraph> PGInterpreterTG::precF(std::shared_ptr<Transiti
     return rightTG->mergeOneStartOneValid(leftTG);
 }
 
-std::shared_ptr<TransitionGraph> PGInterpreterTG::qomF(std::shared_ptr<TransitionGraph> tg){
-    /*
-        +
-        valid node is connect to the child of Start with the same edge condition
-            A
-        S -> V
+void PGInterpreterTG::indexQuantifiers(const std::shared_ptr<AstNode<tGTokensTypes>>& node) {
+    // Postorder follows lexical symbol order: inner postfixes precede outer ones.
+    for (const auto& child : node->getChilds()) indexQuantifiers(child);
+    const auto type = node->getType();
+    if (type == tGTokensTypes::QOM || type == tGTokensTypes::QZM || type == tGTokensTypes::QZO)
+        mQuantifierIndices.emplace(node.get(), mQuantifierIndices.size() + 1);
+}
 
-            A
-        S -> V
-          (E|R)
-        V -> S
-    */
-    if (tg->containCommonTransition()){
-        return tg->addTransitionValidToStart(TransitionTypes::REF,"");
-    }else{
-        return tg->addTransitionValidToStart(TransitionTypes::EMPTY,"");
+std::shared_ptr<TransitionGraph> PGInterpreterTG::quantify(
+    std::shared_ptr<TransitionGraph> body, std::size_t index, char symbol) {
+    const auto starts = body->getStartStates();
+    const auto ends = body->getValidStates();
+    if (starts.size() != 1 || ends.size() != 1)
+        throw std::logic_error("Quantifier requires a single entry and exit");
+    auto first = starts.front();
+    auto last = *ends.begin();
+    auto entry = std::make_shared<State>(false, true);
+    auto completed = std::make_shared<State>(false, false);
+    auto exit = std::make_shared<State>(true, false);
+    for (const auto& state : {entry, completed, exit}) state->setGroupe(mActGroupe);
+    first->unStart();
+    last->unValid();
+    auto trace = [&](auto from, auto to, TraceAction action) {
+        auto edge = std::make_shared<TransitionTrace>(from, to, action, index, symbol);
+        edge->updateWeak();
+        body->addTransition(edge);
+    };
+    trace(entry, first, TraceAction::Begin);
+    trace(last, completed, TraceAction::Iteration);
+    trace(completed, exit, TraceAction::End);
+    if (symbol != '?') {
+        auto type = body->containCommonTransition() ? TransitionTypes::REF : TransitionTypes::EMPTY;
+        body->addTransition(TransitionFactory::make(completed, first, type));
     }
-}
-
-std::shared_ptr<TransitionGraph> PGInterpreterTG::qzmF(std::shared_ptr<TransitionGraph> tg){
-    /*
-    qomf and a bypass empty start to valid
-    */
-    return qzoF(qomF(tg));
-
-}
-
-std::shared_ptr<TransitionGraph> PGInterpreterTG::qzoF(std::shared_ptr<TransitionGraph> tg){
-    /*
-    quantification zero or one
-    just connect the start to the valid
-     */
-    return tg->addTransitionStartToValid(TransitionTypes::EMPTY,"");
+    if (symbol != '+') trace(entry, exit, TraceAction::Skip);
+    return body;
 }
 
 }

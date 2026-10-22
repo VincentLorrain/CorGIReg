@@ -14,7 +14,7 @@ MatchSolution::MatchSolution(std::vector<std::shared_ptr<RunTimeContext>>& prece
 
     // Reformat the solution
     for (const auto& context : precedence) {
-        mWalks.push_back({context->getSubStmId(), context->getCaptures()});
+        mWalks.push_back({context->getSubStmId(), context->getCaptures(), context->getQuantifiers()});
         for (const auto& pair : context->getValid()) {
             auto key = pair.first;
             if (mSolution.find(key) == mSolution.end()) {
