@@ -160,5 +160,8 @@ the test rather than silently skipping it. Direct invocation is also available:
 python -m unittest discover -s test/cli_python -p "test_*.py" -v
 ```
 
-The new tests pass on the development environment. The pre-existing randomized
-`APP` test still exceeds its 30-second limit in the full suite; it remains enabled.
+`APP` uses explicit source graphs and bounded, seeded generated chains. It checks
+the complete original pattern corpus, empty inputs, capture identities, nested
+quantifier counts and negative cases. It does not assume that every randomly
+generated syntactically valid pattern must match a graph produced by the IR
+example generator. The full development suite, including `APP`, passes.
