@@ -43,6 +43,22 @@ class StablehloTests(unittest.TestCase):
         self.assertEqual(result["graph"]["nodes"][0]["function"], "main")
         self.assertEqual(result["graph"]["nodes"][0]["op"], "stablehlo.negate")
 
+    def test_shared_conv_library_matches_real_convolutions(self):
+        process = subprocess.run([sys.executable, "-m", "corgireg_cli", "-i",
+                                  str(ROOT / "examples/library/conv.mlir"),
+                                  "--node-library", str(ROOT / "examples/library/nodes"),
+                                  "-R", str(ROOT / "examples/library/patterns/conv-chain.txt")],
+                                 env={**os.environ, "PYTHONPATH": str(ROOT / "python")},
+                                 capture_output=True, text=True, timeout=20)
+        self.assertEqual(process.returncode, 0, process.stderr)
+        report = json.loads(process.stdout)
+        match = next(m for m in report["matches"] if m["starts"] == [0])
+        self.assertEqual(match["node_ids"], [0, 1])
+        self.assertEqual(match["walks"][0]["quantifiers"][0]["count"], 2)
+        self.assertEqual(report["node_definitions"]["conv"]["node_ids"], [0, 1])
+        self.assertEqual(report["graph"]["nodes"][0]["op"], "stablehlo.convolution")
+        self.assertEqual(report["node_definitions"]["negate"]["node_ids"], [])
+
     def test_function_selection_is_explicit_when_ambiguous(self):
         functions = MODULE.removeprefix("module {").rsplit("}", 1)[0]
         self.path.write_text("module {" + functions.replace("@main", "@left") +

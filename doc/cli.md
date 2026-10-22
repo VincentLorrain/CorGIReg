@@ -56,6 +56,7 @@ corgireg -i examples/cli/network.mlir --format stablehlo --regex-file examples/c
 | `-R`, `--regex-file` | UTF-8 text file containing one complete pattern. Mutually exclusive with `-r`. |
 | `-o`, `--output` | JSON file path; `-` or omission writes to stdout. The parent directory must exist. |
 | `--function` | StableHLO function name; default is `main`, or the sole function. |
+| `--node-library` | JSON node definition file or directory; repeatable. See [node libraries](node-library.md). |
 | `--engine` | Native worker path override. |
 | `--max-starts` | Maximum number of starting tuples; default 100000. |
 | `--timeout` | Maximum matching time in seconds; default 60. |

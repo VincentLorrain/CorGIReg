@@ -41,6 +41,30 @@ class OnnxTests(unittest.TestCase):
         self.assertEqual(match["walks"][0]["nodes"][0]["name"], "first")
         self.assertEqual(report["graph"]["nodes"][1]["outputs"], ["b"])
 
+    def test_shared_conv_library_matches_real_convolutions(self):
+        value = lambda name, shape: helper.make_tensor_value_info(name, TensorProto.FLOAT, shape)
+        graph = helper.make_graph([
+            helper.make_node("Conv", ["x", "w"], ["a"], name="conv_first"),
+            helper.make_node("Conv", ["a", "w"], ["z"], name="conv_second")],
+            "convolutions", [value("x", [1, 1, 3, 3]), value("w", [1, 1, 1, 1])],
+            [value("z", [1, 1, 3, 3])])
+        model = helper.make_model(graph)
+        onnx.checker.check_model(model)
+        onnx.save_model(model, self.path)
+        process = subprocess.run([sys.executable, "-m", "corgireg_cli", "-i", str(self.path),
+                                  "--node-library", str(ROOT / "examples/library/nodes"),
+                                  "-R", str(ROOT / "examples/library/patterns/conv-chain.txt")],
+                                 env={**os.environ, "PYTHONPATH": str(ROOT / "python")},
+                                 capture_output=True, text=True, timeout=20)
+        self.assertEqual(process.returncode, 0, process.stderr)
+        report = json.loads(process.stdout)
+        match = next(m for m in report["matches"] if m["starts"] == [0])
+        self.assertEqual(match["node_ids"], [0, 1])
+        self.assertEqual(match["walks"][0]["quantifiers"][0]["count"], 2)
+        self.assertEqual(report["node_definitions"]["conv"]["node_ids"], [0, 1])
+        self.assertEqual(report["graph"]["nodes"][0]["name"], "conv_first")
+        self.assertEqual(report["node_definitions"]["negate"]["node_ids"], [])
+
     def test_inputs_initializers_and_duplicate_operands_are_boundaries(self):
         weight = helper.make_tensor("w", TensorProto.FLOAT, [1], [1.0])
         self.save([helper.make_node("Add", ["x", "w"], ["a"]),

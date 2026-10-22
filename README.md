@@ -33,6 +33,9 @@ Internally, `SCKEY` tokens are handled like common keys whose transitions are cr
 
 ## Generating example graphs
 
+For reusable format-independent predicates such as `conv` across ONNX and
+StableHLO, see [node and pattern libraries](doc/node-library.md).
+
 `PGInterpreterIR(query).interpret()` generates an example graph from a pattern.
 An optional second constructor argument limits the randomly selected number of
 copies for each `*`, and the additional copies after the mandatory occurrence of

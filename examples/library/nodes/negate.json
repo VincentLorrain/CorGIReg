@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "name": "negate",
+  "description": "Elementwise arithmetic negation.",
+  "formats": {
+    "onnx": {"op_types": ["Neg"]},
+    "stablehlo": {"op_types": ["stablehlo.negate"]},
+    "json": {"op_types": ["Neg", "stablehlo.negate"]}
+  }
+}
