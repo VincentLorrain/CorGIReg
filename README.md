@@ -7,6 +7,9 @@ CorGIReg is an C++ library designed to apply regular expression operations on gr
 See the [documentation index](doc/README.md) for the concepts, pattern language,
 input IRs, node definitions, complete match JSON format, C++ adapters and tooling.
 
+The initial integrated source milestone is [V0](doc/releases/V0.md), available
+through the Git tag `V0`.
+
 ## Installation on Windows and Linux
 
 Clone this repository, open a terminal in its root directory, then run one of
