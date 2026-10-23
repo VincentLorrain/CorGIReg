@@ -1,0 +1,22 @@
+name: Installation scripts
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  linux-install:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        formats: [json, all]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install and verify from the public script
+        run: bash installation/install.sh --formats ${{ matrix.formats }} --jobs 2

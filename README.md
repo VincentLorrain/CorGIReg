@@ -4,6 +4,65 @@
 
 CorGIReg is an C++ library designed to apply regular expression operations on graph structures. This library extends traditional text-based regular expressions to graphs, allowing for powerful and flexible pattern matching in complex data structures.
 
+## Installation on Windows and Linux
+
+Clone this repository, open a terminal in its root directory, then run one of
+the scripts in [`installation/`](installation/README.md).
+
+**Prerequisites:** Git, CMake 3.20 or newer, Python 3.10 or newer (3.12 for
+StableHLO), and a C++17 compiler with its build tool on `PATH`. On Windows,
+MinGW-w64 with `g++` and `mingw32-make` is the tested toolchain. On Linux, use
+GCC or Clang with Make or Ninja and Python's `venv` support. Internet access is
+needed to download Python dependencies, fmt and Catch2 on the first run.
+
+Windows PowerShell:
+
+```powershell
+.\installation\install.ps1
+```
+
+Linux:
+
+```sh
+bash installation/install.sh
+```
+
+These commands install JSON graph support, compile the C++ engine, run the
+test suite and verify the matching examples. To also install **ONNX and
+StableHLO**, use Python 3.12 or newer and add `--formats all`:
+
+```powershell
+.\installation\install.ps1 --formats all
+```
+
+```sh
+bash installation/install.sh --formats all
+```
+
+Everything is installed locally, without administrator privileges or global
+Python package changes:
+
+| Location | Contents |
+| --- | --- |
+| `build/install-venv/` | Python environment, CLI and native worker |
+| `build/install-build/` | CMake build, dependencies and test binaries |
+| `build/install-build/example-matches/` | Verified matching reports |
+
+Run the installed CLI without activating the environment:
+
+```powershell
+.\build\install-venv\Scripts\corgireg.exe -i examples/cli/network.json -r 'A+->B' -o build/matches.json
+```
+
+```sh
+./build/install-venv/bin/corgireg -i examples/cli/network.json -r 'A+->B' -o build/matches.json
+```
+
+The scripts can be rerun after source changes to rebuild and retest. Keep the
+checkout: installation uses editable Python sources. See the
+[installation guide](installation/README.md) for custom directories, Python
+selection, prerequisites and troubleshooting.
+
 To run patterns directly on an existing graph through a minimal read-only
 interface, see [Graph adapters](doc/graph-adapters.md). Results expose graph-local
 node IDs, with an adapter for resolving existing `NodeNN` objects.

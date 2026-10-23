@@ -6,6 +6,10 @@ or model execution is involved.
 
 ## Installation
 
+For an automated local installation with tests, use the
+[Windows/Linux installation scripts](../installation/README.md). The manual
+steps below remain available for an existing development environment.
+
 Build the native worker from the repository root:
 
 ```sh
@@ -39,6 +43,9 @@ The installed command finds the worker in `build/` when using this editable
 checkout. Alternatively pass `--engine /path/to/corgireg-match`, set
 `CORGIREG_ENGINE`, or put the worker on `PATH`. The CMake install target installs
 the worker to `bin`; Python packaging installs the separate public command.
+When the worker is installed under the active Python environment's `bin/`, the
+CLI detects it before searching PATH or the development checkout. Explicit
+`--engine` and `CORGIREG_ENGINE` overrides retain precedence.
 
 ## Usage
 
