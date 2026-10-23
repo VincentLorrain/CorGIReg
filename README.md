@@ -78,6 +78,20 @@ Reports include the complete pattern, original operation IDs, ordered captures
 and the actual quantifier counts. Build the native worker and install the Python
 front end as described in the guide before using these commands.
 
+## Performance tracking
+
+Record reproducible native timings and a JSON report tagged with the Git revision:
+
+```sh
+python benchmarks/track.py run
+```
+
+Reports are saved in `build/performance/reports/`. Compare two runs with
+`python benchmarks/track.py compare reference.json current.json`. The
+[benchmark guide](benchmarks/README.md) explains reference files, compatibility
+checks, slowdown thresholds and CI artifacts. Performance measurements use a
+separate Release build; functional tests retain their own checks.
+
 # Graph-Regex Token Types
 
 CorGIReg extends conventional regular-expression syntax with tokens that describe how a node condition should be interpreted inside a transition graph.  The lexer recognises three flavours of "key" tokens, each mapping to a distinct transition type:

@@ -1,0 +1,25 @@
+name: Performance reports
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  measure:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Build and record verified native benchmarks
+        run: python benchmarks/track.py run --jobs 2
+      - name: Preserve measurements for this revision
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-${{ github.sha }}-${{ github.run_id }}
+          path: build/performance/reports/*.json
+          if-no-files-found: error
+          retention-days: 90
