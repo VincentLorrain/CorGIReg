@@ -33,12 +33,19 @@ catch_discover_tests(tests
 
 find_package(Python3 COMPONENTS Interpreter QUIET)
 if(Python3_Interpreter_FOUND)
+    add_test(NAME Benchmark_Reports COMMAND ${Python3_EXECUTABLE} -m unittest discover
+        -s ${PROJECT_SOURCE_DIR}/test/benchmarks -p "test_*.py" -v)
     add_test(NAME Installer_Python COMMAND ${Python3_EXECUTABLE} -m unittest discover
         -s ${PROJECT_SOURCE_DIR}/test/installation -p "test_*.py" -v)
     add_test(NAME CLI_Python COMMAND ${Python3_EXECUTABLE} -m unittest discover
         -s ${PROJECT_SOURCE_DIR}/test/cli_python -p test_cli.py -v)
     set_tests_properties(CLI_Python PROPERTIES
         ENVIRONMENT "CORGIREG_ENGINE=$<TARGET_FILE:corgireg-match>")
+endif()
+
+if(CORGIREG_BUILD_BENCHMARKS)
+    add_test(NAME Benchmark_Smoke COMMAND corgireg-benchmark --samples 1 --iterations 1)
+    set_tests_properties(Benchmark_Smoke PROPERTIES LABELS "benchmark" TIMEOUT 60)
 endif()
 
 set(CORGIREG_IMPORT_PYTHON "" CACHE FILEPATH "Python environment with optional ONNX and StableHLO readers for integration tests")

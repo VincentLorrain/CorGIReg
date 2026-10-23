@@ -71,6 +71,16 @@ target_include_directories(corgireg-match PRIVATE ${PROJECT_SOURCE_DIR}/include)
 target_link_libraries(corgireg-match PRIVATE CorGIReg)
 install(TARGETS corgireg-match RUNTIME DESTINATION bin COMPONENT Runtime)
 
+option(CORGIREG_BUILD_BENCHMARKS "Build reproducible native performance measurements" OFF)
+if(CORGIREG_BUILD_BENCHMARKS)
+  add_executable(corgireg-benchmark benchmarks/native.cpp)
+  target_include_directories(corgireg-benchmark PRIVATE ${PROJECT_SOURCE_DIR}/include)
+  target_link_libraries(corgireg-benchmark PRIVATE CorGIReg fmt::fmt)
+  target_compile_definitions(corgireg-benchmark PRIVATE
+    CORGIREG_BENCH_COMPILER="${CMAKE_CXX_COMPILER_ID}-${CMAKE_CXX_COMPILER_VERSION}"
+    CORGIREG_BENCH_CONFIG="$<CONFIG>")
+endif()
+
 # Optionally include tests only in Debug mode
 
 
