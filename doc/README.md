@@ -26,6 +26,7 @@ root as the working directory.
 - [Architecture](architecture.md): representations, compiler/runtime phases and source-code map.
 - [Graph adapters](graph-adapters.md): minimal C++ topology interface and matching entry points.
 - [Post-AST root selection](post-ast-root-selection.md): current proposal, selection rules and execution limits.
+- [Multithreading experiment](multithreading.md): worker isolation, ordered results, `$` regressions and performance comparisons.
 - [Native protocol](native-protocol.md): Python-to-worker transport versions and typed values.
 - [Development and performance](development.md): tests, benchmark references, CI and troubleshooting.
 - [Performance report details](../benchmarks/README.md): measurements, JSON provenance and commit comparisons.

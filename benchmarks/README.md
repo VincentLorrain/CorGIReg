@@ -55,6 +55,14 @@ and commit it intentionally; do not update it automatically after each run.
 | post_ast_shared | RootSelectionPass on an already parsed AST | One component rooted at B# |
 | match_chain_16 / match_chain_64 | Execute an already compiled `A+->$` from a known start | Full chain, repetition count 16 / 64 |
 | search_shared_6 / 12 / 48 | Native request processing, compilation, multi-start search and JSON serialization | 2 / 4 / 16 distinct three-node groups |
+| search_shared_48_jobs2 / jobs4 | Same 48-node search using 2 / 4 workers | 16 distinct three-node groups |
+| search_shared_192 / _jobs2 / _jobs4 | Same 192-node search using 1 / 2 / 4 workers | 64 distinct three-node groups |
+
+Parallel scenarios include pool startup and ordered-result coordination. Compare
+their medians against the matching sequential workload within the same report.
+The runner's `--jobs` option controls build parallelism, not these fixed worker
+counts. Adding these scenarios changes the suite fingerprint and requires a new
+reference. See [the multithreading contract](../doc/multithreading.md).
 
 Fixtures are explicit and deterministic; they do not use PGInterpreterIR or
 random graph generation. Fixture construction is outside timing. Each scenario
