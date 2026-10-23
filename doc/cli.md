@@ -172,4 +172,10 @@ python -m unittest discover -s test/cli_python -p "test_*.py" -v
 the complete original pattern corpus, empty inputs, capture identities, nested
 quantifier counts and negative cases. It does not assume that every randomly
 generated syntactically valid pattern must match a graph produced by the IR
-example generator. The full development suite, including `APP`, passes.
+example generator. Run the suite above to check the current checkout.
+
+## Format references
+
+See the complete [graph JSON](graph-json.md), [match-report JSON](match-report-json.md),
+[pattern language](pattern-language.md) and [importer contracts](importers.md).
+The [documentation index](README.md) also covers compiler internals and tooling.

@@ -6,6 +6,10 @@ implement graph construction and merging.
 
 ## Adapter contract
 
+For serialized inputs and output fields, see [graph JSON](graph-json.md) and
+[match reports](match-report-json.md). Explicit starting tuples must follow
+`getStartStates()` order; it is not guaranteed to be lexical path order.
+
 Implement the two methods from `GraphAccess/GraphView.hpp`:
 
 ```cpp

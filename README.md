@@ -4,6 +4,9 @@
 
 CorGIReg is an C++ library designed to apply regular expression operations on graph structures. This library extends traditional text-based regular expressions to graphs, allowing for powerful and flexible pattern matching in complex data structures.
 
+See the [documentation index](doc/README.md) for the concepts, pattern language,
+input IRs, node definitions, complete match JSON format, C++ adapters and tooling.
+
 ## Installation on Windows and Linux
 
 Clone this repository, open a terminal in its root directory, then run one of
