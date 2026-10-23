@@ -1,0 +1,8 @@
+{
+  "nodes": [
+    {"id": 42, "op": "A", "name": "first_A"},
+    {"id": 0, "op": "A", "name": "second_A"},
+    {"id": 9, "op": "B", "name": "last_B"}
+  ],
+  "edges": [[42, 0], [0, 9]]
+}

@@ -12,7 +12,9 @@ For `A+->B`, matching source nodes `42:A -> 0:A -> 9:B` gives:
 - Quantifier index `1`, symbol `+`, count `2`.
 - Quantifier capture range `[0, 2)`, iteration ends `[1, 2]`.
 
-These are fields of the C++ result, not a serialized JSON format.
+These C++ fields are also exposed by the CLI's [JSON match report](match-report-json.md).
+The JSON names use `id`, `count` and `iteration_ends` for the C++ capture's
+`node`, `count()` and `iterationEnds` respectively.
 
 ## Source names and identity
 
