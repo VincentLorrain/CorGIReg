@@ -51,6 +51,9 @@ def install(args):
     engine = environment / "bin" / ("corgireg-match.exe" if os.name == "nt" else "corgireg-match")
     if not engine.is_file():
         raise ValueError(f"Native worker was not installed: {engine}")
+    # Existing integration fixtures use <source>/build for their temporary files,
+    # even when the user chooses a build directory outside the checkout.
+    (ROOT / "build").mkdir(exist_ok=True)
     tests = run(["ctest", "--test-dir", build, "-C", "Debug", "--show-only=json-v1"],
                 capture_output=True, text=True)
     if not json.loads(tests.stdout).get("tests"):

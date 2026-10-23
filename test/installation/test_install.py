@@ -72,10 +72,14 @@ class InstallationTests(unittest.TestCase):
             engine.touch()
             args = argparse.Namespace(venv=env, build_dir=folder / "build", formats="json", jobs=1, generator=None)
             result = subprocess.CompletedProcess([], 0, stdout='{"tests": []}')
-            with patch.object(installer.shutil, "which", return_value="tool"), \
+            source = folder / "source"
+            source.mkdir()
+            with patch.object(installer, "ROOT", source), \
+                 patch.object(installer.shutil, "which", return_value="tool"), \
                  patch.object(installer, "run", return_value=result), \
                  self.assertRaisesRegex(ValueError, "No tests were discovered"):
                 installer.install(args)
+            self.assertTrue((source / "build").is_dir())
 
 
 if __name__ == "__main__":
