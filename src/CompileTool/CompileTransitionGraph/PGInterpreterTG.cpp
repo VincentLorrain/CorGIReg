@@ -11,6 +11,7 @@ PGInterpreterTG::PGInterpreterTG(const std::string graphMatchExpr):mParser(graph
 std::shared_ptr<TGCompiled>  PGInterpreterTG::interpret(void){
     mActGroupe = 0;
     std::shared_ptr<AstNode<tGTokensTypes>> tree = mParser.parse();
+    mRootSelectionPlan = RootSelectionPass{}.run(tree);
     mQuantifierIndices.clear();
     indexQuantifiers(tree);
     return visit(tree)->compile();

@@ -37,6 +37,7 @@ set(src_files
     ${PROJECT_SOURCE_DIR}/src/BasicGraphIr/Graph.cpp
     ${PROJECT_SOURCE_DIR}/src/CompileTool/CompileTransitionGraph/PGInterpreterIR.cpp
     ${PROJECT_SOURCE_DIR}/src/CompileTool/CompileTransitionGraph/PGInterpreterTG.cpp
+    ${PROJECT_SOURCE_DIR}/src/CompileTool/PostAstOptimization/RootSelectionPass.cpp
     ${PROJECT_SOURCE_DIR}/src/CompileTool/CompileTransitionGraph/PartitionGraphLexer.cpp
     ${PROJECT_SOURCE_DIR}/src/CompileTool/CompileTransitionGraph/PartitionGraphParser.cpp
     ${PROJECT_SOURCE_DIR}/src/NodeTest/Expression.cpp

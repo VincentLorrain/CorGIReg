@@ -95,6 +95,8 @@ Internally, `SCKEY` tokens are handled like common keys whose transitions are cr
 For reusable format-independent predicates such as `conv` across ONNX and
 StableHLO, see [node and pattern libraries](doc/node-library.md).
 Ready-to-run scripts and graph fixtures are in [matching examples](examples/matches/README.md).
+The compiler's proposed [post-AST root selection phase](doc/post-ast-root-selection.md)
+prepares traversal planning before TransitionGraph generation.
 
 `PGInterpreterIR(query).interpret()` generates an example graph from a pattern.
 An optional second constructor argument limits the randomly selected number of

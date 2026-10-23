@@ -15,6 +15,7 @@
 #include "CompileTool/CompileTransitionGraph/PartitionGraphLexer.hpp"
 #include "CompileTool/CompileTransitionGraph/PartitionGraphParser.hpp"
 #include "CompileTool/CompileTransitionGraph/PartitionGraphTokens.hpp"
+#include "CompileTool/PostAstOptimization/RootSelectionPass.hpp"
 
 namespace CorGIReg {
 
@@ -25,6 +26,7 @@ namespace CorGIReg {
         PartitionGraphParser mParser;
         std::size_t mActGroupe;
         const std::string mGraphMatchExpr;
+        RootSelectionPlan mRootSelectionPlan;
         std::map<const AstNode<tGTokensTypes>*, std::size_t> mQuantifierIndices;
         void indexQuantifiers(const std::shared_ptr<AstNode<tGTokensTypes>>& node);
         std::shared_ptr<TransitionGraph> quantify(std::shared_ptr<TransitionGraph> body,
@@ -35,6 +37,7 @@ namespace CorGIReg {
         virtual ~PGInterpreterTG() =default;
 
         std::shared_ptr<TGCompiled>  interpret(void);
+        const RootSelectionPlan& getRootSelectionPlan() const { return mRootSelectionPlan; }
 
         private:
 
