@@ -40,6 +40,8 @@ def find_engine(explicit=None):
         candidate = explicit
     elif os.environ.get("CORGIREG_ENGINE"):
         candidate = Path(os.environ["CORGIREG_ENGINE"])
+    elif (Path(sys.prefix) / "bin" / ("corgireg-match.exe" if os.name == "nt" else "corgireg-match")).is_file():
+        candidate = Path(sys.prefix) / "bin" / ("corgireg-match.exe" if os.name == "nt" else "corgireg-match")
     elif shutil.which("corgireg-match"):
         candidate = Path(shutil.which("corgireg-match"))
     else:

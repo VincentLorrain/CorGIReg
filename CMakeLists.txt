@@ -68,7 +68,7 @@ target_link_libraries(CorGIReg PRIVATE fmt::fmt)
 add_executable(corgireg-match src/Cli/main.cpp)
 target_include_directories(corgireg-match PRIVATE ${PROJECT_SOURCE_DIR}/include)
 target_link_libraries(corgireg-match PRIVATE CorGIReg)
-install(TARGETS corgireg-match RUNTIME DESTINATION bin)
+install(TARGETS corgireg-match RUNTIME DESTINATION bin COMPONENT Runtime)
 
 # Optionally include tests only in Debug mode
 
