@@ -32,7 +32,16 @@ def parser():
     cli.add_argument("--engine", type=Path, help="path to the corgireg-match native executable")
     cli.add_argument("--max-starts", type=positive_int, default=100000, help="maximum starting tuples to search")
     cli.add_argument("--timeout", type=positive_int, default=60, help="matching timeout in seconds")
+    cli.add_argument("-j", "--jobs", type=worker_count, default=1,
+                     help="parallel starting-tuple workers, 1..256 (default: 1)")
     return cli
+
+
+def worker_count(value):
+    number = positive_int(value)
+    if number > 256:
+        raise argparse.ArgumentTypeError("must be between 1 and 256")
+    return number
 
 
 def find_engine(explicit=None):
@@ -100,7 +109,10 @@ def run(args):
     memberships, definition_report = resolve_definitions(definitions, graph, format_name)
     request = encode_request(graph, query, args.max_starts, memberships if args.node_library else None,
                              definition_report if args.node_library else None)
-    process = subprocess.run([str(find_engine(args.engine))], input=request,
+    command = [str(find_engine(args.engine))]
+    if args.jobs != 1:
+        command.extend(["--jobs", str(args.jobs)])
+    process = subprocess.run(command, input=request,
                              text=True, encoding="utf-8", capture_output=True, timeout=args.timeout, check=False)
     if process.returncode:
         raise ValueError(process.stderr.strip() or f"Native matching failed ({process.returncode})")

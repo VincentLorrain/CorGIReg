@@ -176,6 +176,10 @@ example generator. Run the suite above to check the current checkout.
 
 ## Format references
 
+Use `-j N` / `--jobs N` (1 through 256, default 1) to evaluate independent
+starting tuples in parallel. Compilation and rule filtering remain sequential.
+See [multithreading](multithreading.md) for ordering, resource limits and tests.
+
 See the complete [graph JSON](graph-json.md), [match-report JSON](match-report-json.md),
 [pattern language](pattern-language.md) and [importer contracts](importers.md).
 The [documentation index](README.md) also covers compiler internals and tooling.

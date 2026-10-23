@@ -5,6 +5,10 @@ The public `corgireg` Python CLI imports files, encodes this stream and enriches
 the reply. Applications should prefer the public CLI or C++ API; this internal
 transport is not the [public JSON report](match-report-json.md).
 
+The worker accepts an optional process argument `--jobs N` (1..256, default 1).
+It controls [parallel traversal](multithreading.md) without changing the stdin
+protocol or public report schema.
+
 Whitespace separates tokens. Text tokens are hexadecimal UTF-8 bytes; `-`
 represents an empty string. IDs are unsigned 64-bit integers. The query is
 encoded text; Python normalizes its whitespace for the native lexer while

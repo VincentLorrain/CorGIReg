@@ -44,7 +44,7 @@ std::string hex(const std::string& text) {
     return result;
 }
 
-Case search(std::size_t triples) {
+Case search(std::size_t triples, std::size_t jobs = 1) {
     std::ostringstream request;
     request << "CORGiReg1 " << triples * 3 << ' ';
     for (std::size_t id = 0; id < triples * 3; ++id)
@@ -53,10 +53,12 @@ Case search(std::size_t triples) {
     for (std::size_t i = 0; i < triples; ++i)
         request << i * 3 << ' ' << i * 3 + 1 << ' ' << i * 3 + 1 << ' ' << i * 3 + 2 << ' ';
     request << hex("A->B#;B#->C") << " 100000";
-    return {"search_shared_" + std::to_string(triples * 3), triples * 3, 2, triples, [text = request.str()] {
+    const auto name = "search_shared_" + std::to_string(triples * 3) +
+                      (jobs == 1 ? "" : "_jobs" + std::to_string(jobs));
+    return {name, triples * 3, 2, triples, [text = request.str(), jobs] {
         std::istringstream in(text);
         std::ostringstream out;
-        matchRequest(in, out);
+        matchRequest(in, out, jobs);
         const auto result = out.str();
         // Several execution traces can describe the same source-node grouping.
         std::set<std::string> groups;
@@ -103,7 +105,8 @@ int main(int argc, char** argv) {
                     throw std::runtime_error("Incorrect root selection");
                 return plan.components.size();
             }},
-            chain(16), chain(64), search(2), search(4), search(16)
+            chain(16), chain(64), search(2), search(4), search(16),
+            search(16, 2), search(16, 4), search(64), search(64, 2), search(64, 4)
         };
         std::cout << std::setprecision(17) << "{\"schema_version\":1,\"compiler\":\"" << CORGIREG_BENCH_COMPILER
                   << "\",\"configuration\":\"" << CORGIREG_BENCH_CONFIG
