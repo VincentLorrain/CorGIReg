@@ -1,4 +1,5 @@
 #include "Cli/MatchRequest.hpp"
+#include "Cli/SearchExecutor.hpp"
 #include "GraphAdapters/ImportedGraph.hpp"
 #include "CompileTool/CompileTransitionGraph/PGInterpreterTG.hpp"
 #include "NodeTest/NodeRule.hpp"
@@ -142,7 +143,8 @@ void writeMatch(std::ostream& out, const MatchSolution& match) {
 }
 }
 
-void matchRequest(std::istream& input, std::ostream& output) {
+void matchRequest(std::istream& input, std::ostream& output, std::size_t jobs) {
+    if (jobs == 0 || jobs > 256) throw std::invalid_argument("Jobs must be between 1 and 256");
     const auto protocol = token(input);
     if (protocol != "CORGiReg1" && protocol != "CORGiReg2" && protocol != "CORGiReg3")
         throw std::invalid_argument("Unsupported matching protocol");
@@ -235,19 +237,29 @@ void matchRequest(std::istream& input, std::ostream& output) {
     }
     output << "{\"query\":"; jsonString(output, query); output << ",\"matches\":[";
     bool first = true;
-    for (std::uint64_t combination = 0; combination < combinations; ++combination) {
+    // Workers share only the compiled machine and immutable source data.
+    // Each test owns its environment, contexts, strict obligations and traces.
+    runOrderedSearch(combinations, jobs, [&](std::uint64_t combination) {
         auto rest = combination;
         std::vector<std::optional<NodeId>> starts;
         for (std::size_t i = 0; i < arity; ++i) {
             starts.push_back(candidates[rest % candidates.size()]); rest /= candidates.size();
         }
         const auto result = pattern->test(graph, starts, predicates);
+        std::ostringstream fragment;
+        bool firstMatch = true;
         for (const auto& match : result->getMatches()) {
-            if (!first) output << ',';
-            first = false;
-            writeMatch(output, *match);
+            if (!firstMatch) fragment << ',';
+            firstMatch = false;
+            writeMatch(fragment, *match);
         }
-    }
+        return fragment.str();
+    }, [&](const std::string& fragment) {
+        if (fragment.empty()) return;
+        if (!first) output << ',';
+        first = false;
+        output << fragment;
+    });
     output << ']';
     if (protocol == "CORGiReg3") {
         output << ",\"definition_nodes\":{";

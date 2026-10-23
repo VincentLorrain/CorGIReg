@@ -12,6 +12,30 @@ from corgireg_cli.graph import validate_graph
 
 
 class CliTests(unittest.TestCase):
+    def test_parallel_matches_preserve_names_and_quantifier_allocations(self):
+        for query in ["A+->B", "(A?)+->B", "B<-A", "A+->A+->B", "Missing",
+                      "A+->B->$", "A+->$", "A+->B->Missing?->$", "$<-B<-A"]:
+            with self.subTest(query=query):
+                serial = self.invoke("-i", self.graph, "-r", query)
+                self.assertEqual(serial.returncode, 0, serial.stderr)
+                for jobs in [2, 4, 16]:
+                    parallel = self.invoke("-i", self.graph, "-r", query, "--jobs", jobs)
+                    self.assertEqual(parallel.returncode, 0, parallel.stderr)
+                    self.assertEqual(json.loads(parallel.stdout), json.loads(serial.stdout))
+
+    def test_parallel_rejects_bad_jobs_and_preserves_existing_output_on_budget_error(self):
+        output = self.folder / "existing.json"
+        output.write_text("keep me", encoding="utf-8")
+        for value in ["0", "-1", "257", "1.5"]:
+            result = self.invoke("-i", self.graph, "-r", "A", "--jobs", value, "-o", output)
+            self.assertEqual(result.returncode, 2)
+            self.assertEqual(output.read_text(encoding="utf-8"), "keep me")
+        result = self.invoke("-i", self.graph, "-r", "A->B#;B#->C", "-j", 4,
+                             "--max-starts", 1, "-o", output)
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("starting combinations", result.stderr)
+        self.assertEqual(output.read_text(encoding="utf-8"), "keep me")
+
     def test_conditional_node_example_runs_outside_repository(self):
         output = self.folder / "conditional report.json"
         process = subprocess.run([sys.executable, str(ROOT / "examples/matches/run_rules.py"),
@@ -146,6 +170,9 @@ class CliTests(unittest.TestCase):
         full = next(m for m in report["matches"] if m["starts"] == [42])
         self.assertEqual(full["walks"][0]["quantifiers"][0]["count"], 2)
         self.assertEqual(report["node_definitions"]["conv"]["node_ids"], [0, 42])
+        parallel = self.invoke("-i", self.graph, "-r", "conv+->B", "--node-library", path, "-j", 4)
+        self.assertEqual(parallel.returncode, 0, parallel.stderr)
+        self.assertEqual(json.loads(parallel.stdout), report)
         graph["nodes"][0]["attributes"]["debug_trace"] = False
         self.graph.write_text(json.dumps(graph), encoding="utf-8")
         result = self.invoke("-i", self.graph, "-r", "conv+->B", "--node-library", path)
