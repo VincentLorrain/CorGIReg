@@ -123,6 +123,12 @@ The compiler's proposed [post-AST root selection phase](doc/post-ast-root-select
 prepares traversal planning before TransitionGraph generation.
 
 `PGInterpreterIR(query).interpret()` generates an example graph from a pattern.
+For deterministic generation, pass `IRGenerationOptions` or a values-file path:
+`PGInterpreterIR(query, "examples/generation/nested.values").interpret()`.
+See [IR generation](doc/ir-generation.md) for nested repetition values,
+seeded random fallback and testbench parameter series.
+
+The original constructors remain available:
 An optional second constructor argument limits the randomly selected number of
 copies for each `*`, and the additional copies after the mandatory occurrence of
 each `+`. The default limit is 10. This is a per-quantifier limit, not a bound on
