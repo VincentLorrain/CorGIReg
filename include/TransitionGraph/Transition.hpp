@@ -207,7 +207,9 @@ namespace CorGIReg{
         NONE = 0, /**< no node are rejected (the validation on the others child of parent of common node is not mandatory)*/
         FRONT,/** need to valid all the node in the same direction of the visit  */
         BACK,/** need to valid all the node in the opposite direction of the visit  */
-        ALL /**< all child and parent of common  node must be valid by at least one FSM (no inclusion in a sub part of a graph is possible)*/
+        ALL, /**< Every parent and child must be covered. */
+        INPUTS, /**< Absolute graph parents, independent of traversal direction. */
+        OUTPUTS /**< Absolute graph children, independent of traversal direction. */
     };
 
      /**

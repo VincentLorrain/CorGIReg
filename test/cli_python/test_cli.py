@@ -12,6 +12,34 @@ from corgireg_cli.graph import validate_graph
 
 
 class CliTests(unittest.TestCase):
+    def test_directional_strict_nodes_in_public_reports(self):
+        for extra in range(4):
+            graph = {"nodes": [{"id": 42, "op": "A"}, {"id": 0, "op": "B", "name": "hub"},
+                               {"id": 9, "op": "C"}, {"id": 7, "op": "Other"}],
+                     "edges": [[42, 0], [0, 9]]}
+            if extra & 1:
+                graph["edges"].append([7, 0])
+            if extra & 2:
+                graph["edges"].append([0, 7])
+            self.graph.write_text(json.dumps(graph), encoding="utf-8")
+            for sides, key in enumerate(["B#", "$B", "B$", "$B$"]):
+                query = "A->" + key + "->C->$"
+                reference = None
+                for jobs in [1, 4]:
+                    with self.subTest(extra=extra, query=query, jobs=jobs):
+                        process = self.invoke("-i", self.graph, "-r", query, "--jobs", jobs)
+                        self.assertEqual(process.returncode, 0, process.stderr)
+                        report = json.loads(process.stdout)
+                        self.assertEqual(report["query"], query)
+                        self.assertEqual(len(report["matches"]), int((sides & extra) == 0))
+                        for match in report["matches"]:
+                            self.assertEqual(match["node_ids"], [0, 9, 42])
+                            self.assertEqual(match["walks"][0]["nodes"][1],
+                                             {"id": 0, "name": "hub", "predicate": "B"})
+                        if reference is not None:
+                            self.assertEqual(report, reference)
+                        reference = report
+
     def test_parallel_matches_preserve_names_and_quantifier_allocations(self):
         for query in ["A+->B", "(A?)+->B", "B<-A", "A+->A+->B", "Missing",
                       "A+->B->$", "A+->$", "A+->B->Missing?->$", "$<-B<-A"]:

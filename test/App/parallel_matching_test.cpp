@@ -90,8 +90,10 @@ TEST_CASE("Parallel tuple search isolates common and strict branch obligations",
         graph->addEdge(offset + 1, offset + 3);
     }
     compareSearch(graph, "PA->PB#;PB#->PC", true);
-    compareSearch(graph, "PA->PB$;PB$->PC", false);
-    compareSearch(graph, "PA->PB$;PB$->PC;PB$->PD", true);
+    compareSearch(graph, "PA->$PB;PB#->PC", true);
+    compareSearch(graph, "PA->PB$;PB#->PC", false);
+    compareSearch(graph, "PA->$PB$;$PB$->PC", false);
+    compareSearch(graph, "PA->$PB$;$PB$->PC;$PB$->PD", true);
     compareSearch(graph, "PA->PB#;PB#->Missing", false);
 }
 

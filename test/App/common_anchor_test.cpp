@@ -22,13 +22,13 @@ TEST_CASE("Repetition selects its own common anchor after other compilations", "
         second->setInfo("Type", leafKey);
         graph.addEdge(anchor, first);
         graph.addEdge(anchor, second);
-        auto outgoing = PGInterpreterTG("(" + anchorKey + "$->" + leafKey + ")+").interpret();
+        auto outgoing = PGInterpreterTG("($" + anchorKey + "$->" + leafKey + ")+").interpret();
         REQUIRE(outgoing->test({anchor})->isMatch());
         anchor->removeChild(first); first->removeParent(anchor);
         anchor->removeChild(second); second->removeParent(anchor);
         graph.addEdge(first, anchor);
         graph.addEdge(second, anchor);
-        auto incoming = PGInterpreterTG("(" + leafKey + "->" + anchorKey + "$)+").interpret();
+        auto incoming = PGInterpreterTG("(" + leafKey + "->$" + anchorKey + "$)+").interpret();
         REQUIRE(incoming->test({first})->isMatch());
         REQUIRE_FALSE(incoming->test({anchor})->isMatch());
         first->removeChild(anchor); anchor->removeParent(first);
