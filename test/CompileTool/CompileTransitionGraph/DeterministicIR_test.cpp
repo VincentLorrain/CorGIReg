@@ -3,6 +3,7 @@
 #include "CompileTool/CompileTransitionGraph/PGInterpreterTG.hpp"
 #include "GraphAdapters/BasicGraphAdapter.hpp"
 #include <sstream>
+#include <filesystem>
 
 using namespace CorGIReg;
 namespace {
@@ -76,6 +77,26 @@ TEST_CASE("Configured random IR is reproducible and explicit values take precede
     REQUIRE(count == 3);
     options.repetitions.clear(); options.maxLoops = 0;
     REQUIRE(topology(PGInterpreterIR("A+->B*", options).interpret()) == "A:;");
+}
+
+TEST_CASE("IR value files load counts modes and seeds with useful errors", "[generation]") {
+    const auto example = std::filesystem::path(__FILE__).parent_path() /
+        "../../../examples/generation/nested.values";
+    REQUIRE(topology(PGInterpreterIR("(A+->B)+->C*->D?", example.string()).interpret()) ==
+        "A:1,;A:2,;A:3,;B:4,;A:5,;B:6,;D:;");
+    std::istringstream random("mode = random\nseed = 42\nmax_loops = 0\nmax_nodes = 4\n1 = 3 # fixed\n");
+    auto options = IRGenerationOptions::read(random);
+    REQUIRE(options.randomMissing);
+    REQUIRE(options.seed == 42);
+    REQUIRE(options.maxNodes == 4);
+    REQUIRE(topology(PGInterpreterIR("A+->B*", options).interpret()) == "A:1,;A:2,;A:;");
+    REQUIRE_THROWS_AS(IRGenerationOptions::fromFile(example.string() + ".missing"), std::runtime_error);
+    for (const std::string text : {"1=-1", "1=1,", "0=1", "1=", "1=2\n01=3", "seed=1\nseed=2",
+                                  "mode=other", "typo=2", "1 2", "1=9999999999999999999999999", "seed=4294967296"}) {
+        INFO(text);
+        std::istringstream input(text);
+        REQUIRE_THROWS_AS(IRGenerationOptions::read(input), std::invalid_argument);
+    }
 }
 
 

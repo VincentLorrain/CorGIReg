@@ -1,8 +1,75 @@
 #include "CompileTool/Common/CommonKey.hpp"
 #include "CompileTool/CompileTransitionGraph/PGInterpreterIR.hpp"
+#include <fstream>
+#include <limits>
 
 
 namespace CorGIReg{
+
+IRGenerationOptions IRGenerationOptions::read(std::istream& input) {
+    IRGenerationOptions result;
+    std::set<std::string> seen;
+    auto trim = [](const std::string& text) {
+        const auto begin = text.find_first_not_of(" \t\r\n");
+        return begin == std::string::npos ? std::string{} :
+            text.substr(begin, text.find_last_not_of(" \t\r\n") - begin + 1);
+    };
+    auto number = [](const std::string& value, unsigned long long maximum) {
+        if (value.empty() || value.find_first_not_of("0123456789") != std::string::npos)
+            throw std::invalid_argument("Expected an unsigned integer");
+        const auto parsed = std::stoull(value);
+        if (parsed > maximum) throw std::invalid_argument("Integer exceeds allowed limit");
+        return parsed;
+    };
+    std::string line;
+    std::size_t lineNumber = 0;
+    while (std::getline(input, line)) {
+        ++lineNumber;
+        line = trim(line.substr(0, line.find('#')));
+        if (line.empty()) continue;
+        try {
+            const auto separator = line.find('=');
+            if (separator == std::string::npos) throw std::invalid_argument("Expected key = value");
+            const auto key = trim(line.substr(0, separator));
+            const auto value = trim(line.substr(separator + 1));
+            if (!seen.insert(key).second) throw std::invalid_argument("Duplicate key");
+            if (key == "mode") {
+                if (value != "random" && value != "deterministic") throw std::invalid_argument("Unknown mode");
+                result.randomMissing = value == "random";
+            } else if (key == "seed") {
+                result.seed = static_cast<std::uint32_t>(number(value, std::numeric_limits<std::uint32_t>::max()));
+            } else if (key == "max_loops") {
+                result.maxLoops = static_cast<std::size_t>(number(value, 1000000));
+            } else if (key == "max_nodes") {
+                result.maxNodes = static_cast<std::size_t>(number(value, std::numeric_limits<std::size_t>::max()));
+            } else {
+                const auto id = static_cast<std::size_t>(number(key, 1000000));
+                if (!id || result.repetitions.count(id)) throw std::invalid_argument("Invalid or duplicate quantifier index");
+                auto& values = result.repetitions[id];
+                std::size_t begin = 0;
+                do {
+                    const auto end = value.find(',', begin);
+                    values.push_back(static_cast<std::size_t>(number(trim(value.substr(begin, end - begin)), 1000000)));
+                    if (end == std::string::npos) break;
+                    begin = end + 1;
+                } while (true);
+            }
+        } catch (const std::exception& error) {
+            throw std::invalid_argument("IR values line " + std::to_string(lineNumber) + ": " + error.what());
+        }
+    }
+    if (input.bad() || (input.fail() && !input.eof())) throw std::runtime_error("Cannot read IR values");
+    return result;
+}
+
+IRGenerationOptions IRGenerationOptions::fromFile(const std::string& path) {
+    std::ifstream input(path);
+    if (!input) throw std::runtime_error("Cannot open IR values: " + path);
+    return read(input);
+}
+
+PGInterpreterIR::PGInterpreterIR(const std::string& expression, const std::string& valuesFile)
+    : PGInterpreterIR(expression, IRGenerationOptions::fromFile(valuesFile)) {}
 
 namespace {
 using IRTree = std::shared_ptr<AstNode<tGTokensTypes>>;
