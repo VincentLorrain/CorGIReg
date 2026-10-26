@@ -22,6 +22,9 @@ public:
 
     NodeIds parents(NodeId id) const override { return ids(node(id)->getParents()); }
     NodeIds children(NodeId id) const override { return ids(node(id)->getChildren()); }
+    std::set<EdgePorts> edgePorts(NodeId from, NodeId to) const override {
+        return node(from)->getConnectionPorts(node(to));
+    }
     const NodeNN::Ptr& node(NodeId id) const { return nodes_.at(id); }
     NodeId id(const NodeNN::Ptr& node) const { return ids_.at(node); }
 

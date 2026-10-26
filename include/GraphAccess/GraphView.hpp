@@ -5,6 +5,7 @@
 #include <map>
 #include <set>
 #include <string>
+#include "GraphAccess/Ports.hpp"
 
 namespace CorGIReg {
 
@@ -21,6 +22,11 @@ public:
     virtual ~GraphView() = default;
     virtual NodeIds parents(NodeId node) const = 0;
     virtual NodeIds children(NodeId node) const = 0;
+    // Optional connection metadata. Adjacency remains deduplicated, while
+    // distinct operand uses between the same nodes retain distinct ports.
+    virtual std::set<EdgePorts> edgePorts(NodeId from, NodeId to) const {
+        return children(from).count(to) ? std::set<EdgePorts>{{}} : std::set<EdgePorts>{};
+    }
     // Optional presentation metadata. IDs, not names, establish identity.
     virtual std::string nodeName(NodeId node) const { return std::to_string(node); }
 };
