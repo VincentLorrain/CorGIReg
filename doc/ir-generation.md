@@ -115,6 +115,19 @@ generator preserves insertion order in `GraphNN::getNodes()`, independently of
 pointer addresses. It does not currently load per-node attributes or operation
 templates from this values file; node predicate libraries remain separate.
 
+Input ports can be fixed with `A-1->B` (or `B<-1-A`). `A-*->B` is an alias
+of `A->B`: both allocate inputs in expansion order, starting at 1 independently
+for each destination node. For example `(A->Sum#)+` with count 3 connects three
+A nodes to ports 1, 2 and 3 of the shared Sum node. Generated output ports are
+unspecified. Fixed and automatic inputs cannot be mixed on the same destination;
+two distinct producers cannot occupy the same fixed input. A fixed numbered
+connection requires nonempty endpoints; zero expansion of an entire endpoint
+is an error. Ordinary arrows can still bridge empty fragments.
+
+Matching interprets `->` and `-*->` identically as adjacency without a port
+constraint; `-1->` requires an actual connection to input 1. Input arity and
+operator semantics are not validated by this structural generator.
+
 `$`, `#`, arrows and strict markers take no repetition value. A standalone `$`
 adds no node. Strict and boundary constraints remain matching constraints: this
 is a structural expander, **not a satisfiability solver**. Combining conflicting
@@ -146,11 +159,12 @@ and matcher sharing the same AST must not be each other's only oracle.
 
 ## Existing constructors
 
-`PGInterpreterIR(query)` and `PGInterpreterIR(query, maxLoops)` retain their
-legacy random implementation for compatibility. They do not use the configured
-seed or the new node budget. To opt in, pass `IRGenerationOptions` explicitly
-or a values-file path. To reproduce random fixtures, use the configured
-`randomMissing = true` mode instead of the legacy constructors.
+`PGInterpreterIR(query)` and `PGInterpreterIR(query, maxLoops)` now use the same
+expansion engine with random fallback and a randomly selected seed at construction.
+Their repetition bounds are preserved, and the default node/visit limits apply.
+Repeated interpretation of the same instance reuses its seed. Pass explicit
+options or a values file to reproduce a fixture across independently created
+instances. All constructors preserve port bindings and assign automatic inputs.
 
 This release exposes generation through the C++ API; it adds no generation
 flags to the matching CLI.

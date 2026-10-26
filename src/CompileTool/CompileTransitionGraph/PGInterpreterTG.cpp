@@ -29,8 +29,7 @@ std::shared_ptr<TransitionGraph> PGInterpreterTG::visit(std::shared_ptr<AstNode<
         auto right = visit(nextAstNodes[1]);
         if (AstTree->getType() == tGTokensTypes::PREC) std::swap(left, right);
         const auto value = AstTree->getValue();
-        if (value.empty()) return nextF(left, right);
-        if (value == "*") throw std::invalid_argument("Automatic ports are generation-only; use a fixed port for matching");
+        if (value.empty() || value == "*") return nextF(left, right);
         const auto port = static_cast<PortNumber>(std::stoull(value));
         auto append = [&](std::shared_ptr<TransitionGraph> graph, PortAction action) {
             auto previous = *graph->getValidStates().begin();

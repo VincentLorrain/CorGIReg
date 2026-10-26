@@ -49,21 +49,30 @@ std::shared_ptr<ParsingToken<tGTokensTypes>> PartitionGraphLexer::getNextToken(v
         mPosition += size;
         return std::make_shared<ParsingToken<tGTokensTypes>>(type, "");
     };
-    if (mRegularExpressions.compare(mPosition, 2, "->") == 0 ||
-        mRegularExpressions.compare(mPosition, 2, "<-") == 0) {
+    if (mRegularExpressions.compare(mPosition, 2, "->") == 0) return emit(tGTokensTypes::NEXT, 2);
+    if (current == '-' || mRegularExpressions.compare(mPosition, 2, "<-") == 0) {
         const auto type = current == '-' ? tGTokensTypes::NEXT : tGTokensTypes::PREC;
-        mPosition += 2;
+        mPosition += current == '-' ? 1 : 2;
         const auto begin = mPosition;
         if (mPosition < mRegularExpressions.size() && mRegularExpressions[mPosition] == '*') ++mPosition;
         else while (mPosition < mRegularExpressions.size() && std::isdigit(static_cast<unsigned char>(mRegularExpressions[mPosition]))) ++mPosition;
         auto value = mRegularExpressions.substr(begin, mPosition - begin);
+        if (type == tGTokensTypes::PREC && (value.empty() ||
+            mPosition >= mRegularExpressions.size() || mRegularExpressions[mPosition] != '-')) {
+            mPosition = start + 2;
+            return std::make_shared<ParsingToken<tGTokensTypes>>(type, "");
+        }
+        const std::string ending = type == tGTokensTypes::NEXT ? "->" : "-";
+        if (value.empty() || mRegularExpressions.compare(mPosition, ending.size(), ending) != 0)
+            throw badTokenError("Expected -number-> or -*->", start);
+        mPosition += ending.size();
         if (!value.empty() && value != "*") {
             try {
                 auto number = std::stoull(value);
                 if (!number || number > std::numeric_limits<PortNumber>::max()) throw std::out_of_range("port");
             } catch (const std::exception&) { throw badTokenError("Invalid port", begin); }
         }
-        return std::make_shared<ParsingToken<tGTokensTypes>>(type, value);
+        return std::make_shared<ParsingToken<tGTokensTypes>>(type, value == "*" ? "" : value);
     }
     switch (current) {
     case '*': return emit(tGTokensTypes::QZM);
