@@ -21,6 +21,16 @@
 
 namespace CorGIReg {
 
+    struct IRGenerationOptions {
+        // One-based lexical quantifier index. A singleton repeats at every invocation;
+        // a longer vector supplies successive invocations of a nested quantifier.
+        std::map<std::size_t, std::vector<std::size_t>> repetitions;
+        bool randomMissing = false;
+        std::uint32_t seed = 5489u;
+        std::size_t maxLoops = 10;
+        std::size_t maxNodes = 100000;
+    };
+
     class PGInterpreterIR
     {
     private:
@@ -31,12 +41,15 @@ namespace CorGIReg {
         PartitionGraphParser mParser;
         std::size_t mActGroupe;
         const std::string mGraphMatchExpr;
+        IRGenerationOptions mOptions;
+        bool mConfigured = false;
         
     public:
         PGInterpreterIR(const std::string graphMatchExpr);
         // Upper bound for '*' repetitions and additional '+' repetitions.
         // Zero produces no '*' copies and keeps the mandatory '+' occurrence.
         PGInterpreterIR(const std::string graphMatchExpr, size_t maxLoops);
+        PGInterpreterIR(const std::string& graphMatchExpr, IRGenerationOptions options);
         virtual ~PGInterpreterIR() =default;
 
         std::shared_ptr<GraphNN>  interpret(void);

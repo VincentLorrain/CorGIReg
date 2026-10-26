@@ -4,6 +4,132 @@
 
 namespace CorGIReg{
 
+namespace {
+using IRTree = std::shared_ptr<AstNode<tGTokensTypes>>;
+
+// Separate expansion from parsing: each visit creates a fresh occurrence, so
+// nested repetitions can consume different values without copying a template.
+class ConfiguredIRGenerator {
+    struct Fragment {
+        std::vector<NodeNN::Ptr> first, last;
+        bool common = false;
+    };
+    const IRGenerationOptions& options;
+    std::mt19937 random;
+    std::map<const AstNode<tGTokensTypes>*, std::size_t> indices;
+    std::map<std::size_t, tGTokensTypes> kinds;
+    std::map<std::size_t, std::size_t> consumed;
+    std::map<std::string, NodeNN::Ptr> anchors;
+    std::shared_ptr<GraphNN> graph = std::make_shared<GraphNN>();
+    std::size_t visits = 0;
+
+    void index(const IRTree& tree) {
+        for (const auto& child : tree->getChilds()) index(child);
+        auto type = tree->getType();
+        if (type == tGTokensTypes::QOM || type == tGTokensTypes::QZM || type == tGTokensTypes::QZO) {
+            auto id = indices.size() + 1;
+            indices.emplace(tree.get(), id);
+            kinds.emplace(id, type);
+        }
+    }
+    std::size_t count(const IRTree& tree) {
+        const auto id = indices.at(tree.get());
+        const auto invocation = consumed[id]++;
+        const auto found = options.repetitions.find(id);
+        if (found != options.repetitions.end()) {
+            const auto& values = found->second;
+            if (values.size() == 1) return values.front();
+            if (invocation < values.size()) return values[invocation];
+            throw std::invalid_argument("Exhausted values for quantifier " + std::to_string(id));
+        }
+        if (!options.randomMissing)
+            throw std::invalid_argument("Missing value for quantifier " + std::to_string(id));
+        const auto type = tree->getType();
+        return std::uniform_int_distribution<std::size_t>(type == tGTokensTypes::QOM ? 1 : 0,
+            type == tGTokensTypes::QZO ? 1 : options.maxLoops + (type == tGTokensTypes::QOM ? 1 : 0))(random);
+    }
+    Fragment join(Fragment left, Fragment right, bool reverse, bool separate = false) {
+        if (reverse) std::swap(left, right);
+        if (left.first.empty()) return right;
+        if (right.first.empty()) return left;
+        if (separate) {
+            left.first.insert(left.first.end(), right.first.begin(), right.first.end());
+            left.last.insert(left.last.end(), right.last.begin(), right.last.end());
+        } else {
+            for (const auto& from : left.last) for (const auto& to : right.first)
+                graph->addEdge(from, to);
+            left.last = std::move(right.last);
+        }
+        left.common = left.common || right.common;
+        return left;
+    }
+    Fragment visit(const IRTree& tree) {
+        // Also bounds empty nested expansions, which have no nodes to count.
+        if (++visits > 1000000) throw std::length_error("IR expansion exceeds visit limit");
+        const auto type = tree->getType();
+        const auto& children = tree->getChilds();
+        if (type == tGTokensTypes::NEXT || type == tGTokensTypes::PREC || type == tGTokensTypes::SEP) {
+            auto left = visit(children.at(0));
+            auto right = visit(children.at(1));
+            return join(std::move(left), std::move(right), type == tGTokensTypes::PREC, type == tGTokensTypes::SEP);
+        }
+        if (type == tGTokensTypes::LPAREN) return visit(children.at(0));
+        if (type == tGTokensTypes::END) return {};
+        if (type == tGTokensTypes::QOM || type == tGTokensTypes::QZM || type == tGTokensTypes::QZO) {
+            const auto repetitions = count(tree);
+            Fragment result;
+            for (std::size_t i = 0; i < repetitions; ++i) {
+                auto body = visit(children.at(0));
+                const bool common = body.common;
+                result = join(std::move(result), std::move(body), false, common);
+            }
+            return result;
+        }
+        const bool common = type == tGTokensTypes::CKEY || type == tGTokensTypes::SCKEY;
+        if (type != tGTokensTypes::KEY && !common) throw std::logic_error("Unsupported IR node");
+        std::string key = tree->getValue(), predicate = key;
+        if (common) {
+            auto parsed = parseCommonKey(key);
+            key = parsed.identity(); predicate = parsed.predicate;
+            auto found = anchors.find(key);
+            if (found != anchors.end()) return {{found->second}, {found->second}, true};
+        }
+        if (graph->getNodes().size() >= options.maxNodes) throw std::length_error("IR exceeds maxNodes");
+        auto node = std::make_shared<NodeNN>();
+        node->setInfo("Type", predicate);
+        node->setInfo("Key", key);
+        if (common) { node->setInfo("isCommon", true); anchors.emplace(key, node); }
+        graph->addNode(node);
+        return {{node}, {node}, common};
+    }
+public:
+    explicit ConfiguredIRGenerator(const IRGenerationOptions& value) : options(value), random(value.seed) {}
+    std::shared_ptr<GraphNN> run(const IRTree& tree) {
+        index(tree);
+        if (options.maxLoops > 1000000) throw std::invalid_argument("maxLoops exceeds expansion limit");
+        for (const auto& item : options.repetitions) {
+            if (!kinds.count(item.first) || item.second.empty())
+                throw std::invalid_argument("Unknown or empty quantifier " + std::to_string(item.first));
+            for (auto value : item.second) {
+                auto type = kinds.at(item.first);
+                if (value > 1000000 || (type == tGTokensTypes::QOM && value == 0) ||
+                    (type == tGTokensTypes::QZO && value > 1))
+                    throw std::invalid_argument("Invalid value for quantifier " + std::to_string(item.first));
+            }
+        }
+        visit(tree);
+        for (const auto& item : options.repetitions)
+            if (item.second.size() > 1 && consumed[item.first] != item.second.size())
+                throw std::invalid_argument("Unused values for quantifier " + std::to_string(item.first));
+        return graph;
+    }
+};
+}
+
+PGInterpreterIR::PGInterpreterIR(const std::string& expression, IRGenerationOptions options)
+    : mParser(expression), mActGroupe(0), mGraphMatchExpr(expression),
+      mOptions(std::move(options)), mConfigured(true) {}
+
 PGInterpreterIR::PGInterpreterIR(const std::string graphMatchExpr)
     : PGInterpreterIR(graphMatchExpr, 10) {}
 
@@ -17,6 +143,7 @@ std::shared_ptr<GraphNN>  PGInterpreterIR::interpret(void){
     mActGroupe = 0;
     mCommonNodes.clear();
     std::shared_ptr<AstNode<tGTokensTypes>> tree = mParser.parse();
+    if (mConfigured) return ConfiguredIRGenerator(mOptions).run(tree);
     std::shared_ptr<GraphNN> out = visit(tree);
 
     // combine the common nodes
