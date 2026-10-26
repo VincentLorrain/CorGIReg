@@ -1,3 +1,4 @@
+#include "CompileTool/Common/CommonKey.hpp"
 #include "CompileTool/CompileTransitionGraph/PGInterpreterIR.hpp"
 
 
@@ -109,20 +110,11 @@ std::shared_ptr<GraphNN> PGInterpreterIR::keyF(std::shared_ptr<AstNode<tGTokensT
     }else if(AstNode->getType() == tGTokensTypes::CKEY || AstNode->getType() == tGTokensTypes::SCKEY ){
         node->setInfo("isCommon",true);
 
-        std::regex combinedCommonKey("([A-Za-z_0-9]+)[#$][0-9]*");
-        std::smatch matches;
-        if (std::regex_match(lexeme, matches, combinedCommonKey)){
-            node->setInfo("Type",matches[1].str());
-        }else{
-            throw std::logic_error("combinedCommonKey ERROR" );
-        }
+        const auto key = parseCommonKey(lexeme);
+        node->setInfo("Type", key.predicate);
+        node->setInfo("Key", key.identity());
+        mCommonNodes[key.identity()].insert(node);
 
-        // add the node to the lis of common nodes to be merge at the end 
-        if (mCommonNodes.find(lexeme) == mCommonNodes.end()){
-                mCommonNodes[lexeme] = std::set<std::shared_ptr<NodeNN>>({node});
-        }else{
-            mCommonNodes[lexeme].insert(node);
-        }
    
     }else{
 

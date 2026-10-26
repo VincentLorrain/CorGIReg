@@ -1,3 +1,4 @@
+#include "CompileTool/Common/CommonKey.hpp"
 #include "CompileTool/PostAstOptimization/RootSelectionPass.hpp"
 #include <algorithm>
 #include <map>
@@ -21,15 +22,8 @@ bool containsCommon(const Ast& node) {
 // # and $ constrain the same anchor identity; strictness stays on each occurrence.
 // An omitted suffix differs from explicit 0; numeric suffixes ignore leading zeros.
 std::pair<std::string, std::string> commonIdentity(const Ast& node) {
-    const auto value = node->getValue();
-    auto marker = value.find_first_of("#$");
-    if (marker == std::string::npos) throw std::invalid_argument("Common AST node has no anchor marker");
-    auto suffix = value.substr(marker + 1);
-    if (!suffix.empty()) {
-        auto first = suffix.find_first_not_of('0');
-        suffix = first == std::string::npos ? "0" : suffix.substr(first);
-    }
-    return {value.substr(0, marker), suffix};
+    const auto key = parseCommonKey(node->getValue());
+    return {key.predicate, key.suffix};
 }
 
 class Builder {
