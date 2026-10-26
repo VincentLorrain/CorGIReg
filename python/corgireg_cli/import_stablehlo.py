@@ -81,7 +81,7 @@ def load_stablehlo(path, function=None):
         if len(selected.regions) != 1 or len(selected.regions[0].blocks) != 1:
             raise ValueError("Only single-block StableHLO function bodies are supported")
         block = selected.regions[0].blocks[0]
-        producers, nodes, edges = {}, [], []
+        producers, nodes, edges, connections = {}, [], [], []
         for index, operation in enumerate(block.operations):
             op = operation.operation.name
             if op == "func.return":
@@ -94,11 +94,13 @@ def load_stablehlo(path, function=None):
                           "inputs": [operand.get_name() for operand in operation.operands],
                           "attributes": {name: _attribute_value(operation.attributes[name], ir)
                                          for name in operation.attributes}})
-            for operand in operation.operands:
+            for input_index, operand in enumerate(operation.operands, 1):
                 if operand in producers:
-                    edges.append((producers[operand], index))
+                    source, output_index = producers[operand]
+                    edges.append((source, index))
+                    connections.append({"from": source, "to": index, "input": input_index, "output": output_index})
                 elif not any(operand == argument for argument in block.arguments):
                     raise ValueError(f"Unknown StableHLO operand at operation {index}")
-            for result in operation.results:
-                producers[result] = index
-        return validate_graph({"nodes": nodes, "edges": edges})
+            for output_index, result in enumerate(operation.results, 1):
+                producers[result] = (index, output_index)
+        return validate_graph({"nodes": nodes, "edges": edges, "connections": connections})

@@ -47,10 +47,40 @@ Two different operation names normalizing to the same predicate are rejected.
 A [node library](node-library.md) can expose a semantic predicate such as `conv`.
 Its `op_types` still refers to original `op` strings.
 
-Edges express adjacency only: no operand index, tensor shape, edge label or
-parallel-edge multiplicity is matched. An `inputs` array is metadata; it does
+Edges express adjacency. An optional `connections` array preserves operand
+bindings without changing that adjacency:
+
+```json
+{
+  "nodes": [{"id": 0, "op": "X"}, {"id": 9, "op": "Sub"}],
+  "edges": [[0, 9]],
+  "connections": [
+    {"from": 0, "to": 9, "input": 1, "output": 1},
+    {"from": 0, "to": 9, "input": 2, "output": 1}
+  ]
+}
+```
+
+`from` and `to` must reference a pair present in `edges`. `input` identifies
+the destination input; `output` identifies the source output. Ports are optional
+positive 32-bit integers (1..4294967295); omitted or null means unspecified.
+Connections are sorted and exact duplicates removed. Distinct ports between
+the same nodes remain distinct. An edge without connection records is unnumbered.
+For an edge with records, those records are authoritative; no extra unnumbered
+connection is implied. To include one, supply a record with both ports null.
+
+`X-2->Sub` requires input 2; `X->Sub` and `X-*->Sub` ignore port numbers.
+The reverse spelling is `Sub<-2-X`. Output ports are preserved but have no
+pattern selector in this version. Port labels do not change node-degree or
+strict-node coverage semantics. An `inputs` array is metadata; it does
 not create edges. Self-loops and cycles are not rejected by JSON normalization;
 matching still obeys the runtime's [termination rules](match-traces.md).
+
+ONNX and StableHLO readers preserve operation-to-operation input/output positions
+in `connections`, converting zero-based IR positions to one-based ports. Repeated
+operands and gaps from absent optional arguments retain their original positions.
+Function inputs and initializers remain node metadata rather than synthetic
+operation nodes; this representation is not yet a complete executable IR.
 
 ## Metadata and arguments
 

@@ -65,3 +65,12 @@ Do not parse diagnostic wording as a stable machine-readable error schema.
 Implementation references: [encoder](../python/corgireg_cli/graph.py),
 [native request reader](../src/Cli/MatchRequest.cpp),
 [worker entry point](../src/Cli/main.cpp).
+# Numbered connections extension
+
+`CORGiReg4`, `CORGiReg5`, and `CORGiReg6` extend versions 1, 2, and 3 respectively.
+All fields keep the corresponding base-version layout, except connection records:
+each contains `from to input_port output_port`. Zero encodes an unspecified port;
+positive ports must fit 32 bits. The edge count counts connection records, so
+several records may share the same pair of node IDs. Their adjacency is deduplicated
+by the engine. Legacy versions 1–3 remain accepted unchanged.
+

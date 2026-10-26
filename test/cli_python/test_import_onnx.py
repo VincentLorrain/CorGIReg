@@ -15,6 +15,15 @@ from corgireg_cli.import_onnx import load_onnx
 
 
 class OnnxTests(unittest.TestCase):
+    def test_repeated_operand_retains_two_input_connections(self):
+        self.save([helper.make_node("Identity", ["x"], ["y"]),
+                   helper.make_node("Sub", ["y", "y"], ["z"])])
+        graph = load_onnx(self.path)
+        self.assertEqual(graph["edges"], [(0, 1)])
+        self.assertEqual(graph["connections"], [
+            {"from": 0, "to": 1, "input": 1, "output": 1},
+            {"from": 0, "to": 1, "input": 2, "output": 1}])
+
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory(dir=ROOT / "build")
         self.addCleanup(self.directory.cleanup)

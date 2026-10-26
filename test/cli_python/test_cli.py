@@ -12,6 +12,36 @@ from corgireg_cli.graph import validate_graph
 
 
 class CliTests(unittest.TestCase):
+    def test_numbered_connections_survive_json_and_parallel_matching(self):
+        graph = {"nodes": [{"id": 0, "op": "X"}, {"id": 9, "op": "Sub"}],
+                 "edges": [[0, 9]], "connections": [
+                     {"from": 0, "to": 9, "input": 1, "output": 2},
+                     {"from": 0, "to": 9, "input": 2, "output": 2}]}
+        self.graph.write_text(json.dumps(graph), encoding="utf-8")
+        for query, expected in [("X-1->Sub", True), ("X-2->Sub", True), ("X-3->Sub", False),
+                                ("Sub<-1-X", True), ("X-*->Sub", True),
+                                ("X#-1->Sub#;X#-2->Sub#", True)]:
+            reference = None
+            for jobs in [1, 4]:
+                process = self.invoke("-i", self.graph, "-r", query, "--jobs", jobs)
+                self.assertEqual(process.returncode, 0, process.stderr)
+                report = json.loads(process.stdout)
+                self.assertEqual(bool(report["matches"]), expected)
+                self.assertEqual(report["graph"]["connections"], graph["connections"])
+                if reference is not None:
+                    self.assertEqual(report, reference)
+                reference = report
+
+    def test_connection_validation_rejects_bad_ports_and_dangling_bindings(self):
+        for port in [0, -1, True, 1.5, "1", 2**32]:
+            graph = {"nodes": [{"id": 0, "op": "A"}], "edges": [[0, 0]],
+                     "connections": [{"from": 0, "to": 0, "input": port}]}
+            with self.subTest(port=port), self.assertRaises(ValueError):
+                validate_graph(graph)
+        with self.assertRaises(ValueError):
+            validate_graph({"nodes": [{"id": 0, "op": "A"}], "edges": [],
+                            "connections": [{"from": 0, "to": 0, "input": 1}]})
+
     def test_skipped_strict_group_keeps_its_empty_match(self):
         for jobs in [1, 4]:
             process = self.invoke("-i", self.graph, "-r", "($B)?", "--jobs", jobs)
