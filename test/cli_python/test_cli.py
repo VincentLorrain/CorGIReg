@@ -12,6 +12,15 @@ from corgireg_cli.graph import validate_graph
 
 
 class CliTests(unittest.TestCase):
+    def test_skipped_strict_group_keeps_its_empty_match(self):
+        for jobs in [1, 4]:
+            process = self.invoke("-i", self.graph, "-r", "($B)?", "--jobs", jobs)
+            self.assertEqual(process.returncode, 0, process.stderr)
+            matches = json.loads(process.stdout)["matches"]
+            self.assertEqual({tuple(m["starts"]) for m in matches}, {(0,), (9,), (42,)})
+            self.assertTrue(all(m["node_ids"] == [] for m in matches))
+            self.assertTrue(all(m["walks"][0]["quantifiers"][0]["count"] == 0 for m in matches))
+
     def test_directional_strict_nodes_in_public_reports(self):
         for extra in range(4):
             graph = {"nodes": [{"id": 42, "op": "A"}, {"id": 0, "op": "B", "name": "hub"},

@@ -10,8 +10,9 @@ struct MatchEnvironment {
     NodePredicates predicates;
 };
 class RunTimeContext {
-    // Alternative walks from one start share obligations, scoped to this search.
-    std::shared_ptr<NodeIds> mRejectedNodes;
+    // Obligations belong to this walk; an abandoned alternative must not leak
+    // requirements into skipped quantifiers or other successful alternatives.
+    NodeIds mRejectedNodes;
     std::shared_ptr<const MatchEnvironment> mEnvironment;
     std::shared_ptr<State> mActState;
     std::optional<NodeId> mActOpNode;
@@ -31,8 +32,8 @@ public:
         auto found = mEnvironment->predicates.find(key);
         return found != mEnvironment->predicates.end() && found->second(node);
     }
-    void addRejectedNode(NodeId node) { mRejectedNodes->insert(node); }
-    NodeIds getRejectedNodes() const { return *mRejectedNodes; }
+    void addRejectedNode(NodeId node) { mRejectedNodes.insert(node); }
+    NodeIds getRejectedNodes() const { return mRejectedNodes; }
     std::optional<NodeId> getActNode() const { return mActOpNode; }
     const std::map<std::string, NodeIds>& getValid() const { return mValidNodes; }
     const auto& getCaptures() const noexcept { return mCaptures; }

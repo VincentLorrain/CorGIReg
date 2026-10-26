@@ -121,3 +121,24 @@ TEST_CASE("Directional anchors share numbered identity across different strict o
     REQUIRE(PGInterpreterTG("DirA->$DirB$->DirC->$").interpret()->test(graph, {1}, conditions(graph))->isMatch());
     REQUIRE_FALSE(PGInterpreterTG("DirA->$DirB$->$").interpret()->test(graph, {1}, conditions(graph))->isMatch());
 }
+
+TEST_CASE("Skipped strict alternatives do not inherit obligations from rejected walks", "[directional][regression]") {
+    auto graph = std::make_shared<ImportedGraph>();
+    graph->addNode(0, "DirB", "hub");
+    graph->addNode(1, "DirA", "parent"); graph->addNode(2, "DirC", "child");
+    graph->addEdge(1, 0); graph->addEdge(0, 2);
+    for (const auto* key : {"$DirB", "DirB$", "$DirB$"}) {
+        INFO(key);
+        REQUIRE_FALSE(PGInterpreterTG(key).interpret()->test(graph, {0}, conditions(graph))->isMatch());
+        for (const auto* quantifier : {"?", "*"}) {
+            const auto query = "(" + std::string(key) + ")" + quantifier;
+            auto result = PGInterpreterTG(query).interpret()->test(graph, {0}, conditions(graph));
+            REQUIRE(result->getMatches().size() == 1);
+            const auto& match = result->getMatches().front();
+            REQUIRE(match->getAll().empty());
+            REQUIRE(match->getWalks().at(0).quantifiers.at(0).count() == 0);
+            REQUIRE(match->getWalks().at(0).nodes.empty());
+        }
+    }
+    REQUIRE(PGInterpreterTG("DirA->($DirB$)?->DirC").interpret()->test(graph, {1}, conditions(graph))->isMatch());
+}

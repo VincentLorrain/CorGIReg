@@ -32,7 +32,7 @@ void RunTimeContext::endQuantifier(std::size_t index) {
 
 RunTimeContext::RunTimeContext(std::shared_ptr<State> state, std::optional<NodeId> node,
                                std::shared_ptr<const MatchEnvironment> environment)
-    : mRejectedNodes(std::make_shared<NodeIds>()), mEnvironment(std::move(environment)),
+    : mEnvironment(std::move(environment)),
       mActState(std::move(state)), mActOpNode(node) {}
 RunTimeContext::RunTimeContext(std::shared_ptr<RunTimeContext> context)
     : RunTimeContext(*context) {}
@@ -137,6 +137,7 @@ bool RunTimeContext::areEqual(const std::shared_ptr<RunTimeContext>& context) co
     A Context is equal all the evaluation are the same
     */
     if (mEnvironment != context->mEnvironment) return false;
+    if (mRejectedNodes != context->mRejectedNodes) return false;
     if ((!mQuantifiers.empty() && mCaptures != context->mCaptures) || mQuantifiers != context->mQuantifiers ||
         mActiveQuantifiers != context->mActiveQuantifiers) return false;
     if(mActOpNode != context->mActOpNode){
