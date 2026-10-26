@@ -16,6 +16,7 @@ root as the working directory.
 - [Operation graph JSON](graph-json.md): every input field, IDs, edges, normalization and metadata.
 - [ONNX and StableHLO importers](importers.md): supported subsets, source names and attribute conversion.
 - [Pattern language](pattern-language.md): arrows, common/strict nodes, quantifiers, boundaries and parsing.
+- [Directional strict nodes](directional-strict-nodes.md): input/output coverage and migration from V0.
 - [Node-definition JSON](node-library.md): format mappings, schema versions, alias resolution and loading.
 - [NodeTest rules](node-rules.md): arguments, presence/absence, values, per-key regexes and logical conditions.
 - [Match-report JSON](match-report-json.md): complete output fields, captures, source identities and quantifier invocations.

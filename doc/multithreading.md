@@ -65,7 +65,7 @@ it does not remove combinatorial growth.
 machine with one and four workers, repeatedly. Fixtures include common/strict
 branches, rejected strict matches, nested/ambiguous repetitions, reverse syntax,
 source ID zero, empty graphs and common cycles. Both meanings of `$` are covered:
-strict `PB$` and boundary `->$`, including nullable tails and reversed boundaries.
+directional strict `$PB`, `PB$`, `$PB$` and boundary `->$`, including nullable tails and reversed boundaries.
 Tests assert expected positive/negative outcomes independently of the comparison.
 
 Executor tests check actual overlapping workers, ordered delivery across window

@@ -106,9 +106,13 @@ CorGIReg extends conventional regular-expression syntax with tokens that describ
 |-------|--------------|-----------------|---------|
 | `KEY` | `A`, `foo_1` | `TransitionTypes::UNIQUE` | A standard node-condition key; the transition succeeds when the node identified by the key matches. |
 | `CKEY` | `A#`, `foo#2` | `TransitionTypes::COMMON` | A *common* key.  The `#` suffix groups multiple transitions that should share the same common anchor, but without enforcing that every adjacent branch of the common node must be consumed. |
-| `SCKEY` | `A$`, `foo$3` | `TransitionTypes::STRICTCOMMON` | A *strict common* key.  The `$` suffix enforces that all parent and child branches of the matched common node are marked as required, preventing alternative paths from being silently discarded. |
+| `SCKEY` | `$A`, `A$`, `$A$`, `$foo#3`, `$foo$3` | `TransitionTypes::STRICTCOMMON` | Prefix `$` requires coverage of inputs; suffix `$` requires coverage of outputs; both require both sides. |
 
-Internally, `SCKEY` tokens are handled like common keys whose transitions are created with the `CommonMode::ALL` flag, which is what triggers the stricter branch validation.  Regular `CKEY` transitions, by contrast, use the default `CommonMode::NONE`, allowing unmatched adjacent branches to be ignored when the structure of the graph makes that desirable.
+Strictness refers to the source graph, independently of traversal direction, and
+applies even to a single neighbor. `$A` uses `CommonMode::INPUTS`, `A$` uses
+`OUTPUTS`, and `$A$` uses `ALL`; `A#` uses `NONE`. The standalone boundary in
+`A->$` remains unchanged. **Breaking change after V0:** replace old bidirectional
+`A$` anchors with `$A$`. See [directional strict nodes and migration](doc/directional-strict-nodes.md).
 
 ## Generating example graphs
 

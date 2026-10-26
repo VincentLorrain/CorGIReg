@@ -18,21 +18,30 @@ not a list of separately executed queries. Comments are not supported.
 | `(A->B)+` | Repeat the entire A-B sequence. Parenthesized groups require a postfix quantifier. |
 | `B#` | Common node: occurrences of this anchor must identify the same source node. Allows branching. |
 | `B#1`, `B#2` | Separate common identities for the same predicate B. |
-| `B$` | Strict common node: additionally requires adjacent source nodes to be covered by the solution. |
+| `$B` | Common node whose input neighbors must all be covered. Outputs remain free. |
+| `B$` | Common node whose output neighbors must all be covered. Inputs remain free. |
+| `$B$` | Common node requiring coverage of both input and output neighbors. |
 | `A->$` | Boundary assertion: no following source node. The standalone `$` consumes no operation. |
 | `A->B#; B#->C` | Two paths joined through their common B anchor. |
 
 Predicate keys contain ASCII letters, digits and underscores. They resolve to
 raw operation predicates or [node-library definitions](node-library.md).
-`B#1` and `B$1` share identity, while retaining their respective constraints.
+`B#1`, `$B#1`, `B$1` and `$B$1` share identity, while retaining their respective
+constraints. `$B#1` is the numbered input-only form; `$B1` names predicate B1.
 Numeric suffixes are interpreted numerically (`#01` and `#1`); an omitted suffix
 differs from explicit zero. Plain repeated B occurrences do not establish shared
-identity. Keep suffixes within the implementation's integer range.
+identity. Suffix identities are normalized digit strings, without integer conversion.
 
 There is no alternation `|`, wildcard `.`, character class, `{m,n}`, lazy or
 possessive quantifier. Attribute regexes belong to [NodeTest rules](node-rules.md),
 whose ECMAScript string syntax is separate from this graph language.
-`(A->B)` and `B#+` are invalid; `(B#)+` is the quantified-group spelling.
+`(A->B)`, `B#+` and `$B+` are invalid; use `(B#)+` or `($B)+`.
+Markers must touch their predicate: `$ B` is not `$B`.
+
+These strict markers require neighbor coverage, not a particular degree or
+neighbor type. Constraints apply even at degree one and do not change meaning
+under `<-`. The standalone `$` still asserts a boundary. See
+[directional semantics and migration from V0](directional-strict-nodes.md).
 
 ## Parsing and direction
 

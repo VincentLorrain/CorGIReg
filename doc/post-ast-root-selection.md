@@ -27,8 +27,8 @@ no graph-runtime or NodeDictionary dependency. It consumes the AST and produces:
   explicit selection status.
 
 Unquantified common occurrences share an identity based on predicate and numeric
-suffix. `B#1` and `B$1` refer to the same anchor, but each occurrence retains its
-own strictness. `B#` and `B#0` remain distinct. Repeated ordinary `B` occurrences
+suffix. `B#1`, `$B#1`, `B$1` and `$B$1` refer to the same anchor, but each
+occurrence retains its input/output strictness. `B#` and `B#0` remain distinct. Repeated ordinary `B` occurrences
 do not acquire shared identity merely because their predicate names match.
 
 The pass ranks eligible nodes by:
