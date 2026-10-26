@@ -99,4 +99,22 @@ TEST_CASE("IR value files load counts modes and seeds with useful errors", "[gen
     }
 }
 
+TEST_CASE("IR parameter series has independent node and edge expectations", "[generation][series]") {
+    for (std::size_t length : {1u, 2u, 8u, 32u}) {
+        for (std::size_t optional : {0u, 1u}) {
+            INFO("length=" << length << " optional=" << optional);
+            IRGenerationOptions options;
+            options.repetitions = {{1, {length}}, {2, {optional}}, {3, {2}}};
+            auto graph = PGInterpreterIR("A+->B?->C*->$", options).interpret();
+            REQUIRE(graph->getNodes().size() == length + optional + 2);
+            BasicGraphAdapter adapter(*graph);
+            for (std::size_t id = 0; id < graph->getNodes().size(); ++id) {
+                REQUIRE(adapter.node(id)->getType() == (id < length ? "A" : (id < length + optional ? "B" : "C")));
+                REQUIRE(adapter.parents(id) == (id ? NodeIds{id - 1} : NodeIds{}));
+                REQUIRE(adapter.children(id) == (id + 1 < graph->getNodes().size() ? NodeIds{id + 1} : NodeIds{}));
+            }
+        }
+    }
+}
+
 
