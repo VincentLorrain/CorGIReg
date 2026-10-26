@@ -1,6 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include "CompileTool/CompileTransitionGraph/PGInterpreterTG.hpp"
 #include "GraphAdapters/ImportedGraph.hpp"
+#include <random>
 using namespace CorGIReg;
 
 namespace {
@@ -11,6 +12,46 @@ NodePredicates conditions(const std::shared_ptr<ImportedGraph>& graph) {
         result[key] = [graph, key](NodeId id) { return graph->getNodes().at(id).predicate == key; };
     }
     return result;
+}
+
+std::string anchor(unsigned sides);
+
+TEST_CASE("Seeded random graphs check directional coverage against independent neighbor sets", "[directional][random][app]") {
+    constexpr unsigned seed = 20261026;
+    std::mt19937 random(seed);
+    for (unsigned trial = 0; trial < 200; ++trial) {
+        auto graph = std::make_shared<ImportedGraph>();
+        graph->addNode(0, "DirB", "hub");
+        graph->addNode(1, "DirA", "parent"); graph->addNode(2, "DirC", "child");
+        const bool parentLink = random() % 5 != 0, childLink = random() % 5 != 0;
+        NodeIds expectedParents, expectedChildren;
+        if (parentLink) { graph->addEdge(1, 0); expectedParents.insert(1); }
+        if (childLink) { graph->addEdge(0, 2); expectedChildren.insert(2); }
+        const unsigned incoming = random() % 4, outgoing = random() % 4;
+        for (unsigned i = 0; i < incoming; ++i) {
+            graph->addNode(100 + i, "Other", "extra parent");
+            graph->addEdge(100 + i, 0); expectedParents.insert(100 + i);
+            graph->addEdge(100 + i, 100 + i); // Irrelevant cycle must not alter coverage.
+        }
+        for (unsigned i = 0; i < outgoing; ++i) {
+            graph->addNode(200 + i, "Other", "extra child");
+            graph->addEdge(0, 200 + i); expectedChildren.insert(200 + i);
+        }
+        for (unsigned sides = 0; sides < 4; ++sides) {
+            const bool expected = parentLink && childLink &&
+                (!(sides & 1) || expectedParents == NodeIds{1}) &&
+                (!(sides & 2) || expectedChildren == NodeIds{2});
+            const auto key = anchor(sides);
+            for (const auto& query : {"DirA->" + key + "->DirC->$", "DirC<-" + key + "<-DirA"}) {
+                INFO("seed=" << seed << ", case=" << trial << ", query=" << query
+                     << ", incoming=" << incoming << ", outgoing=" << outgoing
+                     << ", base edges=" << parentLink << ',' << childLink);
+                const auto result = PGInterpreterTG(query).interpret()->test(graph, {1}, conditions(graph));
+                REQUIRE(result->isMatch() == expected);
+                for (const auto& match : result->getMatches()) REQUIRE(match->getAll() == NodeIds{0, 1, 2});
+            }
+        }
+    }
 }
 std::string anchor(unsigned sides) {
     return std::string(sides & 1 ? "$" : "") + "DirB" + (sides & 2 ? "$" : sides & 1 ? "" : "#");

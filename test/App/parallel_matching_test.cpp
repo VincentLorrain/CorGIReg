@@ -102,8 +102,13 @@ TEST_CASE("Parallel tuple search handles empty graphs and common cycles", "[para
     compareSearch(graph, "PA*", true);
     compareSearch(graph, "PA+", false);
     compareSearch(graph, "PA*->$", true);
+    compareSearch(graph, "($PA$)?->$", true);
+    compareSearch(graph, "($PA$)+", false);
     graph->addNode(0, "PA", "cycle");
     graph->addNode(9, "PA", "other cycle");
     graph->addEdge(0, 0); graph->addEdge(9, 9);
     compareSearch(graph, "(PA#)+", true);
+    compareSearch(graph, "($PA)+", true);
+    compareSearch(graph, "(PA$)+", true);
+    compareSearch(graph, "($PA$)+", true);
 }

@@ -62,7 +62,10 @@ TEST_CASE("PartitionGraphLexer") {
                     key += characters[char_dist(gen)];
                     idx += digits[digit_dist(gen)];
                 }
-                return {key + "$" + idx + " ", key + "$" + idx};
+                const auto form = std::uniform_int_distribution<int>(0, 2)(gen);
+                const auto text = form == 0 ? "$" + key + "#" + idx :
+                                  form == 1 ? key + "$" + idx : "$" + key + "$" + idx;
+                return {text + " ", text};
             }}
         };
 
