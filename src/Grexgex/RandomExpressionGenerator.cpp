@@ -45,10 +45,10 @@ std::string RandomExpressionGenerator::exp(unsigned depth) {
 }
 std::string RandomExpressionGenerator::sequence(unsigned depth, bool reverse) {
     const bool boundary = pick(4) == 0;
-    std::string out = reverse && boundary ? "$<-" : "";
+    std::string out = reverse && boundary ? "$<- " : "";
     const auto size = 1 + pick(3);
     for (unsigned i = 0; i < size; ++i) {
-        if (i) out += reverse ? "<-" : "->";
+        if (i) out += reverse ? "<- " : "-> ";
         out += exp(depth);
     }
     if (!reverse && boundary) out += "->$";

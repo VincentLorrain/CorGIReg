@@ -138,6 +138,8 @@ bool RunTimeContext::areEqual(const std::shared_ptr<RunTimeContext>& context) co
     */
     if (mEnvironment != context->mEnvironment) return false;
     if (mRejectedNodes != context->mRejectedNodes) return false;
+    if (mPortScopes != context->mPortScopes) return false;
+    if (!mPortScopes.empty() && mCaptures != context->mCaptures) return false;
     if ((!mQuantifiers.empty() && mCaptures != context->mCaptures) || mQuantifiers != context->mQuantifiers ||
         mActiveQuantifiers != context->mActiveQuantifiers) return false;
     if(mActOpNode != context->mActOpNode){

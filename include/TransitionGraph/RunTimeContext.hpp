@@ -21,6 +21,7 @@ class RunTimeContext {
     std::vector<NodeCapture> mCaptures;
     std::vector<QuantifierCapture> mQuantifiers;
     std::vector<std::pair<std::size_t, std::size_t>> mActiveQuantifiers;
+    std::vector<std::size_t> mPortScopes;
 public:
     RunTimeContext(std::shared_ptr<State> state, std::optional<NodeId> node,
                    std::shared_ptr<const MatchEnvironment> environment);
@@ -38,6 +39,20 @@ public:
     const std::map<std::string, NodeIds>& getValid() const { return mValidNodes; }
     const auto& getCaptures() const noexcept { return mCaptures; }
     const auto& getQuantifiers() const noexcept { return mQuantifiers; }
+    void beginPortScope() { mPortScopes.push_back(mCaptures.size()); }
+    bool testInputPort(PortNumber port) {
+        if (mPortScopes.empty() || mCaptures.size() <= mPortScopes.back() || !mActOpNode) return false;
+        auto bindings = graph().edgePorts(mCaptures.back().node, *mActOpNode);
+        bool found = false;
+        for (const auto& binding : bindings) if (binding.input == port) found = true;
+        mPortScopes.back() = mCaptures.size();
+        return found;
+    }
+    bool endPortScope() {
+        if (mPortScopes.empty() || mCaptures.size() <= mPortScopes.back()) return false;
+        mPortScopes.pop_back();
+        return true;
+    }
     void beginQuantifier(std::size_t index, char symbol);
     bool completeIteration(std::size_t index);
     void endQuantifier(std::size_t index);

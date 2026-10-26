@@ -1,6 +1,8 @@
 
 #include "CompileTool/CompileTransitionGraph/PartitionGraphLexer.hpp"
 #include <cctype>
+#include <limits>
+#include "GraphAccess/Ports.hpp"
 
 using namespace CorGIReg; 
 
@@ -47,8 +49,22 @@ std::shared_ptr<ParsingToken<tGTokensTypes>> PartitionGraphLexer::getNextToken(v
         mPosition += size;
         return std::make_shared<ParsingToken<tGTokensTypes>>(type, "");
     };
-    if (mRegularExpressions.compare(mPosition, 2, "->") == 0) return emit(tGTokensTypes::NEXT, 2);
-    if (mRegularExpressions.compare(mPosition, 2, "<-") == 0) return emit(tGTokensTypes::PREC, 2);
+    if (mRegularExpressions.compare(mPosition, 2, "->") == 0 ||
+        mRegularExpressions.compare(mPosition, 2, "<-") == 0) {
+        const auto type = current == '-' ? tGTokensTypes::NEXT : tGTokensTypes::PREC;
+        mPosition += 2;
+        const auto begin = mPosition;
+        if (mPosition < mRegularExpressions.size() && mRegularExpressions[mPosition] == '*') ++mPosition;
+        else while (mPosition < mRegularExpressions.size() && std::isdigit(static_cast<unsigned char>(mRegularExpressions[mPosition]))) ++mPosition;
+        auto value = mRegularExpressions.substr(begin, mPosition - begin);
+        if (!value.empty() && value != "*") {
+            try {
+                auto number = std::stoull(value);
+                if (!number || number > std::numeric_limits<PortNumber>::max()) throw std::out_of_range("port");
+            } catch (const std::exception&) { throw badTokenError("Invalid port", begin); }
+        }
+        return std::make_shared<ParsingToken<tGTokensTypes>>(type, value);
+    }
     switch (current) {
     case '*': return emit(tGTokensTypes::QZM);
     case '+': return emit(tGTokensTypes::QOM);

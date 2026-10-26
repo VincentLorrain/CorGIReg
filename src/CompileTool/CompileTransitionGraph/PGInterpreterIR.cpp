@@ -89,6 +89,21 @@ class ConfiguredIRGenerator {
     std::map<std::string, NodeNN::Ptr> anchors;
     std::shared_ptr<GraphNN> graph = std::make_shared<GraphNN>();
     std::size_t visits = 0;
+    std::map<NodeNN::Ptr, PortNumber> nextInput;
+    std::map<NodeNN::Ptr, bool> automaticInputs;
+
+    void connect(const NodeNN::Ptr& from, const NodeNN::Ptr& to, const std::string& port) {
+        if (port.empty()) { graph->addEdge(from, to); return; }
+        const bool automatic = port == "*";
+        auto mode = automaticInputs.emplace(to, automatic);
+        if (!mode.second && mode.first->second != automatic)
+            throw std::invalid_argument("Cannot mix automatic and fixed input ports on one node");
+        PortNumber input = automatic ? ++nextInput[to] : static_cast<PortNumber>(std::stoull(port));
+        for (const auto& parent : to->getParents()) for (const auto& binding : parent->getConnectionPorts(to))
+            if (binding.input == input && parent != from)
+                throw std::invalid_argument("Input port has multiple producers");
+        graph->addEdge(from, to, {input, std::nullopt});
+    }
 
     void index(const IRTree& tree) {
         for (const auto& child : tree->getChilds()) index(child);
@@ -115,8 +130,10 @@ class ConfiguredIRGenerator {
         return std::uniform_int_distribution<std::size_t>(type == tGTokensTypes::QOM ? 1 : 0,
             type == tGTokensTypes::QZO ? 1 : options.maxLoops + (type == tGTokensTypes::QOM ? 1 : 0))(random);
     }
-    Fragment join(Fragment left, Fragment right, bool reverse, bool separate = false) {
+    Fragment join(Fragment left, Fragment right, bool reverse, bool separate = false, const std::string& port = "") {
         if (reverse) std::swap(left, right);
+        if (!port.empty() && (left.first.empty() || right.first.empty()))
+            throw std::invalid_argument("A numbered connection requires two nonempty operands");
         if (left.first.empty()) return right;
         if (right.first.empty()) return left;
         if (separate) {
@@ -124,7 +141,7 @@ class ConfiguredIRGenerator {
             left.last.insert(left.last.end(), right.last.begin(), right.last.end());
         } else {
             for (const auto& from : left.last) for (const auto& to : right.first)
-                graph->addEdge(from, to);
+                connect(from, to, port);
             left.last = std::move(right.last);
         }
         left.common = left.common || right.common;
@@ -138,7 +155,7 @@ class ConfiguredIRGenerator {
         if (type == tGTokensTypes::NEXT || type == tGTokensTypes::PREC || type == tGTokensTypes::SEP) {
             auto left = visit(children.at(0));
             auto right = visit(children.at(1));
-            return join(std::move(left), std::move(right), type == tGTokensTypes::PREC, type == tGTokensTypes::SEP);
+            return join(std::move(left), std::move(right), type == tGTokensTypes::PREC, type == tGTokensTypes::SEP, tree->getValue());
         }
         if (type == tGTokensTypes::LPAREN) return visit(children.at(0));
         if (type == tGTokensTypes::END) return {};
@@ -211,6 +228,16 @@ std::shared_ptr<GraphNN>  PGInterpreterIR::interpret(void){
     mCommonNodes.clear();
     std::shared_ptr<AstNode<tGTokensTypes>> tree = mParser.parse();
     if (mConfigured) return ConfiguredIRGenerator(mOptions).run(tree);
+    std::function<bool(const IRTree&)> hasPorts = [&](const IRTree& node) {
+        if ((node->getType() == tGTokensTypes::NEXT || node->getType() == tGTokensTypes::PREC) && !node->getValue().empty()) return true;
+        for (const auto& child : node->getChilds()) if (hasPorts(child)) return true;
+        return false;
+    };
+    if (hasPorts(tree)) {
+        IRGenerationOptions options;
+        options.randomMissing = true; options.maxLoops = mMaxLoops;
+        return ConfiguredIRGenerator(options).run(tree);
+    }
     std::shared_ptr<GraphNN> out = visit(tree);
 
     // combine the common nodes
