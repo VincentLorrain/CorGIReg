@@ -50,6 +50,10 @@ if(Python3_Interpreter_FOUND)
         -s ${PROJECT_SOURCE_DIR}/test/cli_python -p test_generator.py -v)
     set_tests_properties(Generator_CLI PROPERTIES
         ENVIRONMENT "CORGIREG_GENERATOR=$<TARGET_FILE:corgireg-generate>;CORGIREG_ENGINE=$<TARGET_FILE:corgireg-match>")
+    add_test(NAME Recipe_Rewrite_Integration COMMAND ${Python3_EXECUTABLE} -m unittest discover
+        -s ${PROJECT_SOURCE_DIR}/examples/rewrite -p test_recipes.py -v)
+    set_tests_properties(Recipe_Rewrite_Integration PROPERTIES LABELS "integration;recipe" TIMEOUT 120
+        ENVIRONMENT "PYTHONPATH=${PROJECT_SOURCE_DIR}/python;CORGIREG_GENERATOR=$<TARGET_FILE:corgireg-generate>;CORGIREG_ENGINE=$<TARGET_FILE:corgireg-match>")
 endif()
 
 if(CORGIREG_BUILD_BENCHMARKS)
