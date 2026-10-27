@@ -1,5 +1,7 @@
-cmake_minimum_required(VERSION 3.12)
-project(CorGIReg VERSION 0.0)
+cmake_minimum_required(VERSION 3.18)
+project(CorGIReg VERSION 0.1.0 LANGUAGES CXX)
+include(GNUInstallDirs)
+include(CMakePackageConfigHelpers)
 
 
 
@@ -58,15 +60,32 @@ set(src_files
 
 # Create a static library for CorGIReg to share across executables
 add_library(CorGIReg STATIC ${src_files})
+add_library(CorGIReg::CorGIReg ALIAS CorGIReg)
+target_compile_features(CorGIReg PUBLIC cxx_std_17)
 
 # Specify include directories for the library, include the hierarchical "include" directory
 target_include_directories(CorGIReg
-    PRIVATE ${PROJECT_SOURCE_DIR}/include  # Add the root of the include directory hierarchy
+    PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
+           $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
 
 # Link fmt to the library
 find_package(Threads REQUIRED)
-target_link_libraries(CorGIReg PRIVATE fmt::fmt Threads::Threads)
+target_link_libraries(CorGIReg PUBLIC fmt::fmt Threads::Threads)
+
+install(TARGETS CorGIReg EXPORT CorGIRegTargets
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT Development)
+install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR} COMPONENT Development)
+install(EXPORT CorGIRegTargets NAMESPACE CorGIReg::
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/CorGIReg COMPONENT Development)
+configure_package_config_file(cmake/CorGIRegConfig.cmake.in
+    ${CMAKE_CURRENT_BINARY_DIR}/CorGIRegConfig.cmake
+    INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/CorGIReg)
+write_basic_package_version_file(${CMAKE_CURRENT_BINARY_DIR}/CorGIRegConfigVersion.cmake
+    VERSION ${PROJECT_VERSION} COMPATIBILITY SameMinorVersion)
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/CorGIRegConfig.cmake
+              ${CMAKE_CURRENT_BINARY_DIR}/CorGIRegConfigVersion.cmake
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/CorGIReg COMPONENT Development)
 
 add_executable(corgireg-match src/Cli/main.cpp)
 target_include_directories(corgireg-match PRIVATE ${PROJECT_SOURCE_DIR}/include)
@@ -99,10 +118,20 @@ endif()
 #     set(CMAKE_CXX_FLAGS_RELEASE "-O3")
 # endif()
 
-if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+set(_corgireg_tests_default OFF)
+if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR AND CMAKE_BUILD_TYPE STREQUAL "Debug")
+  set(_corgireg_tests_default ON)
+endif()
+option(CORGIREG_BUILD_TESTS "Build CorGIReg tests" ${_corgireg_tests_default})
+if(CORGIREG_BUILD_TESTS)
   enable_testing()
   add_subdirectory(test) # Include the test subdirectory
 endif()
+
+set(CPACK_PACKAGE_NAME CorGIReg)
+set(CPACK_PACKAGE_VERSION ${PROJECT_VERSION})
+set(CPACK_GENERATOR ZIP)
+include(CPack)
 
 # Include the doc/CMakeLists.txt for Doxygen
 # add_subdirectory(doc)

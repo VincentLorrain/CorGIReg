@@ -1,0 +1,27 @@
+# Use a fresh install prefix and consumer build on every run; no source includes
+# or build-tree library paths are passed to the downstream project.
+string(RANDOM LENGTH 12 ALPHABET 0123456789abcdef suffix)
+set(root "@PROJECT_BINARY_DIR@/package-integration-${suffix}")
+set(prefix "${root}/sdk")
+function(run)
+    execute_process(COMMAND ${ARGV} RESULT_VARIABLE status OUTPUT_VARIABLE stdout ERROR_VARIABLE stderr)
+    if(NOT status EQUAL 0)
+        message(FATAL_ERROR "Command failed: ${ARGV}\n${stdout}\n${stderr}")
+    endif()
+endfunction()
+run("@CMAKE_COMMAND@" --install "@PROJECT_BINARY_DIR@" --prefix "${prefix}" --config "${CONFIG}")
+# Move only this freshly installed SDK inside the configured build workspace.
+get_filename_component(resolved "${prefix}" REALPATH)
+file(RELATIVE_PATH relative "@PROJECT_BINARY_DIR@" "${resolved}")
+if(IS_ABSOLUTE "${relative}" OR relative MATCHES "^\\.\\.")
+    message(FATAL_ERROR "SDK relocation escaped the build workspace")
+endif()
+file(RENAME "${prefix}" "${root}/relocated")
+run("@CMAKE_COMMAND@" -S "@PROJECT_SOURCE_DIR@/examples/consumer" -B "${root}/consumer"
+    -G "@CMAKE_GENERATOR@" "-DCMAKE_CXX_COMPILER=@CMAKE_CXX_COMPILER@"
+    "-DCMAKE_MAKE_PROGRAM=@CMAKE_MAKE_PROGRAM@" "-DCMAKE_BUILD_TYPE=${CONFIG}"
+    "-DCMAKE_PREFIX_PATH=${root}/relocated" -DCMAKE_FIND_USE_PACKAGE_REGISTRY=OFF)
+run("@CMAKE_COMMAND@" --build "${root}/consumer" --config "${CONFIG}" --parallel 2)
+run("@CMAKE_CTEST_COMMAND@" --test-dir "${root}/consumer" -C "${CONFIG}" --output-on-failure)
+message(STATUS "Installed external consumer and rewrite recipe passed: ${root}/consumer")
+

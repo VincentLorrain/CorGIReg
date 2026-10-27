@@ -30,6 +30,11 @@ include(Catch)
 catch_discover_tests(tests
     EXTRA_ARGS "--durations=yes"
 )
+configure_file(${PROJECT_SOURCE_DIR}/cmake/PackageIntegration.cmake.in
+    ${PROJECT_BINARY_DIR}/PackageIntegration.cmake @ONLY)
+add_test(NAME Installed_Package_Rewrite_Integration
+    COMMAND ${CMAKE_COMMAND} -DCONFIG=$<CONFIG> -P ${PROJECT_BINARY_DIR}/PackageIntegration.cmake)
+set_tests_properties(Installed_Package_Rewrite_Integration PROPERTIES TIMEOUT 180 LABELS "integration;package")
 
 find_package(Python3 COMPONENTS Interpreter QUIET)
 if(Python3_Interpreter_FOUND)
