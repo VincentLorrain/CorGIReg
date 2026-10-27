@@ -28,6 +28,7 @@ root as the working directory.
 - [Architecture](architecture.md): representations, compiler/runtime phases and source-code map.
 - [Graph adapters](graph-adapters.md): minimal C++ topology interface and matching entry points.
 - [Library integration](library-integration.md): installed CMake SDK, standalone consumer and transformation integration test.
+- [JSON transformation recipes](../examples/rewrite/README.md): external prototype, capture expressions, boundary mappings and end-to-end tests.
 - [Post-AST root selection](post-ast-root-selection.md): current proposal, selection rules and execution limits.
 - [Multithreading experiment](multithreading.md): worker isolation, ordered results, `$` regressions and performance comparisons.
 - [Native protocol](native-protocol.md): Python-to-worker transport versions and typed values.

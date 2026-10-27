@@ -81,6 +81,13 @@ The example is one handwritten scalar recipe, not a generic rewrite engine or
 a proof of floating-point equivalence. Operator arity, legality, overlaps and
 rewrite scheduling remain the future engine's responsibilities.
 
+The [JSON recipe prototype](../examples/rewrite/README.md) adds a data-driven
+consumer alongside this C++ example. Recipes describe source/target patterns,
+capture-derived repetition counts and port mappings. Its tests transform a
+multi-node subgraph, preserve outside connections, reject ambiguous mappings and
+match the written output again. The installed-package test also runs those
+recipes using the relocated native commands when Python is available.
+
 Run the installed-consumer validation with:
 
 ```sh
