@@ -116,6 +116,11 @@ applies even to a single neighbor. `$A` uses `CommonMode::INPUTS`, `A$` uses
 
 ## Generating example graphs
 
+For use from a separate graph engine, see the [C++ SDK and integration test](doc/library-integration.md).
+The standalone `corgireg-generate` command writes graph JSON; the matching CLI
+reads it. Fixed input arrows use `A-1->B`; `A-*->B` is an alias of `A->B`.
+Optional input/output port bindings survive JSON, ONNX and StableHLO import.
+
 For reusable format-independent predicates such as `conv` across ONNX and
 StableHLO, see [node and pattern libraries](doc/node-library.md).
 Ready-to-run scripts and graph fixtures are in [matching examples](examples/matches/README.md).

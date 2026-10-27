@@ -96,3 +96,20 @@ Against [the documentation graph](examples/graph.json):
 
 For reusable semantic patterns and conditional operations, start with
 [the node library](node-library.md) and [runnable scripts](../examples/matches/README.md).
+# Numbered input arrows
+
+`A-1->B` constrains the connection to input 1 of B. `B<-1-A` is its reverse
+textual form. Ports start at 1 and must fit unsigned 32 bits. The plain arrows
+`->` and `<-` remain valid; `-*->` and `<-*-` are their explicit wildcard aliases.
+Whitespace can surround an arrow, but cannot split its internal spelling.
+Numeric predicate names remain legal, for example `A->123`.
+
+Matching fixed arrows requires port metadata in the source graph; an unspecified
+port does not match a fixed number. Wildcard arrows do not constrain ports.
+Quantifiers retain their existing meaning. A fixed connection requires a node
+on both sides: skipping an entire operand cannot produce a numbered-edge match.
+Ports label connections, not common-node identities or node IDs. Output ports
+are preserved in the graph but are not selected by pattern syntax in this version.
+
+Generation assigns sequential input ports for wildcard arrows and preserves
+fixed numbers. See [generation](ir-generation.md) and [graph JSON](graph-json.md).
