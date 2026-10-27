@@ -24,7 +24,24 @@ NodeIds children(NodeId node) const override;
 - An adapter must keep its source representation alive for as long as needed.
   The matcher retains the view with the returned results.
 - Multiple uses of one producer are one neighbor in this topology interface.
-  Ports, attributes and values may stay in the adapter for native predicates.
+  Use optional port metadata to distinguish the operand bindings.
+
+For numbered patterns, also override:
+
+```cpp
+std::set<EdgePorts> edgePorts(NodeId from, NodeId to) const override;
+```
+
+`EdgePorts{input, output}` contains optional one-based 32-bit port numbers.
+Return one binding per distinct operand use. The default implementation returns
+an unspecified binding for adjacent nodes and no bindings for non-neighbors,
+so existing adapters remain compatible with plain/wildcard arrows.
+`ImportedGraph::addEdge(from, to, {1, 2})` connects source output 2 to destination
+input 1. `GraphNN::addEdge` accepts the same optional third argument, and both
+`BasicGraphAdapter` constructors expose those bindings. Ports survive graph
+copies and merges. Node degree and strict coverage still count neighboring nodes,
+not the number of port bindings. A fixed pattern input never matches an
+unspecified source port.
 
 `nodesAtDelta(view, anchor, delta)` implements exact signed traversal: positive
 steps follow children, negative steps follow parents, and zero returns the

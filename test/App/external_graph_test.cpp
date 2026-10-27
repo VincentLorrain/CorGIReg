@@ -126,7 +126,7 @@ TEST_CASE("External graph handles anchors zero and terminal absence separately",
         {"ExternalRoot", [](NodeId id) { return id == 0; }},
         {"ExternalLeaf", [](NodeId id) { return id == 1 || id == 2; }}
     };
-    auto repeated = PGInterpreterTG("(ExternalRoot$->ExternalLeaf)+").interpret();
+    auto repeated = PGInterpreterTG("($ExternalRoot$->ExternalLeaf)+").interpret();
     auto matches = repeated->test(graph, {0}, predicates);
     REQUIRE(matches->isMatch());
     for (const auto& match : matches->getMatches()) REQUIRE(match->getAll() == NodeIds{0, 1, 2});

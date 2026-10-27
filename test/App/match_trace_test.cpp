@@ -173,7 +173,7 @@ TEST_CASE("Common node iterations count bodies rather than distinct source nodes
         {"TraceAnchor", [](NodeId id) { return id == 0; }},
         {"TraceLeaf", [](NodeId id) { return id == 11 || id == 22; }}
     };
-    auto result = PGInterpreterTG("(TraceAnchor$->TraceLeaf)+").interpret()->test(graph, {0}, predicates);
+    auto result = PGInterpreterTG("($TraceAnchor$->TraceLeaf)+").interpret()->test(graph, {0}, predicates);
     REQUIRE(result->isMatch());
     for (const auto& match : result->getMatches()) {
         REQUIRE(match->getAll() == NodeIds{0, 11, 22});

@@ -25,12 +25,25 @@ void NodeNN::addChild(const Ptr& child) {
     children_.insert(child);
 }
 
+void NodeNN::addConnection(const Ptr& child, EdgePorts ports) {
+    ports.validate();
+    children_.insert(child);
+    connectionPorts_[child].insert(ports);
+}
+
+std::set<EdgePorts> NodeNN::getConnectionPorts(const Ptr& child) const {
+    if (!children_.count(child)) return {};
+    auto found = connectionPorts_.find(child);
+    return found == connectionPorts_.end() ? std::set<EdgePorts>{{}} : found->second;
+}
+
 void NodeNN::removeParent(const Ptr& parent) {
     parents_.erase(parent);
 }
 
 void NodeNN::removeChild(const Ptr& child) {
     children_.erase(child);
+    connectionPorts_.erase(child);
 }
 std::string NodeNN::getType() const {
     return getInfo<std::string>("Type", "");
@@ -81,13 +94,14 @@ void GraphNN::addNode(const NodeNN::Ptr node) {
     }
 }
 
-void GraphNN::addEdge(const NodeNN::Ptr from, const NodeNN::Ptr to) {
+void GraphNN::addEdge(const NodeNN::Ptr from, const NodeNN::Ptr to, EdgePorts ports) {
+    ports.validate();
     // Add nodes to graph if not already present
     addNode(from);
     addNode(to);
 
     // Add edge between nodes
-    from->addChild(to);
+    from->addConnection(to, ports);
     to->addParent(from);
 }
 
@@ -152,7 +166,8 @@ NodeNN::Ptr GraphNN::_copyNode(const NodeNN::Ptr& node,
     // Copy and set children
     for (const auto& child : node->getChildren()) {
         auto copiedChild = _copyNode(child, copiedNodes, nodesNotToCopy);
-        newNode->addChild(copiedChild);
+        for (const auto& ports : node->getConnectionPorts(child))
+            newNode->addConnection(copiedChild, ports);
     }
 
     return newNode;
@@ -167,6 +182,19 @@ void GraphNN::mergeNodes(const std::set<NodeNN::Ptr>& nodesToMerge) {
 
     // Create a new node
     NodeNN::Ptr mergedNode = std::make_shared<NodeNN>();
+
+    // Preserve operand bindings when endpoints are replaced by the merged node.
+    std::vector<std::tuple<NodeNN::Ptr, NodeNN::Ptr, EdgePorts>> numbered;
+    std::set<NodeNN::Ptr> sources = nodesToMerge;
+    for (const auto& node : nodesToMerge)
+        sources.insert(node->getParents().begin(), node->getParents().end());
+    for (const auto& source : sources) for (const auto& child : source->getChildren())
+        if (nodesToMerge.count(source) || nodesToMerge.count(child))
+            for (const auto& ports : source->getConnectionPorts(child))
+                if (ports.input || ports.output ||
+                    !nodesToMerge.count(source) || !nodesToMerge.count(child))
+                    numbered.emplace_back(nodesToMerge.count(source) ? mergedNode : source,
+                                          nodesToMerge.count(child) ? mergedNode : child, ports);
 
     // Merge info_ dictionaries
     for (const auto& node : nodesToMerge) {
@@ -252,6 +280,8 @@ void GraphNN::mergeNodes(const std::set<NodeNN::Ptr>& nodesToMerge) {
 
     // Add mergedNode to the graph
     addNode(mergedNode);
+    for (const auto& connection : numbered)
+        addEdge(std::get<0>(connection), std::get<1>(connection), std::get<2>(connection));
 }
 
 

@@ -1,36 +1,25 @@
-
 #pragma once
-
-
-#include <string>
+#include <cstdint>
 #include <random>
+#include <string>
+#include <vector>
 
 namespace CorGIReg {
+// Test/example generator. Configuration and generation are sequential operations.
 class RandomExpressionGenerator {
-private:
-    // Prevent instantiation
     RandomExpressionGenerator() = default;
-
-    // Single RNG instance (initialized once, thread-safe since C++11)
     static std::mt19937& getGen();
-
-    // --- dictionary controls ---
-    static std::vector<std::string>& dict();      // storage for allowed strings
-
-    // Helpers (all static)
+    static std::vector<std::string>& dict();
+    static unsigned pick(unsigned count);
     static std::string generateRandomString();
-    static std::string domain();
-    static std::string exp();
-    static std::string seq();
-    static std::string rseq();
-    static std::string rseqEnd();
-
+    static std::string exp(unsigned depth);
+    static std::string sequence(unsigned depth, bool reverse);
 public:
-    // Public API
-    static std::string allExpr();
-
-    // Configure dictionary (copy is fine for a small list; you can move if needed)
+    // At most three paths, three units per sequence and maxDepth nested groups.
+    // Accepted maximum depth: 0..6. Default preserves the no-argument API.
+    static std::string allExpr(unsigned maxDepth = 3);
+    static void setSeed(std::uint32_t seed);
     static void setDictionary(const std::vector<std::string>& words);
-    static void clearDictionary(); // disables dictionary mode
+    static void clearDictionary();
 };
 }

@@ -1,5 +1,8 @@
 
 #include "CompileTool/CompileTransitionGraph/PartitionGraphLexer.hpp"
+#include <cctype>
+#include <limits>
+#include "GraphAccess/Ports.hpp"
 
 using namespace CorGIReg; 
 
@@ -16,143 +19,71 @@ mRegularExpressions(gRegexExpressions){
  */
 
 std::shared_ptr<ParsingToken<tGTokensTypes>> PartitionGraphLexer::getNextToken(void){
-    std::string currentChars = "";
-    while (mPosition < mRegularExpressions.length())
-    {
-        //erase all space 
-        if (mRegularExpressions[mPosition] != ' ')
-        {
-            currentChars += mRegularExpressions[mPosition];
+    auto keyChar = [](char c) {
+        return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') ||
+               (c >= '0' && c <= '9') || c == '_';
+    };
+    while (mPosition < mRegularExpressions.size() &&
+           std::isspace(static_cast<unsigned char>(mRegularExpressions[mPosition]))) ++mPosition;
+    if (mPosition == mRegularExpressions.size())
+        return std::make_shared<ParsingToken<tGTokensTypes>>(tGTokensTypes::STOP, "");
+    const auto start = mPosition;
+    const char current = mRegularExpressions[mPosition];
+    const bool prefix = current == '$' && mPosition + 1 < mRegularExpressions.size() &&
+                        keyChar(mRegularExpressions[mPosition + 1]);
+    if (prefix || keyChar(current)) {
+        if (prefix) ++mPosition;
+        while (mPosition < mRegularExpressions.size() && keyChar(mRegularExpressions[mPosition])) ++mPosition;
+        char suffix = 0;
+        if (mPosition < mRegularExpressions.size() &&
+            (mRegularExpressions[mPosition] == '#' || mRegularExpressions[mPosition] == '$')) {
+            suffix = mRegularExpressions[mPosition++];
+            while (mPosition < mRegularExpressions.size() &&
+                   mRegularExpressions[mPosition] >= '0' && mRegularExpressions[mPosition] <= '9') ++mPosition;
         }
-        else
-        {
-            mPosition++;
-            continue;
-        }
-
-        /////
-        // const lent token
-        /////
-
-        if (std::regex_match(currentChars,std::regex("\\->")))// the next TOKEN 
-        {
-            mPosition++;
-            return std::make_shared<ParsingToken<tGTokensTypes>>(tGTokensTypes::NEXT,"");
-        }
-        else if (std::regex_match(currentChars,std::regex("\\<-"))) // the prec TOKEN
-        {
-            mPosition++;
-            return std::make_shared<ParsingToken<tGTokensTypes>>(tGTokensTypes::PREC,"");
-        }
-        else if (std::regex_match(currentChars,std::regex("\\*")))// the * TOKEN 
-        {
-            mPosition++;
-            return std::make_shared<ParsingToken<tGTokensTypes>>(tGTokensTypes::QZM,"");
-        }
-        else if (std::regex_match(currentChars,std::regex("\\+")))// the + TOKEN 
-        {
-            mPosition++;
-            return std::make_shared<ParsingToken<tGTokensTypes>>(tGTokensTypes::QOM,"");
-        }
-        else if (std::regex_match(currentChars,std::regex("\\(")))// the LPAREN TOKEN 
-        {
-            mPosition++;
-            return std::make_shared<ParsingToken<tGTokensTypes>>(tGTokensTypes::LPAREN,"");
-        }
-        else if (std::regex_match(currentChars,std::regex("\\)")))// the RPAREN TOKEN 
-        {
-            mPosition++;
-            return std::make_shared<ParsingToken<tGTokensTypes>>(tGTokensTypes::RPAREN,"");
-        }
-        else if (std::regex_match(currentChars,std::regex("\\$")))// the END TOKEN 
-        {
-            mPosition++;
-            return std::make_shared<ParsingToken<tGTokensTypes>>(tGTokensTypes::END,"");
-        }
-        else if (std::regex_match(currentChars,std::regex("\\?")))// the ZERO OR ONE TOKEN
-        {
-            mPosition++;
-            return std::make_shared<ParsingToken<tGTokensTypes>>(tGTokensTypes::QZO,"");
-        }
-
-        //
-        else if (std::regex_match(currentChars,std::regex(";")))// the SEP TOKEN 
-        {
-            //test if the last sep
-            //std::string subStr = mRegularExpressions.substr(mPosition);
-            mPosition++;
-            return std::make_shared<ParsingToken<tGTokensTypes>>(tGTokensTypes::SEP,"");
-        }
-
-        /////
-        //unconst lent token
-        /////
-
-        else if (std::regex_match(currentChars,std::regex("[A-Za-z_0-9]")))// the KEY or CKEY
-        {   
-            
-            //the key is a common key
-            bool isCKey = false;
-            //the key is a strict common key
-            bool isSCKey = false;
-
-            std::regex keyRegex("[A-Za-z_0-9]+");
-            std::regex cKeyRegex("[A-Za-z_0-9]+\\#[0-9]*");
-            std::regex ccKeyRegex("[A-Za-z_0-9]+\\$[0-9]*");
-
-            while ( mPosition < mRegularExpressions.length()) {
-
-                // the currentchars is overs all the expressions bu one char , stop the recherche ans go back by one 
-                if(!std::regex_match(currentChars,keyRegex) && !std::regex_match(currentChars,cKeyRegex) && !std::regex_match(currentChars,ccKeyRegex))
-                {
-                    currentChars.pop_back(); //the last char is the problems
-                    break;
-                }
-                else if (std::regex_match(currentChars,cKeyRegex)){
-                    isCKey = true;
-                }
-                else if (std::regex_match(currentChars,ccKeyRegex)){
-                    isSCKey = true;
-                }
-
-                mPosition++;
-                if (mPosition < mRegularExpressions.length()) currentChars += mRegularExpressions[mPosition];
-                
-            }
-            //we end the match 2 possibility 
-            //we are at the end of the mConditionalExpressions and we need to ensure the match
-            //we are not we can continue
-            if (mPosition == mRegularExpressions.length()-1)
-            {
-                if (!std::regex_match(currentChars,keyRegex) && !std::regex_match(currentChars,cKeyRegex) && !std::regex_match(currentChars,ccKeyRegex))
-                {
-                    throw badTokenError(currentChars,mPosition);
-                }
-            }
-
-
-            if (isCKey && !isSCKey){
-                return std::make_shared<ParsingToken<tGTokensTypes>>(tGTokensTypes::CKEY,currentChars);
-            }else if(!isCKey && isSCKey){
-                return std::make_shared<ParsingToken<tGTokensTypes>>(tGTokensTypes::SCKEY,currentChars);
-            }else if(!isCKey && !isSCKey){
-                return std::make_shared<ParsingToken<tGTokensTypes>>(tGTokensTypes::KEY,currentChars);
-            }else{
-                 throw badTokenError(currentChars,mPosition);
-            }
-        }
-
-        mPosition++;
+        auto type = prefix || suffix == '$' ? tGTokensTypes::SCKEY :
+                    suffix == '#' ? tGTokensTypes::CKEY : tGTokensTypes::KEY;
+        return std::make_shared<ParsingToken<tGTokensTypes>>(type, mRegularExpressions.substr(start, mPosition - start));
     }
-
-
-    //no more to find no one match the currentChars 
-    if (currentChars.empty()) {
-        return  std::make_shared<ParsingToken<tGTokensTypes>>(tGTokensTypes::STOP,"");  // Null shared pointer ;
-    }else{
-        throw badTokenError(currentChars,mPosition);
+    auto emit = [&](tGTokensTypes type, std::size_t size = 1) {
+        mPosition += size;
+        return std::make_shared<ParsingToken<tGTokensTypes>>(type, "");
+    };
+    if (mRegularExpressions.compare(mPosition, 2, "->") == 0) return emit(tGTokensTypes::NEXT, 2);
+    if (current == '-' || mRegularExpressions.compare(mPosition, 2, "<-") == 0) {
+        const auto type = current == '-' ? tGTokensTypes::NEXT : tGTokensTypes::PREC;
+        mPosition += current == '-' ? 1 : 2;
+        const auto begin = mPosition;
+        if (mPosition < mRegularExpressions.size() && mRegularExpressions[mPosition] == '*') ++mPosition;
+        else while (mPosition < mRegularExpressions.size() && std::isdigit(static_cast<unsigned char>(mRegularExpressions[mPosition]))) ++mPosition;
+        auto value = mRegularExpressions.substr(begin, mPosition - begin);
+        if (type == tGTokensTypes::PREC && (value.empty() ||
+            mPosition >= mRegularExpressions.size() || mRegularExpressions[mPosition] != '-')) {
+            mPosition = start + 2;
+            return std::make_shared<ParsingToken<tGTokensTypes>>(type, "");
+        }
+        const std::string ending = type == tGTokensTypes::NEXT ? "->" : "-";
+        if (value.empty() || mRegularExpressions.compare(mPosition, ending.size(), ending) != 0)
+            throw badTokenError("Expected -number-> or -*->", start);
+        mPosition += ending.size();
+        if (!value.empty() && value != "*") {
+            try {
+                auto number = std::stoull(value);
+                if (!number || number > std::numeric_limits<PortNumber>::max()) throw std::out_of_range("port");
+            } catch (const std::exception&) { throw badTokenError("Invalid port", begin); }
+        }
+        return std::make_shared<ParsingToken<tGTokensTypes>>(type, value == "*" ? "" : value);
     }
-
+    switch (current) {
+    case '*': return emit(tGTokensTypes::QZM);
+    case '+': return emit(tGTokensTypes::QOM);
+    case '?': return emit(tGTokensTypes::QZO);
+    case '(': return emit(tGTokensTypes::LPAREN);
+    case ')': return emit(tGTokensTypes::RPAREN);
+    case ';': return emit(tGTokensTypes::SEP);
+    case '$': return emit(tGTokensTypes::END);
+    default: throw badTokenError(std::string(1, current), mPosition);
+    }
 }
 
 void PartitionGraphLexer::rstPosition(void){

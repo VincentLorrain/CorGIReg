@@ -1,5 +1,6 @@
 #include "CompileTool/CompileTransitionGraph/PGInterpreterTG.hpp"
 #include "TransitionGraph/TransitionTrace.hpp"
+#include "TransitionGraph/TransitionPort.hpp"
 
 
 namespace CorGIReg{
@@ -23,10 +24,27 @@ std::shared_ptr<TransitionGraph> PGInterpreterTG::visit(std::shared_ptr<AstNode<
 
     if(AstTree->getType() == tGTokensTypes::SEP){
         return sepF(visit(nextAstNodes[0]),visit(nextAstNodes[1]));
-    }else if(AstTree->getType() == tGTokensTypes::NEXT){
-        return nextF(visit(nextAstNodes[0]),visit(nextAstNodes[1]));
-    }else if(AstTree->getType() == tGTokensTypes::PREC){
-        return precF(visit(nextAstNodes[0]),visit(nextAstNodes[1]));
+    }else if(AstTree->getType() == tGTokensTypes::NEXT || AstTree->getType() == tGTokensTypes::PREC){
+        auto left = visit(nextAstNodes[0]);
+        auto right = visit(nextAstNodes[1]);
+        if (AstTree->getType() == tGTokensTypes::PREC) std::swap(left, right);
+        const auto value = AstTree->getValue();
+        if (value.empty() || value == "*") return nextF(left, right);
+        const auto port = static_cast<PortNumber>(std::stoull(value));
+        auto append = [&](std::shared_ptr<TransitionGraph> graph, PortAction action) {
+            auto previous = *graph->getValidStates().begin();
+            auto end = std::make_shared<State>(true, false);
+            end->setGroupe(mActGroupe); previous->unValid();
+            auto step = std::make_shared<TransitionPort>(previous, end, action, port);
+            step->updateWeak(); graph->addTransition(step);
+            return graph;
+        };
+        auto previous = left->getStartStates().at(0);
+        auto start = std::make_shared<State>(false, true);
+        start->setGroupe(mActGroupe); previous->unStart();
+        auto step = std::make_shared<TransitionPort>(start, previous, PortAction::Begin, port);
+        step->updateWeak(); left->addTransition(step);
+        return append(nextF(append(left, PortAction::Check), right), PortAction::End);
     }else if(AstTree->getType() == tGTokensTypes::QOM){
         return quantify(visit(nextAstNodes[0]), mQuantifierIndices.at(AstTree.get()), '+');
     }else if(AstTree->getType() == tGTokensTypes::QZM){

@@ -9,6 +9,8 @@
 #include <any>         // For std::any
 #include <stdexcept>   // For exception handling
 #include <algorithm>
+#include <map>
+#include "GraphAccess/Ports.hpp"
 
 
 #include <sstream>//mmd export to mermaid
@@ -34,6 +36,8 @@ public:
     // Methods to add parents and children
     void addParent(const Ptr& parent);
     void addChild(const Ptr& child);
+    void addConnection(const Ptr& child, EdgePorts ports);
+    std::set<EdgePorts> getConnectionPorts(const Ptr& child) const;
 
     // Methods to remove parents and children
     void removeParent(const Ptr& parent);
@@ -78,6 +82,7 @@ private:
     std::set<Ptr> parents_;
     std::set<Ptr> children_;
     Dictionary info_;
+    std::map<Ptr, std::set<EdgePorts>> connectionPorts_;
 };
 
 /**
@@ -89,7 +94,7 @@ public:
     void addNode(const NodeNN::Ptr node);
 
     // Method to add an edge between two nodes
-    void addEdge(const NodeNN::Ptr from, const NodeNN::Ptr to);
+    void addEdge(const NodeNN::Ptr from, const NodeNN::Ptr to, EdgePorts ports = {});
 
     // Accessor for all nodes in the graph
     const std::vector<NodeNN::Ptr>& getNodes() const;

@@ -23,6 +23,14 @@ MODULE = """module {
 
 
 class StablehloTests(unittest.TestCase):
+    def test_repeated_operand_preserves_both_argument_positions(self):
+        self.path.write_text(MODULE.replace("stablehlo.negate %0", "stablehlo.subtract %0, %0"), encoding="utf-8")
+        graph = load_stablehlo(self.path)
+        self.assertEqual(graph["connections"], [
+            {"from": 0, "to": 1, "input": 1, "output": 1},
+            {"from": 0, "to": 1, "input": 2, "output": 1},
+            {"from": 1, "to": 2, "input": 1, "output": 1}])
+
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory(dir=ROOT / "build")
         self.addCleanup(self.directory.cleanup)

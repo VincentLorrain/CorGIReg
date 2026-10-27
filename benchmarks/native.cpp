@@ -1,5 +1,7 @@
 #include "Cli/MatchRequest.hpp"
 #include "CompileTool/CompileTransitionGraph/PGInterpreterTG.hpp"
+#include "CompileTool/CompileTransitionGraph/PGInterpreterIR.hpp"
+#include "GraphAdapters/BasicGraphAdapter.hpp"
 #include "CompileTool/PostAstOptimization/RootSelectionPass.hpp"
 #include "GraphAdapters/ImportedGraph.hpp"
 #include <chrono>
@@ -19,11 +21,15 @@ struct Case {
 };
 
 Case chain(std::size_t size) {
-    auto graph = std::make_shared<ImportedGraph>();
-    for (NodeId id = 0; id < size; ++id) {
-        graph->addNode(id, "A", "A");
-        if (id) graph->addEdge(id - 1, id);
-    }
+    IRGenerationOptions options;
+    options.repetitions = {{1, {size}}};
+    auto source = PGInterpreterIR("A+", options).interpret();
+    auto graph = std::make_shared<BasicGraphAdapter>(*source);
+    if (source->getNodes().size() != size) throw std::runtime_error("Incorrect generated chain size");
+    for (NodeId id = 0; id < size; ++id)
+        if (graph->children(id) != (id + 1 < size ? NodeIds{id + 1} : NodeIds{}) ||
+            graph->parents(id) != (id ? NodeIds{id - 1} : NodeIds{}))
+            throw std::runtime_error("Incorrect generated chain topology");
     auto pattern = PGInterpreterTG("A+->$").interpret();
     NodePredicates predicates{{"A", [](NodeId) { return true; }}};
     return {"match_chain_" + std::to_string(size), size, 1, 1, [graph, pattern, predicates, size] {
@@ -34,6 +40,24 @@ Case chain(std::size_t size) {
                 throw std::runtime_error("Incorrect chain capture or repetition count");
         }
         return result->getMatches().size();
+    }};
+}
+
+Case generation(std::size_t size) {
+    IRGenerationOptions options;
+    options.repetitions = {{1, {size}}};
+    return {"generate_chain_" + std::to_string(size), size, 0, size, [options, size] {
+        auto graph = PGInterpreterIR("A+", options).interpret();
+        std::size_t edges = 0;
+        for (const auto& node : graph->getNodes()) edges += node->getChildren().size();
+        if (edges != size - 1) throw std::runtime_error("Incorrect generated edge count");
+        // GraphNN uses strong reciprocal links. Release this measured temporary
+        // fixture explicitly instead of accumulating it over benchmark samples.
+        for (const auto& node : graph->getNodes()) {
+            auto children = node->getChildren();
+            for (const auto& child : children) { child->removeParent(node); node->removeChild(child); }
+        }
+        return graph->getNodes().size();
     }};
 }
 
@@ -105,7 +129,7 @@ int main(int argc, char** argv) {
                     throw std::runtime_error("Incorrect root selection");
                 return plan.components.size();
             }},
-            chain(16), chain(64), search(2), search(4), search(16),
+            generation(64), chain(16), chain(64), search(2), search(4), search(16),
             search(16, 2), search(16, 4), search(64), search(64, 2), search(64, 4)
         };
         std::cout << std::setprecision(17) << "{\"schema_version\":1,\"compiler\":\"" << CORGIREG_BENCH_COMPILER

@@ -63,24 +63,26 @@ def load_onnx(path):
         nodes.append({"id": index, "op": op, "name": operation.name or f"node_{index}",
                       "inputs": list(operation.input), "outputs": list(operation.output),
                       "domain": operation.domain, "attributes": attributes})
-        for output in operation.output:
+        for output_index, output in enumerate(operation.output, 1):
             if not output:  # Optional absent outputs do not denote a value.
                 continue
             if output in producers or output in external:
                 raise ValueError(f"Multiple definitions of ONNX value {output!r}")
-            producers[output] = index
-    edges = []
+            producers[output] = (index, output_index)
+    edges, connections = [], []
     for index, operation in enumerate(graph.node):
-        for value in operation.input:
+        for input_index, value in enumerate(operation.input, 1):
             if not value:
                 continue
             if value in producers:
-                if producers[value] >= index:
+                source, output_index = producers[value]
+                if source >= index:
                     raise ValueError(f"ONNX graph is not topologically ordered at node {index}")
-                edges.append((producers[value], index))
+                edges.append((source, index))
+                connections.append({"from": source, "to": index, "input": input_index, "output": output_index})
             elif value not in external:
                 raise ValueError(f"Undefined ONNX value {value!r} at node {index}")
     for output in graph.output:
         if output.name not in producers and output.name not in external:
             raise ValueError(f"Undefined ONNX graph output {output.name!r}")
-    return validate_graph({"nodes": nodes, "edges": edges})
+    return validate_graph({"nodes": nodes, "edges": edges, "connections": connections})

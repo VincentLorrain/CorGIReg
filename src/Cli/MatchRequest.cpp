@@ -8,6 +8,7 @@
 #include <sstream>
 #include <istream>
 #include <ostream>
+#include <limits>
 
 namespace CorGIReg {
 namespace {
@@ -145,7 +146,9 @@ void writeMatch(std::ostream& out, const MatchSolution& match) {
 
 void matchRequest(std::istream& input, std::ostream& output, std::size_t jobs) {
     if (jobs == 0 || jobs > 256) throw std::invalid_argument("Jobs must be between 1 and 256");
-    const auto protocol = token(input);
+    auto protocol = token(input);
+    const bool ported = protocol == "CORGiReg4" || protocol == "CORGiReg5" || protocol == "CORGiReg6";
+    if (ported) protocol.back() -= 3;
     if (protocol != "CORGiReg1" && protocol != "CORGiReg2" && protocol != "CORGiReg3")
         throw std::invalid_argument("Unsupported matching protocol");
     auto graph = std::make_shared<ImportedGraph>();
@@ -163,7 +166,15 @@ void matchRequest(std::istream& input, std::ostream& output, std::size_t jobs) {
     for (std::uint64_t i = 0; i < edgeCount; ++i) {
         const auto from = number(input);
         const auto to = number(input);
-        graph->addEdge(from, to);
+        EdgePorts ports;
+        if (ported) {
+            const auto in = number(input), out = number(input);
+            if (in > std::numeric_limits<PortNumber>::max() || out > std::numeric_limits<PortNumber>::max())
+                throw std::invalid_argument("Port exceeds 32-bit range");
+            if (in) ports.input = static_cast<PortNumber>(in);
+            if (out) ports.output = static_cast<PortNumber>(out);
+        }
+        graph->addEdge(from, to, ports);
     }
     // Definitions are per request, never added to the legacy global dictionary.
     std::map<std::string, std::optional<NodeIds>> definitions;

@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "name": "subtract-to-add-negate",
+  "match": "Sub#",
+  "replacement": {
+    "pattern": "Neg-2->Add#",
+    "repetitions": {},
+    "default_output_port": 1
+  },
+  "inputs": [
+    {"match": {"predicate": "Sub", "port": 1}, "replacement": {"op": "Add", "port": 1}},
+    {"match": {"predicate": "Sub", "port": 2}, "replacement": {"op": "Neg", "port": 1}}
+  ],
+  "outputs": [
+    {"match": {"predicate": "Sub", "port": 1}, "replacement": {"op": "Add", "port": 1}}
+  ]
+}

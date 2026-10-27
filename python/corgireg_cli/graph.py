@@ -40,7 +40,27 @@ def validate_graph(graph):
         if source not in ids or target not in ids:
             raise ValueError(f"Edge references an unknown node: {edge}")
         edges.add((source, target))
-    return {"nodes": sorted(nodes, key=lambda node: node["id"]), "edges": sorted(edges)}
+    result = {"nodes": sorted(nodes, key=lambda node: node["id"]), "edges": sorted(edges)}
+    if "connections" in graph:
+        if not isinstance(graph["connections"], list):
+            raise ValueError("connections must be an array")
+        bindings = set()
+        for binding in graph["connections"]:
+            if not isinstance(binding, dict) or set(binding) - {"from", "to", "input", "output"}:
+                raise ValueError("A connection requires from/to and optional input/output ports")
+            source, target = node_id(binding.get("from")), node_id(binding.get("to"))
+            if (source, target) not in edges:
+                raise ValueError("A connection must reference an existing edge")
+            ports = []
+            for name in ("input", "output"):
+                port = binding.get(name)
+                if port is not None and (type(port) is not int or not 1 <= port < 2**32):
+                    raise ValueError("Port numbers must be positive 32-bit integers or null")
+                ports.append(port or 0)
+            bindings.add((source, target, *ports))
+        result["connections"] = [{"from": a, "to": b, "input": i or None, "output": o or None}
+                                 for a, b, i, o in sorted(bindings)]
+    return result
 
 
 def load_json(path):
@@ -83,6 +103,9 @@ def encode_request(graph, query, max_starts, memberships=None, definition_report
     def text(value):
         return value.encode("utf-8").hex() or "-"
     version = "CORGiReg3" if definition_report is not None else ("CORGiReg1" if memberships is None else "CORGiReg2")
+    ported = bool(graph.get("connections"))
+    if ported:
+        version = "CORGiReg" + str(int(version[-1]) + 3)
     lines = [version, str(len(graph["nodes"]))]
     for node in graph["nodes"]:
         lines.append(f'{node["id"]} {text(node["predicate"])} {text(node["name"])}')
@@ -91,8 +114,18 @@ def encode_request(graph, query, max_starts, memberships=None, definition_report
             if isinstance(document.get("inputs"), list):
                 document["inputs"] = [_ABSENT_INPUT if item == "" else item for item in document["inputs"]]
             lines.append(encode_value(document))
-    lines.append(str(len(graph["edges"])))
-    lines.extend(f"{a} {b}" for a, b in graph["edges"])
+    bindings = {}
+    for binding in graph.get("connections", []):
+        bindings.setdefault((binding["from"], binding["to"]), []).append(binding)
+    records = []
+    for a, b in graph["edges"]:
+        if ported:
+            for binding in bindings.get((a, b), [{}]):
+                records.append(f"{a} {b} {binding.get('input') or 0} {binding.get('output') or 0}")
+        else:
+            records.append(f"{a} {b}")
+    lines.append(str(len(records)))
+    lines.extend(records)
     if memberships is not None:
         lines.append(str(len(memberships)))
         for name, ids in sorted(memberships.items()):

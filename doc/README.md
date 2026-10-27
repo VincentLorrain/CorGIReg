@@ -16,6 +16,8 @@ root as the working directory.
 - [Operation graph JSON](graph-json.md): every input field, IDs, edges, normalization and metadata.
 - [ONNX and StableHLO importers](importers.md): supported subsets, source names and attribute conversion.
 - [Pattern language](pattern-language.md): arrows, common/strict nodes, quantifiers, boundaries and parsing.
+- [IR generation](ir-generation.md): explicit counts, values files, seeded fallback and testbench series.
+- [Directional strict nodes](directional-strict-nodes.md): input/output coverage and migration from V0.
 - [Node-definition JSON](node-library.md): format mappings, schema versions, alias resolution and loading.
 - [NodeTest rules](node-rules.md): arguments, presence/absence, values, per-key regexes and logical conditions.
 - [Match-report JSON](match-report-json.md): complete output fields, captures, source identities and quantifier invocations.
@@ -25,6 +27,8 @@ root as the working directory.
 
 - [Architecture](architecture.md): representations, compiler/runtime phases and source-code map.
 - [Graph adapters](graph-adapters.md): minimal C++ topology interface and matching entry points.
+- [Library integration](library-integration.md): installed CMake SDK, standalone consumer and transformation integration test.
+- [JSON transformation recipes](../examples/rewrite/README.md): external prototype, capture expressions, boundary mappings and end-to-end tests.
 - [Post-AST root selection](post-ast-root-selection.md): current proposal, selection rules and execution limits.
 - [Multithreading experiment](multithreading.md): worker isolation, ordered results, `$` regressions and performance comparisons.
 - [Native protocol](native-protocol.md): Python-to-worker transport versions and typed values.

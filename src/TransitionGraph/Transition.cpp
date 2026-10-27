@@ -1,3 +1,4 @@
+#include "CompileTool/Common/CommonKey.hpp"
 #include "TransitionGraph/Transition.hpp"
 #include "GraphAccess/GraphTraversal.hpp"
 #include <deque>
@@ -225,43 +226,17 @@ const TransitionResult TransitionCommon::test(const std::shared_ptr<RunTimeConte
             nextNode = std::set<NodeId>(tmp.begin(), tmp.end()) ;
         }
         
-        std::set<NodeId> childNode=context->graph().children(*opNode);
-        std::set<NodeId>tmp = context->graph().parents(*opNode);
-        std::set<NodeId> parentNode = std::set<NodeId>(tmp.begin(), tmp.end()) ;
+        // Strict coverage is an obligation of this occurrence, including degree 1.
+        // INPUTS/OUTPUTS are absolute; legacy FRONT/BACK remain traversal-relative.
+        const bool inputs = mFlag == CommonMode::ALL || mFlag == CommonMode::INPUTS ||
+            (mDirSourceToDest && mFlag == CommonMode::BACK) ||
+            (!mDirSourceToDest && mFlag == CommonMode::FRONT);
+        const bool outputs = mFlag == CommonMode::ALL || mFlag == CommonMode::OUTPUTS ||
+            (mDirSourceToDest && mFlag == CommonMode::FRONT) ||
+            (!mDirSourceToDest && mFlag == CommonMode::BACK);
+        if (inputs) for (auto node : context->graph().parents(*opNode)) context->addRejectedNode(node);
+        if (outputs) for (auto node : context->graph().children(*opNode)) context->addRejectedNode(node);
 
-        //to be sure to valid all the branch (child and parent) of a common node
-        // the logic is add the child and parent of the node to the rejected node
-        // depending of the flag 
-        std::set<NodeId> nodeThatMustBeValid ={};
-        if(mFlag == CommonMode::ALL || (mDirSourceToDest && mFlag == CommonMode::BACK) 
-        || (!mDirSourceToDest && mFlag == CommonMode::FRONT)){
-            nodeThatMustBeValid =  context->graph().parents(*opNode);
-        }
-
-        std::set<NodeId> children = context->graph().children(*opNode);
-        // Append the children vector to the end of the parents vector
-        if(mFlag == CommonMode::ALL || (mDirSourceToDest && mFlag == CommonMode::FRONT) 
-        || (!mDirSourceToDest && mFlag == CommonMode::BACK)){
-            //nodeThatMustBeValid.insert(nodeThatMustBeValid.end(), childrenVector.begin(), childrenVector.end());
-            nodeThatMustBeValid.insert(children.begin(), children.end());
-        }
-        
-        //be sure that no null ptr on the node that rejected
-        //nodeThatMustBeValid.erase(std::remove(nodeThatMustBeValid.begin(), nodeThatMustBeValid.end(), nullptr), nodeThatMustBeValid.end());
-
-        
-        // the connection of the common node depending on the flag are add to the rejected node
-        if (children.size() > 1 || context->graph().parents(*opNode).size() > 1){
-            if (nodeThatMustBeValid.size() > 1){
-                for (const auto& next : nodeThatMustBeValid){
-                    context->addRejectedNode(next); 
-                }
-            }
-        }
-        // special case were the common node is in a sequence only one children and one parent
-        // this common node is treated like unique node, we dont add is connection to the rejected node
-        // because it will be in conflict with the sequence end must be explisit by using $
-           
         return {true,nextNode};
 
 
@@ -275,7 +250,12 @@ const TransitionResult TransitionCommon::test(const std::shared_ptr<RunTimeConte
 std::string TransitionCommon::strRep(void) const{
     std::stringstream ss;
     ss << mStateSource->getId();
-    ss << fmt::format("--{}|{}{}|",mDirSourceToDest ? ">" : "o",mFlag== CommonMode::ALL ? "$" : "#",mNodeTestKey);
+    const bool inputs = mFlag == CommonMode::ALL || mFlag == CommonMode::INPUTS ||
+        (mDirSourceToDest && mFlag == CommonMode::BACK) || (!mDirSourceToDest && mFlag == CommonMode::FRONT);
+    const bool outputs = mFlag == CommonMode::ALL || mFlag == CommonMode::OUTPUTS ||
+        (mDirSourceToDest && mFlag == CommonMode::FRONT) || (!mDirSourceToDest && mFlag == CommonMode::BACK);
+    ss << fmt::format("--{}|{}{}{}|", mDirSourceToDest ? ">" : "o", inputs ? "$" : "",
+                      mNodeTestKey, outputs ? "$" : inputs ? "" : "#");
     ss << mStateDest->getId();
     return ss.str();
 }
@@ -428,41 +408,17 @@ TransitionTypes type,const std::string lexeme)
         } else {
             throw std::invalid_argument("error lexeme REF ");
         }
-    } else if (type == TransitionTypes::COMMON) {
-        // TODO make common mode Strict input or output
-        std::smatch m;
-        std::regex commonRegex("\\s*([A-Za-z_0-9]+)\\#([0-9]*)");
-        if (std::regex_match(lexeme, m, commonRegex)) {
-            std::string nodeConditionKey = m[1];
-            std::string commonId =  m[2];
-            size_t commonIdx = commonId.empty() ? 0 : std::stoi(commonId) + 1;
-            std::string commonKey = nodeConditionKey + std::to_string(commonIdx);
-        
-
-            auto transitionCommon = std::make_shared<TransitionCommon> (source, dest, nodeConditionKey, commonKey,CommonMode::NONE);
-            transitionCommon->updateWeak();
-            return transitionCommon;
-        } else {
-            throw std::invalid_argument("error lexemeCOMMON " + lexeme);
-        }
-    } else if (type == TransitionTypes::STRICTCOMMON){
-        std::smatch m;
-        std::regex commonRegex("\\s*([A-Za-z_0-9]+)\\$([0-9]*)");
-        
-        if (std::regex_match(lexeme, m, commonRegex)) {
-            std::string nodeConditionKey = m[1];
-            std::string commonId =  m[2];
-            size_t commonIdx = commonId.empty() ? 0 : std::stoi(commonId) + 1;
-            std::string commonKey = nodeConditionKey + std::to_string(commonIdx);
-        
-
-            auto transitionCommon = std::make_shared<TransitionCommon> (source, dest, nodeConditionKey, commonKey,CommonMode::ALL);
-            transitionCommon->updateWeak();
-            return transitionCommon;
-        } else {
-            throw std::invalid_argument("error lexeme STRICTCOMMON " + lexeme);
-        }
-
+    } else if (type == TransitionTypes::COMMON || type == TransitionTypes::STRICTCOMMON) {
+        const auto key = parseCommonKey(lexeme);
+        const bool strict = key.strictInputs || key.strictOutputs;
+        if (strict != (type == TransitionTypes::STRICTCOMMON))
+            throw std::invalid_argument("Common transition type disagrees with node spelling: " + lexeme);
+        const auto mode = key.strictInputs && key.strictOutputs ? CommonMode::ALL :
+                          key.strictInputs ? CommonMode::INPUTS :
+                          key.strictOutputs ? CommonMode::OUTPUTS : CommonMode::NONE;
+        auto transition = std::make_shared<TransitionCommon>(source, dest, key.predicate, key.identity(), mode);
+        transition->updateWeak();
+        return transition;
     } else if (type == TransitionTypes::UNIQUE) {
         std::regex uniqueRegex("\\s*([A-Za-z_0-9]+)");
         

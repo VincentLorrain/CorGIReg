@@ -13,11 +13,15 @@ using namespace CorGIReg;
 TEST_CASE("PartitionGraphParser", "Test_GraphParser") {
 
     SECTION("Correct parsing") {
+        RandomExpressionGenerator::clearDictionary();
+        RandomExpressionGenerator::setSeed(20261026);
         for (int i = 0; i < 1000; ++i) {
             const std::string test = RandomExpressionGenerator::allExpr();
-            //std::cout << test <<"\n";
+            INFO("seed=20261026, case=" << i << ", query=" << test);
             PartitionGraphParser graphParser = PartitionGraphParser(test);
             std::shared_ptr<AstNode<tGTokensTypes>> tree = graphParser.parse();
+            REQUIRE(tree != nullptr);
+            REQUIRE(graphParser.parse()->getType() == tree->getType());
         }
     }
 

@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "name": "negation-chain-to-identity",
+  "match": "Neg+",
+  "replacement": {
+    "pattern": "Identity+",
+    "repetitions": {
+      "1": {"op": "subtract", "args": [{"quantifier": 1}, 1]}
+    },
+    "default_output_port": 1
+  },
+  "conditions": [
+    {"op": "even", "value": {"quantifier": 1}}
+  ],
+  "inputs": [
+    {"match": {"predicate": "Neg", "position": "first", "port": 1},
+     "replacement": {"op": "Identity", "position": "first", "port": 1}}
+  ],
+  "outputs": [
+    {"match": {"predicate": "Neg", "position": "last", "port": 1},
+     "replacement": {"op": "Identity", "position": "last", "port": 1}}
+  ]
+}

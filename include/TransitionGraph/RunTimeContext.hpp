@@ -10,8 +10,9 @@ struct MatchEnvironment {
     NodePredicates predicates;
 };
 class RunTimeContext {
-    // Alternative walks from one start share obligations, scoped to this search.
-    std::shared_ptr<NodeIds> mRejectedNodes;
+    // Obligations belong to this walk; an abandoned alternative must not leak
+    // requirements into skipped quantifiers or other successful alternatives.
+    NodeIds mRejectedNodes;
     std::shared_ptr<const MatchEnvironment> mEnvironment;
     std::shared_ptr<State> mActState;
     std::optional<NodeId> mActOpNode;
@@ -20,6 +21,7 @@ class RunTimeContext {
     std::vector<NodeCapture> mCaptures;
     std::vector<QuantifierCapture> mQuantifiers;
     std::vector<std::pair<std::size_t, std::size_t>> mActiveQuantifiers;
+    std::vector<std::size_t> mPortScopes;
 public:
     RunTimeContext(std::shared_ptr<State> state, std::optional<NodeId> node,
                    std::shared_ptr<const MatchEnvironment> environment);
@@ -31,12 +33,26 @@ public:
         auto found = mEnvironment->predicates.find(key);
         return found != mEnvironment->predicates.end() && found->second(node);
     }
-    void addRejectedNode(NodeId node) { mRejectedNodes->insert(node); }
-    NodeIds getRejectedNodes() const { return *mRejectedNodes; }
+    void addRejectedNode(NodeId node) { mRejectedNodes.insert(node); }
+    NodeIds getRejectedNodes() const { return mRejectedNodes; }
     std::optional<NodeId> getActNode() const { return mActOpNode; }
     const std::map<std::string, NodeIds>& getValid() const { return mValidNodes; }
     const auto& getCaptures() const noexcept { return mCaptures; }
     const auto& getQuantifiers() const noexcept { return mQuantifiers; }
+    void beginPortScope() { mPortScopes.push_back(mCaptures.size()); }
+    bool testInputPort(PortNumber port) {
+        if (mPortScopes.empty() || mCaptures.size() <= mPortScopes.back() || !mActOpNode) return false;
+        auto bindings = graph().edgePorts(mCaptures.back().node, *mActOpNode);
+        bool found = false;
+        for (const auto& binding : bindings) if (binding.input == port) found = true;
+        mPortScopes.back() = mCaptures.size();
+        return found;
+    }
+    bool endPortScope() {
+        if (mPortScopes.empty() || mCaptures.size() <= mPortScopes.back()) return false;
+        mPortScopes.pop_back();
+        return true;
+    }
     void beginQuantifier(std::size_t index, char symbol);
     bool completeIteration(std::size_t index);
     void endQuantifier(std::size_t index);

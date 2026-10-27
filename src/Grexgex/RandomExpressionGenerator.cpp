@@ -1,117 +1,67 @@
 #include "Grexgex/RandomExpressionGenerator.h"
-#include <ctime>
-#include <cstdlib>   // std::rand, std::srand
+#include <stdexcept>
 
 namespace CorGIReg {
-// --- RNG holder ---
 std::mt19937& RandomExpressionGenerator::getGen() {
-    static std::mt19937 gen(static_cast<unsigned int>(std::time(nullptr)));
+    static std::mt19937 gen(5489u);
     return gen;
 }
-
-// --- Helpers ---
 std::vector<std::string>& RandomExpressionGenerator::dict() {
-    static std::vector<std::string> d;
-    return d;
+    static std::vector<std::string> words;
+    return words;
 }
-
+void RandomExpressionGenerator::setSeed(std::uint32_t seed) { getGen().seed(seed); }
+unsigned RandomExpressionGenerator::pick(unsigned count) {
+    return std::uniform_int_distribution<unsigned>(0, count - 1)(getGen());
+}
 void RandomExpressionGenerator::setDictionary(const std::vector<std::string>& words) {
+    for (const auto& word : words)
+        if (word.empty() || word.find_first_not_of("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_") != std::string::npos)
+            throw std::invalid_argument("Generator dictionary requires nonempty predicate keys");
     dict() = words;
 }
-
-void RandomExpressionGenerator::clearDictionary() {
-    dict().clear();
-}
-
+void RandomExpressionGenerator::clearDictionary() { dict().clear(); }
 std::string RandomExpressionGenerator::generateRandomString() {
-    auto& gen = getGen();
-
-    // If dictionary is defined → always use it
-    if (!dict().empty()) {
-        std::uniform_int_distribution<std::size_t> pick(0, dict().size() - 1);
-        return dict()[pick(gen)];
+    if (!dict().empty()) return dict()[pick(static_cast<unsigned>(dict().size()))];
+    std::string key;
+    const auto length = 1 + pick(5);
+    for (unsigned i = 0; i < length; ++i) key += static_cast<char>('A' + pick(26));
+    return key;
+}
+std::string RandomExpressionGenerator::exp(unsigned depth) {
+    const auto kind = pick(depth ? 9 : 8);
+    if (kind == 8) {
+        const auto body = sequence(depth - 1, pick(2) != 0);
+        return "(" + body + ")" + "*+?"[pick(3)];
     }
-
-    // Otherwise → generate random A–Z string (length ≥ 1)
-    std::uniform_int_distribution<int> disChar('A', 'Z');
-    std::uniform_int_distribution<int> disLen(1, 5);
-    int len = disLen(gen);
-
-    std::string s;
-    s.reserve(len);
-    for (int i = 0; i < len; ++i)
-        s += static_cast<char>(disChar(gen));
-    return s;
+    auto key = generateRandomString();
+    if (kind == 0) return key;
+    if (kind <= 3) return key + "*+?"[kind - 1];
+    const auto suffix = pick(3) == 0 ? std::to_string(pick(3)) : std::string{};
+    if (kind == 4) return key + "#" + suffix;
+    if (kind == 5) return "$" + key + (suffix.empty() ? "" : "#" + suffix);
+    if (kind == 6) return key + "$" + suffix;
+    return "$" + key + "$" + suffix;
 }
-
-// --exp --
-
-
-std::string RandomExpressionGenerator::exp() {
-    int randomValue = std::rand() % 7;
-    switch (randomValue) {
-        case 0: return generateRandomString();
-        case 1: return generateRandomString() + "*";
-        case 2: return generateRandomString() + "+";
-        case 3: return generateRandomString() + "?";
-        case 4: return generateRandomString() + "#";
-        case 5: return generateRandomString() + "$";
-        default: return domain();
+std::string RandomExpressionGenerator::sequence(unsigned depth, bool reverse) {
+    const bool boundary = pick(4) == 0;
+    std::string out = reverse && boundary ? "$<- " : "";
+    const auto size = 1 + pick(3);
+    for (unsigned i = 0; i < size; ++i) {
+        if (i) out += reverse ? "<- " : "-> ";
+        out += exp(depth);
     }
+    if (!reverse && boundary) out += "->$";
+    return out;
 }
-
-std::string RandomExpressionGenerator::rseqEnd() {
-    return "$<-" + rseq();
-}
-
-std::string RandomExpressionGenerator::rseq() {
-    int randomValue = std::rand() % 2;
-    switch (randomValue) {
-        case 0: return exp();
-        default: return exp() + "<-" + rseq();
+std::string RandomExpressionGenerator::allExpr(unsigned maxDepth) {
+    if (maxDepth > 6) throw std::invalid_argument("Generator depth must be between 0 and 6");
+    std::string out;
+    const auto paths = 1 + pick(3);
+    for (unsigned i = 0; i < paths; ++i) {
+        if (i) out += ';';
+        out += sequence(maxDepth, pick(2) != 0);
     }
+    return out;
 }
-
-std::string RandomExpressionGenerator::seq() {
-    int randomValue = std::rand() % 3;
-    switch (randomValue) {
-        case 0: return exp();
-        case 1: return exp() + "->" + seq();
-        default: return exp() + "->$";
-    }
-}
-
-std::string RandomExpressionGenerator::domain() {
-    int randomValue = std::rand() % 9;
-    switch (randomValue) {
-        case 0: return "(" + seq() + ")*";
-        case 1: return "(" + seq() + ")?";
-        case 3: return "(" + seq() + ")+";
-
-        case 4: return "(" + rseq() + ")*";
-        case 5: return "(" + rseq() + ")?";
-        case 6: return "(" + rseq() + ")+";
-
-        case 7: return "(" + rseqEnd() + ")*";
-        case 8: return "(" + rseqEnd() + ")?";
-        default: return "(" + rseqEnd() + ")+";
-
-    }
-}
-
-std::string RandomExpressionGenerator::allExpr() {
-    int randomValue = std::rand() % 6;
-    switch (randomValue) {
-        case 0:  return seq();
-        case 1:  return seq() + ";" + allExpr();
-
-        case 2:  return rseq();
-        case 3:  return rseq() + ";" + allExpr();
-
-        case 4:  return rseqEnd();
-        default:  return rseqEnd() + ";" + allExpr();
-    }
-
-}
-
 }

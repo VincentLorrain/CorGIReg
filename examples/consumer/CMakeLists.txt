@@ -1,0 +1,7 @@
+cmake_minimum_required(VERSION 3.18)
+project(CorGIRegConsumer LANGUAGES CXX)
+find_package(CorGIReg 0.1 CONFIG REQUIRED)
+add_executable(rewrite-integration main.cpp)
+target_link_libraries(rewrite-integration PRIVATE CorGIReg::CorGIReg)
+enable_testing()
+add_test(NAME rewrite-integration COMMAND rewrite-integration)

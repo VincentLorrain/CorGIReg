@@ -1,0 +1,18 @@
+{
+  "nodes": [
+    {"id": 10, "op": "X", "name": "x"},
+    {"id": 20, "op": "Y", "name": "y"},
+    {"id": 30, "op": "Sub", "name": "subtract"},
+    {"id": 40, "op": "Out", "name": "result"},
+    {"id": 50, "op": "Side", "name": "untouched", "attributes": {"keep": true}},
+    {"id": 60, "op": "Out", "name": "second_consumer"}
+  ],
+  "edges": [[10, 30], [20, 30], [30, 40], [10, 50], [30, 60]],
+  "connections": [
+    {"from": 10, "to": 30, "input": 1, "output": 1},
+    {"from": 20, "to": 30, "input": 2, "output": 2},
+    {"from": 30, "to": 40, "input": 1, "output": 1},
+    {"from": 10, "to": 50, "input": 1, "output": 1},
+    {"from": 30, "to": 60, "input": 3, "output": 1}
+  ]
+}

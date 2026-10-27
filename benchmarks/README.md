@@ -53,6 +53,7 @@ and commit it intentionally; do not update it automatically after each run.
 | --- | --- | --- |
 | compile_shared | Parse and compile `A+->B#;B#->C#;C#->D`, including post-AST planning | Nonempty machine |
 | post_ast_shared | RootSelectionPass on an already parsed AST | One component rooted at B# |
+| generate_chain_64 | Configured IR parsing and expansion, edge verification and cleanup | 64 nodes, 63 edges |
 | match_chain_16 / match_chain_64 | Execute an already compiled `A+->$` from a known start | Full chain, repetition count 16 / 64 |
 | search_shared_6 / 12 / 48 | Native request processing, compilation, multi-start search and JSON serialization | 2 / 4 / 16 distinct three-node groups |
 | search_shared_48_jobs2 / jobs4 | Same 48-node search using 2 / 4 workers | 16 distinct three-node groups |
@@ -64,8 +65,11 @@ The runner's `--jobs` option controls build parallelism, not these fixed worker
 counts. Adding these scenarios changes the suite fingerprint and requires a new
 reference. See [the multithreading contract](../doc/multithreading.md).
 
-Fixtures are explicit and deterministic; they do not use PGInterpreterIR or
-random graph generation. Fixture construction is outside timing. Each scenario
+Matching fixtures are deterministic. Chains use `PGInterpreterIR` with explicit
+repetition counts and independent topology checks; multi-start fixtures remain
+hand-built. Matching fixture construction is outside timing. The separate
+`generate_chain_64` case measures generation itself. See [IR generation](../doc/ir-generation.md).
+Each scenario
 verifies its result, including chain captures and quantifier counts. Several
 execution traces may describe the same group, so search checks distinct node
 groups rather than requiring one serialized trace per group. Verification and
