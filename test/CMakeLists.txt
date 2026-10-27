@@ -41,6 +41,10 @@ if(Python3_Interpreter_FOUND)
         -s ${PROJECT_SOURCE_DIR}/test/cli_python -p test_cli.py -v)
     set_tests_properties(CLI_Python PROPERTIES
         ENVIRONMENT "CORGIREG_ENGINE=$<TARGET_FILE:corgireg-match>")
+    add_test(NAME Generator_CLI COMMAND ${Python3_EXECUTABLE} -m unittest discover
+        -s ${PROJECT_SOURCE_DIR}/test/cli_python -p test_generator.py -v)
+    set_tests_properties(Generator_CLI PROPERTIES
+        ENVIRONMENT "CORGIREG_GENERATOR=$<TARGET_FILE:corgireg-generate>;CORGIREG_ENGINE=$<TARGET_FILE:corgireg-match>")
 endif()
 
 if(CORGIREG_BUILD_BENCHMARKS)

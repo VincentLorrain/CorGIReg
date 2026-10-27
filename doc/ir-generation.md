@@ -166,5 +166,28 @@ Repeated interpretation of the same instance reuses its seed. Pass explicit
 options or a values file to reproduce a fixture across independently created
 instances. All constructors preserve port bindings and assign automatic inputs.
 
-This release exposes generation through the C++ API; it adds no generation
-flags to the matching CLI.
+## Generation executable
+
+Generation and matching are separate commands. From a built checkout:
+
+```sh
+./build/corgireg-generate -r '(A+->B)+->C*->D?' -v examples/generation/nested.values -o graph.json
+./build/corgireg-generate -r '(A-*->Sum#)+' --random --seed 42 --max-loops 3 -o sum.json
+corgireg -i graph.json -r 'A+-1->B'
+```
+
+On PowerShell, use `.\build\corgireg-generate.exe` with the same arguments.
+`-r/--regex` is required. `-v/--values` loads the text configuration.
+`-o/--output` selects a graph JSON file (default `-`, stdout). `--random`,
+`--seed` and `--max-loops` override the corresponding file settings, independent
+of option order. Defaults without a file are deterministic: missing reached
+counts are errors. The executable generates and validates before opening its
+output file. `--help` lists the options.
+
+The output includes stable insertion-order node IDs, operation names and port
+connections, and is directly accepted by the matching CLI. It exports topology,
+not arbitrary `std::any` metadata. C++ consumers can use
+`writeGraphJson(graph, stream)` from `GraphAdapters/GraphJson.hpp`.
+
+The standard installation script installs both native commands into its
+environment's `bin` directory. Neither command performs graph rewriting.
