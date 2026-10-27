@@ -430,7 +430,7 @@ void TransitionGraph::_mergeState(std::shared_ptr<State> source,std::shared_ptr<
     }
 
     if(source->getGroup() != dest->getGroup()){
-        throw std::runtime_error("Can we merge 2 states of diferente groupe , i think it is not possible");
+        throw std::runtime_error("Can we merge 2 states of differente groupe , i think it is not possible" + source->strRep() + " " + dest->strRep());
     }
 
     if(!std::includes(mAllOrigin.begin(),mAllOrigin.end(),source->getOrigin().begin(),source->getOrigin().end()) || 
