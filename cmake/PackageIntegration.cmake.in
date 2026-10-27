@@ -22,7 +22,10 @@ run("@CMAKE_COMMAND@" -S "@PROJECT_SOURCE_DIR@/examples/consumer" -B "${root}/co
     "-DCMAKE_MAKE_PROGRAM=@CMAKE_MAKE_PROGRAM@" "-DCMAKE_BUILD_TYPE=${CONFIG}"
     "-DCMAKE_PREFIX_PATH=${root}/relocated" -DCMAKE_FIND_USE_PACKAGE_REGISTRY=OFF)
 run("@CMAKE_COMMAND@" --build "${root}/consumer" --config "${CONFIG}" --parallel 2)
-run("@CMAKE_CTEST_COMMAND@" --test-dir "${root}/consumer" -C "${CONFIG}" --output-on-failure)
+# CTest 3.18 does not support --test-dir. Set the working directory explicitly
+# so older versions cannot rediscover this parent integration test recursively.
+run("@CMAKE_COMMAND@" -E chdir "${root}/consumer"
+    "@CMAKE_CTEST_COMMAND@" -C "${CONFIG}" --output-on-failure --no-tests=error)
 if(EXISTS "@Python3_EXECUTABLE@")
     run("@CMAKE_COMMAND@" -E env "PYTHONPATH=@PROJECT_SOURCE_DIR@/python"
         "CORGIREG_ENGINE=${root}/relocated/bin/corgireg-match@CMAKE_EXECUTABLE_SUFFIX@"
