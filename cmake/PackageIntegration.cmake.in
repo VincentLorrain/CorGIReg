@@ -23,5 +23,12 @@ run("@CMAKE_COMMAND@" -S "@PROJECT_SOURCE_DIR@/examples/consumer" -B "${root}/co
     "-DCMAKE_PREFIX_PATH=${root}/relocated" -DCMAKE_FIND_USE_PACKAGE_REGISTRY=OFF)
 run("@CMAKE_COMMAND@" --build "${root}/consumer" --config "${CONFIG}" --parallel 2)
 run("@CMAKE_CTEST_COMMAND@" --test-dir "${root}/consumer" -C "${CONFIG}" --output-on-failure)
+if(EXISTS "@Python3_EXECUTABLE@")
+    run("@CMAKE_COMMAND@" -E env "PYTHONPATH=@PROJECT_SOURCE_DIR@/python"
+        "CORGIREG_ENGINE=${root}/relocated/bin/corgireg-match@CMAKE_EXECUTABLE_SUFFIX@"
+        "CORGIREG_GENERATOR=${root}/relocated/bin/corgireg-generate@CMAKE_EXECUTABLE_SUFFIX@"
+        "@Python3_EXECUTABLE@" -m unittest discover
+        -s "@PROJECT_SOURCE_DIR@/examples/rewrite" -p test_recipes.py -v)
+endif()
 message(STATUS "Installed external consumer and rewrite recipe passed: ${root}/consumer")
 

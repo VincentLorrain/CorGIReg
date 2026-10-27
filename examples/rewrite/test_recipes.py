@@ -7,7 +7,7 @@ import sys
 import tempfile
 import unittest
 
-from recipe_runner import apply_recipe, records, validate_recipe
+from recipe_runner import apply_recipe, records, validate_recipe, evaluate as evaluate_expression
 
 HERE = Path(__file__).resolve().parent
 
@@ -125,7 +125,7 @@ class RecipeTests(unittest.TestCase):
             recipe = copy.deepcopy(self.recipe)
             recipe["schema_version"] = value
             with self.assertRaises(ValueError): validate_recipe(recipe)
-        with tempfile.TemporaryDirectory() as folder:
+        with tempfile.TemporaryDirectory(dir=HERE.parents[1] / "build") as folder:
             output, recipe = Path(folder) / "output.json", Path(folder) / "recipe.json"
             output.write_text("keep", encoding="utf-8")
             self.recipe["inputs"].clear()
@@ -136,6 +136,37 @@ class RecipeTests(unittest.TestCase):
                                      capture_output=True, text=True, timeout=30)
             self.assertEqual(process.returncode, 2, process.stderr)
             self.assertEqual(output.read_text(encoding="utf-8"), "keep")
+
+    def test_cli_writes_a_graph_that_can_be_matched_again(self):
+        with tempfile.TemporaryDirectory(dir=HERE.parents[1] / "build") as folder:
+            output = Path(folder) / "transformed.json"
+            command = [sys.executable, HERE / "recipe_runner.py", "--recipe", HERE / "recipes/subtract.json",
+                       "-i", HERE / "network.json", "-o", output,
+                       "--matcher", self.matcher, "--generator", self.generator]
+            process = subprocess.run(command, capture_output=True, text=True, timeout=30)
+            self.assertEqual(process.returncode, 0, process.stderr)
+            self.assertEqual(json.loads(process.stderr)["matched_node_ids"], [30])
+            self.assertTrue(output.is_file())
+            for query, expected in [("Sub#", set()), ("Neg-2->Add#", {(61, 62)})]:
+                matched = subprocess.run([sys.executable, "-m", "corgireg_cli", "-i", output,
+                                          "-r", query, "--engine", self.matcher],
+                                         capture_output=True, text=True, timeout=30)
+                self.assertEqual(matched.returncode, 0, matched.stderr)
+                self.assertEqual({tuple(m["node_ids"]) for m in json.loads(matched.stdout)["matches"]}, expected)
+
+    def test_expression_errors_are_explicit_and_odd_chain_is_unchanged(self):
+        match = {"walks": [{"quantifiers": [{"index": 1, "count": 2}]}]}
+        for expression in ({"op": [], "args": [1, 2]}, {"op": "subtract", "args": [1, 2]},
+                           {"op": "multiply", "args": [1000000, 1000000]}, {"quantifier": 1, "invocation": 4}):
+            with self.subTest(expression=expression), self.assertRaises(ValueError):
+                evaluate_expression(expression, match)
+        graph = {"nodes": [{"id": 1, "op": "X"}, {"id": 2, "op": "Neg"}, {"id": 3, "op": "Out"}],
+                 "edges": [[1, 2], [2, 3]], "connections": [
+                     {"from": 1, "to": 2, "input": 1, "output": 1},
+                     {"from": 2, "to": 3, "input": 1, "output": 1}]}
+        result, report = self.apply(graph, load("recipes/negate-chain.json"))
+        self.assertFalse(report["changed"])
+        self.assertEqual([n["op"] for n in result["nodes"]], ["X", "Neg", "Out"])
 
 
 if __name__ == "__main__":

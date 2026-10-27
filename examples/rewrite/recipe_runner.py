@@ -2,7 +2,6 @@
 import argparse
 import copy
 import json
-import os
 from pathlib import Path
 import subprocess
 import sys
@@ -79,7 +78,7 @@ def evaluate(expression, match, depth=0):
     require(isinstance(expression["args"], list) and len(expression["args"]) == 2, "Expected two expression arguments")
     left, right = [evaluate(arg, match, depth + 1) for arg in expression["args"]]
     operations = {"add": lambda: left + right, "subtract": lambda: left - right, "multiply": lambda: left * right}
-    require(expression["op"] in operations, "Unsupported integer operation")
+    require(isinstance(expression["op"], str) and expression["op"] in operations, "Unsupported integer operation")
     return integer(operations[expression["op"]]())
 
 
