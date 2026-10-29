@@ -166,6 +166,10 @@ Repeated interpretation of the same instance reuses its seed. Pass explicit
 options or a values file to reproduce a fixture across independently created
 instances. All constructors preserve port bindings and assign automatic inputs.
 
+Repeated groups whose body contains a common anchor are not chained between
+iterations: an outer neighbor connects to the first iteration's entry and the
+last iteration's exit, so `X->(A->D#)+` gives X a single child.
+
 ## Generation executable
 
 Generation and matching are separate commands. From a built checkout:
