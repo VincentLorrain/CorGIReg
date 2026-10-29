@@ -25,7 +25,10 @@ Each `matches[]` object has:
 | `walks` | Successful walks; no total ordering between separate branches is guaranteed. |
 
 `starts` follows compiled state order, which is not guaranteed to be the textual
-order of semicolon-separated paths. Each walk contains:
+order of semicolon-separated paths. When a component is searched from its anchor
+root, each of its paths becomes walks that start on the anchor: `starts` repeats
+that node and walks list captures from the anchor outward (see
+[root selection](post-ast-root-selection.md)). Each walk contains:
 
 | Field | Meaning |
 | --- | --- |

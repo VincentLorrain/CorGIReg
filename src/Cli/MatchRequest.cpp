@@ -233,7 +233,8 @@ void matchRequest(std::istream& input, std::ostream& output, std::size_t jobs,
     if (budget == 0) throw std::invalid_argument("Search budget must be positive");
     std::string extra;
     if (input >> extra) throw std::invalid_argument("Unexpected request data");
-    const auto pattern = PGInterpreterTG(query).interpret();
+    // Rooted: paths sharing an anchor root start together on that anchor.
+    const auto pattern = PGInterpreterTG(query).interpretRooted();
     for (const auto& transition : pattern->getTransitions()) {
         const auto found = definitions.find(transition->getTestKey());
         if (found != definitions.end() && !found->second)

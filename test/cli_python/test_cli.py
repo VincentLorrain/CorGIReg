@@ -79,6 +79,31 @@ class CliTests(unittest.TestCase):
                             self.assertEqual(report, reference)
                         reference = report
 
+    def test_anchor_roots_start_every_walk_on_the_anchor(self):
+        graph = {"nodes": [{"id": 42, "op": "A"}, {"id": 0, "op": "B", "name": "hub"},
+                           {"id": 9, "op": "C"}, {"id": 7, "op": "D"}],
+                 "edges": [[42, 0], [0, 9], [0, 7]]}
+        self.graph.write_text(json.dumps(graph), encoding="utf-8")
+        for query in ["A->B#->C", "A->B#;B#->C;B#->D", "C<-B#<-A"]:
+            reference = None
+            for jobs in [1, 4]:
+                with self.subTest(query=query, jobs=jobs):
+                    process = self.invoke("-i", self.graph, "-r", query, "--jobs", jobs)
+                    self.assertEqual(process.returncode, 0, process.stderr)
+                    report = json.loads(process.stdout)
+                    self.assertEqual(len(report["matches"]), 1)
+                    match = report["matches"][0]
+                    self.assertEqual(set(match["starts"]), {0})
+                    hub = {"id": 0, "name": "hub", "predicate": "B"}
+                    self.assertTrue(all(walk["nodes"][0] == hub for walk in match["walks"]))
+                    captured = {node["id"] for walk in match["walks"] for node in walk["nodes"]}
+                    self.assertEqual(captured, set(match["node_ids"]))
+                    if reference is not None:
+                        self.assertEqual(report, reference)
+                    reference = report
+        # One start per anchor node: a budget of one tuple suffices.
+        self.assertEqual(self.invoke("-i", self.graph, "-r", "A->B#;B#->C;B#->D", "--max-starts", 1).returncode, 0)
+
     def test_parallel_matches_preserve_names_and_quantifier_allocations(self):
         for query in ["A+->B", "(A?)+->B", "B<-A", "A+->A+->B", "Missing",
                       "A+->B->$", "A+->$", "A+->B->Missing?->$", "$<-B<-A"]:
@@ -97,7 +122,7 @@ class CliTests(unittest.TestCase):
             result = self.invoke("-i", self.graph, "-r", "A", "--jobs", value, "-o", output)
             self.assertEqual(result.returncode, 2)
             self.assertEqual(output.read_text(encoding="utf-8"), "keep me")
-        result = self.invoke("-i", self.graph, "-r", "A->B#;B#->C", "-j", 4,
+        result = self.invoke("-i", self.graph, "-r", "A;B", "-j", 4,
                              "--max-starts", 1, "-o", output)
         self.assertEqual(result.returncode, 2)
         self.assertIn("starting combinations", result.stderr)

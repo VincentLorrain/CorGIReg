@@ -77,7 +77,9 @@ composition meaning.
 The CLI searches every starting node a path can accept: nodes satisfying a
 predicate the path can test first, or any node when the path can start without
 consuming one. A pattern with multiple starts searches the Cartesian product of
-these candidates, subject to `--max-starts`. Exceeding a budget
+these candidates, subject to `--max-starts`. Paths sharing an anchor root start
+together on that anchor ([root selection](post-ast-root-selection.md)), so they
+count as one start. Exceeding a budget
 is an error, not a silently truncated report. An empty graph is searched with
 absent starts so nullable patterns can succeed. Matching follows the existing
 UNIQUE/COMMON/STRICTCOMMON semantics: a plain operation key requires at most one
