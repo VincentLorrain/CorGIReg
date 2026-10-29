@@ -10,6 +10,7 @@
 #include "GraphAdapters/ImportedGraph.hpp"
 #include "NodeTest/NodeLibrary.hpp"
 #include "NodeTest/NodeValueJson.hpp"
+#include <chrono>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -29,7 +30,12 @@ inline const std::string unrelated = "Unrelated";
 // override them for extended campaigns (see doc/development.md).
 struct Settings {
     std::uint64_t iterations = 40, seed = 20261029, depth = 1, maxLoops = 2, maxNodes = 12,
-                  extraNodes = 3, extraEdges = 3, maxStarts = 1000;
+                  extraNodes = 3, extraEdges = 3, maxStarts = 1000, seconds = 0;
+    std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
+    // Wall-clock budget per test case; 0 is unlimited. Checked between cases.
+    bool exhausted() const {
+        return seconds && std::chrono::steady_clock::now() - start > std::chrono::seconds(seconds);
+    }
     static Settings fromEnvironment(Settings defaults) {
         auto read = [](const char* name, std::uint64_t& value) {
             if (const char* text = std::getenv(name); text && *text) value = std::stoull(text);
@@ -42,6 +48,8 @@ struct Settings {
         read("CORGIREG_GM_EXTRA_NODES", defaults.extraNodes);
         read("CORGIREG_GM_EXTRA_EDGES", defaults.extraEdges);
         read("CORGIREG_GM_MAX_STARTS", defaults.maxStarts);
+        read("CORGIREG_GM_SECONDS", defaults.seconds);
+        defaults.start = std::chrono::steady_clock::now();
         return defaults;
     }
 };

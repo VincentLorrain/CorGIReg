@@ -28,20 +28,21 @@ std::optional<Case> randomCase(std::uint64_t seed, const Settings& settings,
 TEST_CASE("Seeded random patterns match the graphs generated from them", "[generation-matching][random][app]") {
     const Dictionary dictionary({"GmA", "GmB", "GmC", "GmD"});
     const auto settings = Settings::fromEnvironment({});
-    std::uint64_t checked = 0;
-    for (std::uint64_t i = 0; i < settings.iterations; ++i) {
+    std::uint64_t checked = 0, ran = 0;
+    for (std::uint64_t i = 0; i < settings.iterations && !settings.exhausted(); ++i, ++ran) {
         auto item = randomCase(settings.seed + i, settings);
         if (item && check(*item, "match")) ++checked;
     }
-    REQUIRE(checked * 4 >= settings.iterations);
+    REQUIRE(checked * 4 >= ran);
+    REQUIRE(checked > 0);
 }
 
 TEST_CASE("Library keys generate source operations that match through the same library", "[generation-matching][library][app]") {
     const Dictionary dictionary({"conv", "negate", "add", "tanh"});
     const auto settings = Settings::fromEnvironment({});
     const std::vector<std::string> library{(examples / "library/nodes").string()};
-    std::uint64_t checked = 0;
-    for (std::uint64_t i = 0; i < settings.iterations; ++i) {
+    std::uint64_t checked = 0, ran = 0;
+    for (std::uint64_t i = 0; i < settings.iterations && !settings.exhausted(); ++i, ++ran) {
         const std::string format = std::vector<std::string>{"json", "onnx", "stablehlo"}[i % 3];
         auto item = randomCase(settings.seed + i, settings, library, format);
         if (!item) continue;
@@ -52,14 +53,15 @@ TEST_CASE("Library keys generate source operations that match through the same l
         }
         if (check(*item, "match")) ++checked;
     }
-    REQUIRE(checked * 4 >= settings.iterations);
+    REQUIRE(checked * 4 >= ran);
+    REQUIRE(checked > 0);
 }
 
 TEST_CASE("Match-preserving embedding and enrichment keep the generated subgraph", "[generation-matching][random][app]") {
     const Dictionary dictionary({"GmA", "GmB", "GmC", "GmD"});
     const auto settings = Settings::fromEnvironment({});
-    std::uint64_t checked = 0;
-    for (std::uint64_t i = 0; i < settings.iterations; ++i) {
+    std::uint64_t checked = 0, ran = 0;
+    for (std::uint64_t i = 0; i < settings.iterations && !settings.exhausted(); ++i, ++ran) {
         auto item = randomCase(settings.seed + i, settings);
         if (!item || !check(*item, "match")) continue;
         std::mt19937 random(static_cast<std::uint32_t>(item->seed));
@@ -78,14 +80,16 @@ TEST_CASE("Match-preserving embedding and enrichment keep the generated subgraph
         REQUIRE(check(*item, "match"));
         ++checked;
     }
-    REQUIRE(checked * 4 >= settings.iterations);
+    REQUIRE(checked * 4 >= ran);
+    REQUIRE(checked > 0);
 }
 
 TEST_CASE("Mutations of distinct mandatory patterns are classified and rejected", "[generation-matching][negative][random][app]") {
     const Dictionary dictionary({"NgA", "NgB", "NgC", "NgD", "NgE", "NgF", "NgG", "NgH", "NgI", "NgJ"});
     auto settings = Settings::fromEnvironment({});
     std::uint64_t accepted = 0, rejected = 0, attempts = 0;
-    for (std::uint64_t seed = settings.seed; accepted < settings.iterations && attempts < 100 * settings.iterations; ++seed, ++attempts) {
+    for (std::uint64_t seed = settings.seed; accepted < settings.iterations && attempts < 100 * settings.iterations &&
+                                             !settings.exhausted(); ++seed, ++attempts) {
         RandomExpressionGenerator::setSeed(static_cast<std::uint32_t>(seed));
         const auto query = RandomExpressionGenerator::allExpr(0);
         if (!PatternInfo(query).distinctMandatory()) continue;
@@ -119,7 +123,7 @@ TEST_CASE("Mutations of distinct mandatory patterns are classified and rejected"
             rejected += check(item, child ? "match" : "no-match") && !child;
         }
     }
-    REQUIRE(accepted == settings.iterations);
+    REQUIRE((accepted == settings.iterations || settings.exhausted()));
     REQUIRE(rejected > accepted);
 }
 
