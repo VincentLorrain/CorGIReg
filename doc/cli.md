@@ -63,7 +63,7 @@ corgireg -i examples/cli/network.mlir --format stablehlo --regex-file examples/c
 | `-R`, `--regex-file` | UTF-8 text file containing one complete pattern. Mutually exclusive with `-r`. |
 | `-o`, `--output` | JSON file path; `-` or omission writes to stdout. The parent directory must exist. |
 | `--function` | StableHLO function name; default is `main`, or the sole function. |
-| `--node-library` | JSON node definition file or directory; repeatable. See [node libraries](node-library.md). |
+| `--node-library` | JSON node definition file or directory; repeatable. Loaded and resolved by the native worker. See [node libraries](node-library.md). |
 | `--engine` | Native worker path override. |
 | `--max-starts` | Maximum number of starting tuples; default 100000. |
 | `--timeout` | Maximum matching time in seconds; default 60. |
@@ -172,7 +172,9 @@ python -m unittest discover -s test/cli_python -p "test_*.py" -v
 the complete original pattern corpus, empty inputs, capture identities, nested
 quantifier counts and negative cases. It does not assume that every randomly
 generated syntactically valid pattern must match a graph produced by the IR
-example generator. Run the suite above to check the current checkout.
+example generator. Seeded generation-to-matching campaigns are described in
+[development](development.md#generation-to-matching-tests). Run the suite above
+to check the current checkout.
 
 ## Format references
 

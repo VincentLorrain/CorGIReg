@@ -1,7 +1,9 @@
 # Node library
 
-Load `nodes/` with `--node-library examples/library/nodes`. Each JSON file is an
-independent, editable definition; you can also load individual files. See the
+Load `nodes/` with `--node-library examples/library/nodes`, for matching
+(`corgireg`) or generation (`corgireg-generate`). Each JSON file is an
+independent, editable definition; you can also load individual files. The C++
+engine loads them natively (`NodeLibrary`). See the
 [schema and behavior](../../doc/node-library.md) and [runnable matching scripts](../matches/README.md).
 
 | Predicate | ONNX operation | StableHLO operation |

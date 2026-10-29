@@ -1,5 +1,6 @@
 #include "CompileTool/CompileTransitionGraph/PGInterpreterIR.hpp"
 #include "GraphAdapters/GraphJson.hpp"
+#include "NodeTest/NodeLibrary.hpp"
 #include <fstream>
 #include <iostream>
 #include <limits>
@@ -7,7 +8,8 @@
 using namespace CorGIReg;
 int main(int argc, char** argv) {
     try {
-        std::string query, file, destination = "-";
+        std::string query, file, destination = "-", format = "json";
+        std::vector<std::filesystem::path> libraries;
         std::optional<std::uint32_t> seed;
         std::optional<std::size_t> loops;
         bool random = false;
@@ -22,8 +24,9 @@ int main(int argc, char** argv) {
             const std::string option = argv[i];
             if (option == "--help" || option == "-h") {
                 std::cout << "corgireg-generate -r PATTERN [-v VALUES_FILE] [-o GRAPH_JSON]\n"
-                             "  [--random] [--seed N] [--max-loops N]\n"
-                             "Default: deterministic values, JSON on stdout. Ports: A-1->B; A-*->B equals A->B.\n";
+                             "  [--random] [--seed N] [--max-loops N] [--node-library PATH]... [--format NAME]\n"
+                             "Default: deterministic values, JSON on stdout. Ports: A-1->B; A-*->B equals A->B.\n"
+                             "Library keys become their first op_type for --format (default json).\n";
                 return 0;
             }
             if (option == "--random") { random = true; continue; }
@@ -34,6 +37,8 @@ int main(int argc, char** argv) {
             else if (option == "-o" || option == "--output") destination = value;
             else if (option == "--seed") seed = static_cast<std::uint32_t>(number(value, std::numeric_limits<std::uint32_t>::max()));
             else if (option == "--max-loops") loops = static_cast<std::size_t>(number(value, 1000000));
+            else if (option == "--node-library") libraries.emplace_back(value);
+            else if (option == "--format" && !value.empty()) format = value;
             else throw std::invalid_argument("Unknown option: " + option);
         }
         if (query.empty()) throw std::invalid_argument("A pattern is required (-r)");
@@ -41,7 +46,16 @@ int main(int argc, char** argv) {
         if (random) options.randomMissing = true;
         if (seed) options.seed = *seed;
         if (loops) options.maxLoops = *loops;
+        const auto library = NodeLibrary::load(libraries);
         auto graph = PGInterpreterIR(query, options).interpret();
+        // Names keep the pattern key; IDs follow GraphNN insertion order.
+        for (std::size_t id = 0; id < graph->getNodes().size(); ++id) {
+            const auto& node = graph->getNodes()[id];
+            if (const auto operation = library.generatedOperation(node->getType(), format)) {
+                node->setInfo("Name", node->getType() + "_" + std::to_string(id));
+                node->setInfo("Type", *operation);
+            }
+        }
         std::ostringstream serialized;
         writeGraphJson(*graph, serialized);
         // Generation and validation finish before opening a destination file.

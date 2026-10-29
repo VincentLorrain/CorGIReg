@@ -129,22 +129,30 @@ class CliTests(unittest.TestCase):
         self.assertEqual(full["walks"][0]["quantifiers"][0]["count"], 2)
 
     def test_bundled_node_library_maps_each_format_without_false_positives(self):
-        from corgireg_cli.node_library import load_definitions, resolve_definitions
-        definitions = load_definitions([ROOT / "examples/library/nodes"])
+        from corgireg_cli.cli import find_engine
+        from corgireg_cli.graph import encode_request
+        from corgireg_cli.node_library import library_arguments, load_definitions
+        library = [ROOT / "examples/library/nodes"]
+        definitions = load_definitions(library)
         expected = {"conv": ("Conv", "convolution"), "negate": ("Neg", "negate"),
                     "abs": ("Abs", "abs"), "add": ("Add", "add"),
                     "multiply": ("Mul", "multiply"), "subtract": ("Sub", "subtract"),
                     "divide": ("Div", "divide"), "exponential": ("Exp", "exponential"),
                     "log": ("Log", "log"), "sqrt": ("Sqrt", "sqrt"), "tanh": ("Tanh", "tanh")}
         self.assertEqual(set(definitions), set(expected))
+        self.assertEqual(definitions["conv"]["source"], str((library[0] / "conv.json").resolve()))
         for name, (onnx, hlo) in expected.items():
             for format_name, op in [("onnx", onnx), ("stablehlo", "stablehlo." + hlo), ("json", onnx)]:
                 with self.subTest(name=name, format=format_name):
                     graph = validate_graph({"nodes": [{"id": 42, "op": op},
                                                        {"id": 9, "op": "Unrelated"}], "edges": []})
-                    memberships, _ = resolve_definitions(definitions, graph, format_name)
-                    self.assertEqual(memberships[name], [42])
-                    self.assertTrue(all(ids == [] for key, ids in memberships.items() if key != name))
+                    process = subprocess.run([str(find_engine()), *library_arguments(library, format_name)],
+                                             input=encode_request(graph, name, 100, {}, {}),
+                                             capture_output=True, text=True, encoding="utf-8", timeout=20)
+                    self.assertEqual(process.returncode, 0, process.stderr)
+                    report = json.loads(process.stdout)["node_definitions"]
+                    self.assertEqual(report[name]["node_ids"], [42])
+                    self.assertTrue(all(value["node_ids"] == [] for key, value in report.items() if key != name))
 
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory(prefix="corgireg-test-", dir=ROOT / "build")
@@ -324,6 +332,75 @@ class CliTests(unittest.TestCase):
         result = self.invoke("-i", self.graph, "-r", "conv->layer->B", "--node-library", directory)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(list(json.loads(result.stdout)["node_definitions"]), ["conv", "layer"])
+
+    def test_definition_directories_are_not_recursive_and_ignore_other_files(self):
+        directory = self.folder / "nodes"
+        (directory / "nested").mkdir(parents=True)
+        self.definition().rename(directory / "conv.json")
+        self.definition("hidden").rename(directory / "nested" / "hidden.json")
+        (directory / "notes.txt").write_text("not a definition", encoding="utf-8")
+        result = self.invoke("-i", self.graph, "-r", "conv", "--node-library", directory)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(list(json.loads(result.stdout)["node_definitions"]), ["conv"])
+        result = self.invoke("-i", self.graph, "-r", "conv", "--node-library", directory / "nested")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        empty = self.folder / "empty"
+        empty.mkdir()
+        result = self.invoke("-i", self.graph, "-r", "A", "--node-library", empty)
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("No node definitions found", result.stderr)
+        result = self.invoke("-i", self.graph, "-r", "A", "--node-library", directory / "notes.txt")
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("must be JSON files", result.stderr)
+
+    def test_node_definition_reports_identify_source_rule_and_format(self):
+        path = self.definition(formats={"json": {"op_types": ["A", "B"]}, "onnx": {"op_types": ["Conv"]}})
+        missing = self.definition("other", {"onnx": {"op_types": ["Conv"]}})
+        result = self.invoke("-i", self.graph, "-r", "conv", "--node-library", path, "--node-library", missing)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        report = json.loads(result.stdout)["node_definitions"]
+        self.assertEqual(report["conv"], {"description": "Portable predicate", "source": str(path.resolve()),
+                                          "format": "json", "rule": {"op_types": ["A", "B"]},
+                                          "node_ids": [0, 9, 42]})
+        self.assertEqual(report["other"], {"description": "Portable predicate", "source": str(missing.resolve()),
+                                           "format": "json", "rule": None, "node_ids": None})
+
+    def test_invalid_definition_documents_are_rejected(self):
+        output = self.folder / "keep.json"
+        output.write_text("keep", encoding="utf-8")
+        base = {"schema_version": 1, "name": "conv", "formats": {"json": {"op_types": ["A"]}}}
+        cases = [({**base, "schema_version": 3}, "Unsupported node definition schema"),
+                 ({**base, "schema_version": True}, "Unsupported node definition schema"),
+                 ({**base, "schema_version": 1.0}, "Unsupported node definition schema"),
+                 ({**base, "name": "a-b"}, "Invalid predicate name"),
+                 ({**base, "name": ""}, "Invalid predicate name"),
+                 ({**base, "description": 3}, "Invalid description"),
+                 ({**base, "formats": {}}, "requires format mappings"),
+                 ({**base, "extra": 1}, "Invalid node definition fields"),
+                 ({**base, "formats": {"json": {"op_types": []}}}, "op_types"),
+                 ({**base, "formats": {"json": {"op_types": ["A", 3]}}}, "op_types"),
+                 ({**base, "formats": {"json": {"op_types": ["A"], "where": {"path": ["op"], "eq": "A"}}}},
+                  "Only op_types"),
+                 ({**base, "schema_version": 2, "formats": {"json": {"op_types": ["A"], "where": []}}},
+                  "where must be a rule object"),
+                 ([base], "Invalid node definition fields")]
+        path = self.folder / "conv.json"
+        for document, message in cases:
+            with self.subTest(document=document):
+                path.write_text(json.dumps(document), encoding="utf-8")
+                result = self.invoke("-i", self.graph, "-r", "A", "--node-library", path, "-o", output)
+                self.assertEqual(result.returncode, 2)
+                self.assertIn(message, result.stderr)
+                self.assertEqual(output.read_text(encoding="utf-8"), "keep")
+        path.write_text("{", encoding="utf-8")
+        self.assertEqual(self.invoke("-i", self.graph, "-r", "A", "--node-library", path).returncode, 2)
+        first, second = self.folder / "a", self.folder / "b"
+        first.mkdir(), second.mkdir()
+        self.definition().rename(first / "conv.json")
+        self.definition().rename(second / "conv.json")
+        result = self.invoke("-i", self.graph, "-r", "A", "--node-library", first, "--node-library", second)
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("Duplicate node definition: conv", result.stderr)
 
 
 if __name__ == "__main__":

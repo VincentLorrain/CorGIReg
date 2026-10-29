@@ -93,3 +93,33 @@ TEST_CASE("Node library protocol validates memberships and unavailable definitio
     matchRequest(other, unused);
     REQUIRE(unused.str().find("\"node_ids\":[42]") != std::string::npos);
 }
+
+TEST_CASE("Native node libraries resolve request documents and report definitions", "[cli][library]") {
+    const auto library = NodeLibrary::load({std::filesystem::path(__FILE__).parent_path() / "../../examples/library/nodes"});
+    // Conv(0) -> Neg(1); documents carry the original operation names.
+    const std::string graph = " 2 0 436f6e76 61 o 1 6f70 s 436f6e76 1 4e6567 62 o 1 6f70 s 4e6567 1 0 1 0 ";
+    std::istringstream input("CORGiReg3" + graph + "636f6e762d3e6e6567617465 100");
+    std::ostringstream output;
+    matchRequest(input, output, 1, &library, "onnx");
+    const auto text = output.str();
+    REQUIRE(text.find("\"node_ids\":[0,1]") != std::string::npos);
+    REQUIRE(text.find("\"definition_nodes\"") == std::string::npos);
+    REQUIRE(text.find("\"conv\":{\"description\":") != std::string::npos);
+    REQUIRE(text.find("\"format\":\"onnx\",\"rule\":{\"op_types\":[\"Conv\"]},\"node_ids\":[0]}") != std::string::npos);
+    REQUIRE(text.find("\"negate\":{") != std::string::npos);
+
+    std::istringstream unmapped("CORGiReg3" + graph + "636f6e762d3e6e6567617465 100");
+    std::ostringstream ignored;
+    const auto conditional = NodeLibrary::load({std::filesystem::path(__FILE__).parent_path() / "../../examples/library/conditional-nodes"});
+    REQUIRE_THROWS_AS(matchRequest(unmapped, ignored, 1, &library, "openvx"), std::invalid_argument);
+    for (const std::string request : {"CORGiReg1 1 0 41 61 0 41 100",
+                                      "CORGiReg3 1 0 41 61 o 0 0 1 41 0 41 100"}) {
+        INFO(request);
+        std::istringstream rejected(request);
+        REQUIRE_THROWS_AS(matchRequest(rejected, ignored, 1, &library, "json"), std::invalid_argument);
+    }
+    std::ostringstream listing;
+    writeNodeLibrary(listing, conditional);
+    REQUIRE(listing.str().rfind("{\"conv3x3\":{\"description\":", 0) == 0);
+    REQUIRE(listing.str().find("\"schema_version\":2") != std::string::npos);
+}

@@ -30,6 +30,24 @@ include(Catch)
 catch_discover_tests(tests
     EXTRA_ARGS "--durations=yes"
 )
+# Extended seeded generation-to-matching campaigns (label "extended"), off by
+# default. The fast deterministic subset always runs with the Catch2 tests.
+option(CORGIREG_EXTENDED_TESTS "Register extended randomized generation-matching campaigns" OFF)
+if(CORGIREG_EXTENDED_TESTS)
+    set(CORGIREG_GM_ITERATIONS 2000 CACHE STRING "Extended campaign: cases per test")
+    set(CORGIREG_GM_SEED 1 CACHE STRING "Extended campaign: first seed")
+    set(CORGIREG_GM_DEPTH 2 CACHE STRING "Extended campaign: maximum group nesting (0..6)")
+    set(CORGIREG_GM_MAX_LOOPS 2 CACHE STRING "Extended campaign: maximum count of * and extra + iterations")
+    set(CORGIREG_GM_MAX_NODES 12 CACHE STRING "Extended campaign: maximum generated nodes")
+    set(CORGIREG_GM_EXTRA_NODES 6 CACHE STRING "Extended campaign: added nodes per enrichment step")
+    set(CORGIREG_GM_EXTRA_EDGES 8 CACHE STRING "Extended campaign: added edges per enrichment step")
+    set(CORGIREG_GM_MAX_STARTS 1500 CACHE STRING "Extended campaign: start tuples per search")
+    set(CORGIREG_GM_SECONDS 300 CACHE STRING "Extended campaign: wall-clock budget per test case, checked between cases")
+    add_test(NAME Generation_Matching_Extended COMMAND tests "[generation-matching][random]")
+    set_tests_properties(Generation_Matching_Extended PROPERTIES LABELS "extended" TIMEOUT 3600
+        ENVIRONMENT "CORGIREG_GM_ITERATIONS=${CORGIREG_GM_ITERATIONS};CORGIREG_GM_SEED=${CORGIREG_GM_SEED};CORGIREG_GM_DEPTH=${CORGIREG_GM_DEPTH};CORGIREG_GM_MAX_LOOPS=${CORGIREG_GM_MAX_LOOPS};CORGIREG_GM_MAX_NODES=${CORGIREG_GM_MAX_NODES};CORGIREG_GM_EXTRA_NODES=${CORGIREG_GM_EXTRA_NODES};CORGIREG_GM_EXTRA_EDGES=${CORGIREG_GM_EXTRA_EDGES};CORGIREG_GM_MAX_STARTS=${CORGIREG_GM_MAX_STARTS};CORGIREG_GM_SECONDS=${CORGIREG_GM_SECONDS};CORGIREG_GM_ARTIFACTS=${PROJECT_BINARY_DIR}/generation-matching-failures")
+endif()
+
 find_package(Python3 COMPONENTS Interpreter QUIET)
 configure_file(${PROJECT_SOURCE_DIR}/cmake/PackageIntegration.cmake.in
     ${PROJECT_BINARY_DIR}/PackageIntegration.cmake @ONLY)

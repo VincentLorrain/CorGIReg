@@ -1,56 +1,23 @@
-"""Declarative, format-specific definitions of semantic node predicates."""
+"""Node-definition libraries are loaded, validated and resolved by the native engine."""
 import json
-from pathlib import Path
-import re
+import subprocess
 
 
-def load_definitions(paths):
-    definitions = {}
-    for location in paths:
-        location = Path(location)
-        files = sorted(location.glob("*.json")) if location.is_dir() else [location]
-        if not files:
-            raise ValueError(f"No node definitions found in {location}")
-        for path in files:
-            if path.suffix.lower() != ".json":
-                raise ValueError(f"Node definitions must be JSON files: {path}")
-            definition = json.loads(path.read_text(encoding="utf-8-sig"))
-            if not isinstance(definition, dict) or set(definition) - {"schema_version", "name", "description", "formats"}:
-                raise ValueError(f"Invalid node definition fields in {path}")
-            if type(definition.get("schema_version")) is not int or definition["schema_version"] not in (1, 2):
-                raise ValueError(f"Unsupported node definition schema in {path}")
-            name = definition.get("name")
-            if not isinstance(name, str) or re.fullmatch(r"[A-Za-z_0-9]+", name) is None:
-                raise ValueError(f"Invalid predicate name in {path}")
-            if name in definitions:
-                raise ValueError(f"Duplicate node definition: {name}")
-            if not isinstance(definition.get("description", ""), str):
-                raise ValueError(f"Invalid description for {name}")
-            formats = definition.get("formats")
-            if not isinstance(formats, dict) or not formats:
-                raise ValueError(f"Node {name} requires format mappings")
-            for format_name, rule in formats.items():
-                if not isinstance(format_name, str) or not format_name:
-                    raise ValueError(f"Invalid format name for {name}")
-                allowed = {"op_types", "where"} if definition["schema_version"] == 2 else {"op_types"}
-                if not isinstance(rule, dict) or "op_types" not in rule or set(rule) - allowed:
-                    raise ValueError(f"Only {' and '.join(sorted(allowed))} rules are supported for {name}/{format_name}")
-                if "where" in rule and not isinstance(rule["where"], dict):
-                    raise ValueError(f"where must be a rule object in {path}: {name}/{format_name}")
-                types = rule["op_types"]
-                if not isinstance(types, list) or not types or any(not isinstance(op, str) or not op for op in types):
-                    raise ValueError(f"op_types must be a nonempty array of strings for {name}/{format_name}")
-            definitions[name] = {**definition, "source": str(path.resolve())}
-    return definitions
+def library_arguments(paths, format_name=None):
+    """corgireg-match options selecting definition files/directories and the input format."""
+    arguments = []
+    for path in paths:
+        arguments.extend(["--node-library", str(path)])
+    if format_name is not None:
+        arguments.extend(["--format", format_name])
+    return arguments
 
 
-def resolve_definitions(definitions, graph, format_name):
-    memberships, report = {}, {}
-    for name, definition in sorted(definitions.items()):
-        rule = definition["formats"].get(format_name)
-        # Missing mapping differs from a valid mapping with no matching source node.
-        ids = None if rule is None else [node["id"] for node in graph["nodes"] if node["op"] in rule["op_types"]]
-        memberships[name] = ids
-        report[name] = {"description": definition.get("description", ""), "source": definition["source"],
-                        "format": format_name, "rule": rule, "node_ids": ids}
-    return memberships, report
+def load_definitions(paths, engine=None):
+    """Validate definitions natively; return name -> schema_version, name, description, formats, source."""
+    from .cli import find_engine
+    process = subprocess.run([str(find_engine(engine)), *library_arguments(paths), "--list-definitions"],
+                             text=True, encoding="utf-8", capture_output=True, check=False)
+    if process.returncode:
+        raise ValueError(process.stderr.strip() or f"Native node library loading failed ({process.returncode})")
+    return json.loads(process.stdout)

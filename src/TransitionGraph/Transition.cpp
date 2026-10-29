@@ -213,6 +213,10 @@ const TransitionResult TransitionCommon::test(const std::shared_ptr<RunTimeConte
         return {false,std::set<NodeId>()};//none
     }
     if(context->testNode(mNodeTestKey, *opNode)){
+        // A node holds one common identity: reaching it as another identity
+        // (A#1 then A#2) rejects this walk instead of aborting the search.
+        if (context->isCommonDefined(*opNode) && context->getCommonNodeFromIdx(mCommonIdx) != opNode)
+            return {false,std::set<NodeId>()};
         context->setCommon(*opNode,mCommonIdx);
         context->setValid(*opNode,mNodeTestKey);
 

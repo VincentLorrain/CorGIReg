@@ -3,6 +3,7 @@
 #include "GraphAdapters/ImportedGraph.hpp"
 #include "CompileTool/CompileTransitionGraph/PGInterpreterTG.hpp"
 #include "NodeTest/NodeRule.hpp"
+#include "NodeTest/NodeValueJson.hpp"
 #include <cmath>
 #include <locale>
 #include <sstream>
@@ -145,12 +146,19 @@ void writeMatch(std::ostream& out, const MatchSolution& match) {
 }
 
 void matchRequest(std::istream& input, std::ostream& output, std::size_t jobs) {
+    matchRequest(input, output, jobs, nullptr, {});
+}
+
+void matchRequest(std::istream& input, std::ostream& output, std::size_t jobs,
+                  const NodeLibrary* library, const std::string& format) {
     if (jobs == 0 || jobs > 256) throw std::invalid_argument("Jobs must be between 1 and 256");
     auto protocol = token(input);
     const bool ported = protocol == "CORGiReg4" || protocol == "CORGiReg5" || protocol == "CORGiReg6";
     if (ported) protocol.back() -= 3;
     if (protocol != "CORGiReg1" && protocol != "CORGiReg2" && protocol != "CORGiReg3")
         throw std::invalid_argument("Unsupported matching protocol");
+    if (library && protocol != "CORGiReg3")
+        throw std::invalid_argument("A native node library requires node documents (protocol version 3 or 6)");
     auto graph = std::make_shared<ImportedGraph>();
     std::map<NodeId, NodeValue> documents;
     const auto nodeCount = number(input);
@@ -215,6 +223,10 @@ void matchRequest(std::istream& input, std::ostream& output, std::size_t jobs) {
                 throw std::invalid_argument("Duplicate library predicate: " + key);
         }
     }
+    if (library) {
+        if (!definitions.empty()) throw std::invalid_argument("Request definitions conflict with --node-library");
+        definitions = library->resolve(format, documents);
+    }
     const auto query = unhex(input);
     if (query.empty()) throw std::invalid_argument("Empty regex");
     const auto budget = number(input);
@@ -232,10 +244,7 @@ void matchRequest(std::istream& input, std::ostream& output, std::size_t jobs) {
         const auto key = entry.second.predicate;
         predicates.emplace(key, [graph, key](NodeId id) { return graph->getNodes().at(id).predicate == key; });
     }
-    for (const auto& definition : definitions) {
-        if (definition.second)
-            predicates[definition.first] = [ids = *definition.second](NodeId id) { return ids.count(id) != 0; };
-    }
+    addDefinitionPredicates(predicates, definitions);
     std::vector<std::optional<NodeId>> candidates;
     for (const auto& entry : graph->getNodes()) candidates.push_back(entry.first);
     if (candidates.empty()) candidates.push_back(std::nullopt);
@@ -272,7 +281,26 @@ void matchRequest(std::istream& input, std::ostream& output, std::size_t jobs) {
         output << fragment;
     });
     output << ']';
-    if (protocol == "CORGiReg3") {
+    if (library) {
+        // Public node_definitions report, sorted by predicate name.
+        output << ",\"node_definitions\":{";
+        bool firstDefinition = true;
+        for (const auto& [name, definition] : library->definitions()) {
+            if (!firstDefinition) output << ',';
+            firstDefinition = false;
+            jsonString(output, name);
+            output << ":{\"description\":"; jsonString(output, definition.description);
+            output << ",\"source\":"; jsonString(output, definition.source);
+            output << ",\"format\":"; jsonString(output, format);
+            output << ",\"rule\":";
+            if (const auto* rule = definition.rule(format)) writeJson(output, *rule); else output << "null";
+            output << ",\"node_ids\":";
+            const auto& ids = definitions.at(name);
+            if (ids) numbers(output, *ids); else output << "null";
+            output << '}';
+        }
+        output << '}';
+    } else if (protocol == "CORGiReg3") {
         output << ",\"definition_nodes\":{";
         bool firstDefinition = true;
         for (const auto& definition : definitions) {
@@ -284,5 +312,18 @@ void matchRequest(std::istream& input, std::ostream& output, std::size_t jobs) {
         output << '}';
     }
     output << "}\n";
+}
+
+void writeNodeLibrary(std::ostream& output, const NodeLibrary& library) {
+    NodeValue::Object definitions;
+    for (const auto& [name, definition] : library.definitions()) {
+        NodeValue::Object formats(definition.formats.begin(), definition.formats.end());
+        definitions.emplace(name, NodeValue::Object{
+            {"schema_version", NodeValue(definition.schemaVersion)}, {"name", name},
+            {"description", definition.description}, {"formats", std::move(formats)},
+            {"source", definition.source}});
+    }
+    writeJson(output, NodeValue(std::move(definitions)));
+    output << '\n';
 }
 }
