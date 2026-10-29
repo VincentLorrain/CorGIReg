@@ -55,8 +55,8 @@ run a seeded loop over the existing components:
 3. Classified modifications are applied and recorded: unrelated upstream and
    downstream chains, cyclic producers, self-looping consumers, edges between
    non-strict anchors and disconnected decoy components (match preserved), or
-   removed edges, retyped nodes, extra neighbors on plain or `$` sides, changed
-   ports and split numbered identities (match rejected).
+   removed edges, retyped nodes, extra neighbors on plain or `$` sides or after
+   a boundary, changed ports and split numbered identities (match rejected).
 4. Start tuples are enumerated like the CLI and every match is checked.
 
 Expected results do not come from the matcher. Captures must name a pattern
@@ -66,15 +66,16 @@ equal the union of walk captures; the generated subgraph must be found with
 its generated counts where those are determined; disconnected components must
 leave matches from generated starts unchanged. A modification is classified
 from the documented rules: a plain key has at most one parent and one child,
-a `$` side must be fully covered. "No match" is asserted only for patterns whose
-predicates are distinct with no quantifier or boundary, so that every match
+a `$` side must be fully covered, an operation before a `->$` boundary has no
+successor. "No match" is asserted only for patterns whose predicates are
+distinct with no quantifier, so that every match
 must cover exactly the generated nodes; ports, boundaries and identities also
 have hand-specified expectations. Explicit graph tests elsewhere remain the
 independent reference, since generator and matcher share the parser.
 
-Patterns with boundary assertions are excluded from generated oracles because
-`$` produces no node. Quantifiers nested in a repeated group containing a common
-anchor are also excluded: the matcher misses whole-graph allocations there, for
+Patterns whose boundaries cannot hold with the drawn counts are skipped, since
+generation rejects them as unsatisfiable. Quantifiers nested in a repeated group
+containing a common anchor are excluded: the matcher misses whole-graph allocations there, for
 example `(A?->D#)+` on `A0->D1<-A2`, or `(A+->D#)+` with two A per iteration, and
 this limitation is not fixed yet.
 

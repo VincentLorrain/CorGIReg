@@ -59,6 +59,7 @@ struct Node {
     std::string predicate;   // Pattern predicate that generated it; empty for added nodes.
     std::string identity;    // Generator key: plain key or common identity.
     bool common = false;
+    bool terminal = false;   // Precedes a '$' boundary: no successor allowed.
 };
 struct Edge { NodeId from, to; EdgePorts ports; };
 
@@ -93,7 +94,8 @@ struct Graph {
         A jsonNodes, jsonEdges, connections;
         for (const auto& [id, node] : nodes)
             jsonNodes.push_back(O{{"id", V(std::uint64_t(id))}, {"op", node.op}, {"predicate_key", node.predicate},
-                                  {"identity", node.identity}, {"common", node.common}});
+                                  {"identity", node.identity}, {"common", node.common},
+                                  {"terminal", node.terminal}});
         std::set<std::pair<NodeId, NodeId>> pairs;
         for (const auto& edge : edges) {
             pairs.emplace(edge.from, edge.to);
@@ -113,10 +115,13 @@ struct Graph {
         };
         for (const auto& item : std::get<A>(object.at("nodes").data)) {
             const auto& node = std::get<O>(item.data);
-            const auto common = node.find("common");
+            auto flag = [&](const char* key) {
+                auto found = node.find(key);
+                return found != node.end() && std::get<bool>(found->second.data);
+            };
             graph.nodes.emplace(std::get<std::uint64_t>(node.at("id").data),
                                 Node{text(node, "op"), text(node, "predicate_key"), text(node, "identity"),
-                                     common != node.end() && std::get<bool>(common->second.data)});
+                                     flag("common"), flag("terminal")});
         }
         for (const auto& item : std::get<A>(object.at("connections").data)) {
             const auto& edge = std::get<O>(item.data);
@@ -141,7 +146,6 @@ struct PatternInfo {
     std::map<std::string, unsigned> plainOccurrences;              // predicate -> plain key count
     std::map<std::string, std::pair<bool, bool>> strict;           // identity -> (inputs, outputs)
     std::vector<Quantifier> quantifiers;
-    bool boundary = false;
 
     explicit PatternInfo(const std::string& query) {
         using Tree = std::shared_ptr<AstNode<tGTokensTypes>>;
@@ -152,7 +156,6 @@ struct PatternInfo {
             const auto first = quantifiers.size();
             bool common = false;
             for (const auto& child : tree->getChilds()) common |= visit(child);
-            if (type == tGTokensTypes::END) boundary = true;
             if (type == tGTokensTypes::KEY) {
                 predicates.insert(tree->getValue());
                 identities[tree->getValue()].insert(tree->getValue());
@@ -189,7 +192,7 @@ struct PatternInfo {
     // Generated nodes are the only nodes with their operation and every
     // element is mandatory: any match must cover exactly the generated nodes.
     bool distinctMandatory() const {
-        if (!quantifiers.empty() || boundary) return false;
+        if (!quantifiers.empty()) return false;
         for (const auto& [predicate, used] : identities)
             if (used.size() != 1 || plainOccurrences.count(predicate) && plainOccurrences.at(predicate) > 1) return false;
         return true;
@@ -225,13 +228,15 @@ struct Case {
         return node.common && found != pattern().strict.end() ? found->second : std::pair<bool, bool>{};
     }
     // Documented semantics: a plain key has at most one parent and one child;
-    // $-marked common sides require every neighbor on that side to be covered.
+    // $-marked common sides require every neighbor on that side to be covered;
+    // an operation before a '$' boundary has no successor.
     bool acceptsParent(NodeId id) const {
         const auto& node = graph.nodes.at(id);
         return node.common ? !strict(node).first : graph.parents(id).empty();
     }
     bool acceptsChild(NodeId id) const {
         const auto& node = graph.nodes.at(id);
+        if (node.terminal) return false;
         return node.common ? !strict(node).second : graph.children(id).empty();
     }
 
@@ -266,7 +271,8 @@ struct Case {
             auto op = predicate;
             if (!result.libraryPaths.empty())
                 if (auto concrete = result.library().generatedOperation(predicate, result.format)) op = *concrete;
-            result.generated.add({op, predicate, node->getInfo<std::string>("Key", predicate), node->hasArgument("isCommon")});
+            result.generated.add({op, predicate, node->getInfo<std::string>("Key", predicate),
+                                  node->hasArgument("isCommon"), node->hasArgument("isTerminal")});
         }
         BasicGraphAdapter adapter(*generated);
         for (const auto& node : generated->getNodes())

@@ -12,16 +12,24 @@ struct Dictionary {
     ~Dictionary() { RandomExpressionGenerator::clearDictionary(); }
 };
 
-// Boundary assertions are not generated (END emits no node), so patterns using
-// them are not valid generator oracles; explicit tests cover them instead.
+// Generation rejects patterns whose boundaries cannot hold with the drawn
+// counts, such as A#->$;A#->B; any other generation error fails the test.
+std::optional<Case> generated(std::uint64_t seed, const std::string& query, const Settings& settings,
+                              std::vector<std::string> library = {}, std::string format = "json") {
+    try { return Case::generate(seed, query, settings, std::move(library), std::move(format)); }
+    catch (const std::length_error&) { return std::nullopt; } // Exceeds maxNodes.
+    catch (const std::invalid_argument& error) {
+        if (std::string(error.what()).rfind("Unsatisfiable boundary", 0) == 0) return std::nullopt;
+        throw;
+    }
+}
+
 std::optional<Case> randomCase(std::uint64_t seed, const Settings& settings,
                                std::vector<std::string> library = {}, std::string format = "json") {
     RandomExpressionGenerator::setSeed(static_cast<std::uint32_t>(seed));
     const auto query = RandomExpressionGenerator::allExpr(static_cast<unsigned>(seed % (settings.depth + 1)));
-    const PatternInfo pattern(query);
-    if (pattern.boundary || pattern.nestedInAnchoredRepetition()) return std::nullopt;
-    try { return Case::generate(seed, query, settings, std::move(library), std::move(format)); }
-    catch (const std::length_error&) { return std::nullopt; } // Exceeds maxNodes.
+    if (PatternInfo(query).nestedInAnchoredRepetition()) return std::nullopt;
+    return generated(seed, query, settings, std::move(library), std::move(format));
 }
 }
 
@@ -93,8 +101,9 @@ TEST_CASE("Mutations of distinct mandatory patterns are classified and rejected"
         RandomExpressionGenerator::setSeed(static_cast<std::uint32_t>(seed));
         const auto query = RandomExpressionGenerator::allExpr(0);
         if (!PatternInfo(query).distinctMandatory()) continue;
-        const auto base = Case::generate(seed, query, settings);
-        if (!check(base, "match")) continue;
+        const auto candidate = generated(seed, query, settings);
+        if (!candidate || !check(*candidate, "match")) continue;
+        const auto& base = *candidate;
         ++accepted;
         // Every element is required and owns the only nodes of its operation.
         const auto all = search(base);
