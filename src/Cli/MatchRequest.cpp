@@ -245,15 +245,17 @@ void matchRequest(std::istream& input, std::ostream& output, std::size_t jobs,
         predicates.emplace(key, [graph, key](NodeId id) { return graph->getNodes().at(id).predicate == key; });
     }
     addDefinitionPredicates(predicates, definitions);
-    std::vector<std::optional<NodeId>> candidates;
-    for (const auto& entry : graph->getNodes()) candidates.push_back(entry.first);
-    if (candidates.empty()) candidates.push_back(std::nullopt);
-    const auto arity = pattern->getNbStart();
+    // Only nodes a start can accept are tried; tied starts share one node.
+    std::vector<NodeId> nodes;
+    for (const auto& entry : graph->getNodes()) nodes.push_back(entry.first);
+    const auto groups = pattern->getStartGroups();
+    const auto candidates = pattern->startCandidates(nodes, predicates);
     std::uint64_t combinations = 1;
-    for (std::size_t i = 0; i < arity; ++i) {
-        if (combinations > budget / candidates.size())
+    for (const auto& options : candidates) {
+        if (options.empty()) { combinations = 0; break; }
+        if (combinations > budget / options.size())
             throw std::invalid_argument("Too many starting combinations; increase --max-starts or use a smaller graph");
-        combinations *= candidates.size();
+        combinations *= options.size();
     }
     output << "{\"query\":"; jsonString(output, query); output << ",\"matches\":[";
     bool first = true;
@@ -261,10 +263,10 @@ void matchRequest(std::istream& input, std::ostream& output, std::size_t jobs,
     // Each test owns its environment, contexts, strict obligations and traces.
     runOrderedSearch(combinations, jobs, [&](std::uint64_t combination) {
         auto rest = combination;
+        std::vector<std::optional<NodeId>> chosen;
+        for (const auto& options : candidates) { chosen.push_back(options[rest % options.size()]); rest /= options.size(); }
         std::vector<std::optional<NodeId>> starts;
-        for (std::size_t i = 0; i < arity; ++i) {
-            starts.push_back(candidates[rest % candidates.size()]); rest /= candidates.size();
-        }
+        for (auto group : groups) starts.push_back(chosen[group]);
         const auto result = pattern->test(graph, starts, predicates);
         std::ostringstream fragment;
         bool firstMatch = true;

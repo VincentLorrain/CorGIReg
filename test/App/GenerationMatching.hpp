@@ -400,24 +400,24 @@ inline Search search(const Case& item, bool generatedStarts = false) {
     }
     if (!item.libraryPaths.empty())
         addDefinitionPredicates(predicates, item.library().resolve(item.format, item.graph.documents()));
-    std::vector<std::optional<NodeId>> candidates;
+    std::vector<NodeId> nodes;
     for (const auto& [id, node] : item.graph.nodes)
-        if (!generatedStarts || item.generated.nodes.count(id)) candidates.push_back(id);
-    if (candidates.empty()) candidates.push_back(std::nullopt);
+        if (!generatedStarts || item.generated.nodes.count(id)) nodes.push_back(id);
     const auto pattern = PGInterpreterTG(item.query).interpret();
+    const auto groups = pattern->getStartGroups();
+    const auto candidates = pattern->startCandidates(nodes, predicates);
     std::uint64_t combinations = 1;
-    for (std::size_t i = 0; i < pattern->getNbStart(); ++i) {
-        if (combinations > item.maxStarts / candidates.size()) return {{}, true};
-        combinations *= candidates.size();
+    for (const auto& options : candidates) {
+        if (options.empty()) return {};
+        if (combinations > item.maxStarts / options.size()) return {{}, true};
+        combinations *= options.size();
     }
     Search result;
     for (std::uint64_t combination = 0; combination < combinations; ++combination) {
         auto rest = combination;
-        std::vector<std::optional<NodeId>> starts;
-        for (std::size_t i = 0; i < pattern->getNbStart(); ++i) {
-            starts.push_back(candidates[rest % candidates.size()]);
-            rest /= candidates.size();
-        }
+        std::vector<std::optional<NodeId>> chosen, starts;
+        for (const auto& options : candidates) { chosen.push_back(options[rest % options.size()]); rest /= options.size(); }
+        for (auto group : groups) starts.push_back(chosen[group]);
         const auto found = pattern->test(graph, starts, predicates);
         result.matches.insert(result.matches.end(), found->getMatches().begin(), found->getMatches().end());
     }

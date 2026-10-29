@@ -74,8 +74,9 @@ the pattern needs a branch or join.
 
 Semicolons combine path constraints, not alternatives. Paths without shared
 anchors remain disconnected constraints and can require combinations of starts.
-The CLI currently enumerates starting tuples with a `--max-starts` budget
-(default 100000); exceeding it is an error, not a partial successful report.
+The CLI enumerates starting tuples over the nodes each start can accept first,
+with a `--max-starts` budget (default 100000); exceeding it is an error, not a
+partial successful report.
 The [post-AST root proposal](post-ast-root-selection.md) does not yet replace
 this enumeration.
 

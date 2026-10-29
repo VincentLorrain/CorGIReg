@@ -74,8 +74,10 @@ The complete original file text is retained in the report. A pattern file is
 not a list of independent queries: `;` retains its existing graph-pattern
 composition meaning.
 
-The CLI searches all possible starting nodes. A pattern with multiple starts
-searches their Cartesian product, subject to `--max-starts`. Exceeding a budget
+The CLI searches every starting node a path can accept: nodes satisfying a
+predicate the path can test first, or any node when the path can start without
+consuming one. A pattern with multiple starts searches the Cartesian product of
+these candidates, subject to `--max-starts`. Exceeding a budget
 is an error, not a silently truncated report. An empty graph is searched with
 absent starts so nullable patterns can succeed. Matching follows the existing
 UNIQUE/COMMON/STRICTCOMMON semantics: a plain operation key requires at most one

@@ -156,7 +156,7 @@ cross-commit performance verdict.
 | Engine not found | Installed native worker, `--engine` or `CORGIREG_ENGINE`. |
 | Unknown predicate | Raw op normalization and selected library/format mapping. |
 | Unsupported IR | Importer subset, nested regions/graphs and function selection. |
-| Start budget exceeded | Number of path starts; narrow the pattern or deliberately increase `--max-starts`. Root planning does not yet reduce enumeration. |
+| Start budget exceeded | Number of path starts times their candidate nodes; narrow the pattern or deliberately increase `--max-starts`. |
 | Timeout | Ambiguity and graph size; `--timeout` bounds native matching, not Python import time. |
 | Cannot write report | Parent directory exists and output differs from every input/definition file. |
 | Dependency download fails | Network or local FetchContent dependency paths; distinguish setup failure from a test failure. |

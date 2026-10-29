@@ -50,6 +50,69 @@ std::size_t TGCompiled::getNbStart(void){
     return getStartStates().size();
 }
 
+std::vector<std::size_t> TGCompiled::getStartGroups(void){
+    // Tied starts share their group; every other start has its own.
+    std::vector<std::size_t> groups;
+    std::map<std::size_t, std::size_t> tied;
+    std::size_t next = 0;
+    for (const auto& state : getStartStates()) {
+        auto found = mStartGroups.find(state);
+        if (found == mStartGroups.end()) { groups.push_back(next++); continue; }
+        auto group = tied.emplace(found->second, next);
+        if (group.second) ++next;
+        groups.push_back(group.first->second);
+    }
+    return groups;
+}
+
+std::vector<std::vector<std::optional<NodeId>>> TGCompiled::startCandidates(
+    const std::vector<NodeId>& nodes, const NodePredicates& predicates){
+    const auto starts = getStartStates();
+    const auto groups = getStartGroups();
+    const std::size_t count = groups.empty() ? 0 : *std::max_element(groups.begin(), groups.end()) + 1;
+    if (nodes.empty()) return std::vector<std::vector<std::optional<NodeId>>>(count, {std::nullopt});
+    // Keys a start can test before consuming a node; nullopt means any node.
+    auto firstKeys = [](const std::shared_ptr<State>& start) -> std::optional<std::set<std::string>> {
+        std::set<std::string> keys;
+        std::vector<std::shared_ptr<State>> pending{start};
+        std::set<std::shared_ptr<State>> visited;
+        while (!pending.empty()) {
+            auto state = pending.back();
+            pending.pop_back();
+            if (!visited.insert(state).second) continue;
+            if (state->isValid()) return std::nullopt;
+            for (const auto& edge : state->getTransitions()) {
+                auto transition = edge.lock();
+                if (!transition) throw std::runtime_error("Expired transition while planning starts");
+                if (std::dynamic_pointer_cast<TransitionEmpty>(transition)) pending.push_back(transition->getDestState());
+                else if (std::dynamic_pointer_cast<TransitionUnique>(transition) || transition->isCommon())
+                    keys.insert(transition->getTestKey());
+                else return std::nullopt;
+            }
+        }
+        return keys;
+    };
+    std::vector<std::optional<std::set<NodeId>>> accepted(count);
+    for (std::size_t i = 0; i < starts.size(); ++i) {
+        const auto keys = firstKeys(starts[i]);
+        if (!keys) continue;
+        std::set<NodeId> ids;
+        for (auto id : nodes)
+            for (const auto& key : *keys) {
+                auto predicate = predicates.find(key);
+                if (predicate != predicates.end() && predicate->second(id)) { ids.insert(id); break; }
+            }
+        auto& group = accepted[groups[i]];
+        if (!group) group = std::move(ids);
+        else for (auto it = group->begin(); it != group->end();) it = ids.count(*it) ? std::next(it) : group->erase(it);
+    }
+    std::vector<std::vector<std::optional<NodeId>>> result(count);
+    for (std::size_t group = 0; group < count; ++group)
+        for (auto id : nodes)
+            if (!accepted[group] || accepted[group]->count(id)) result[group].push_back(id);
+    return result;
+}
+
 std::string TGCompiled::exportToMermaid(void) {
     std::stringstream ss;
     ss << "graph TD\n"; // Define the type of graph (TD - top down)

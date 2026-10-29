@@ -25,6 +25,7 @@ private:
     std::set<std::shared_ptr<Transition>> mTransitions;
     const std::string mQuery;
     CommonMode mFlag = CommonMode::NONE;
+    std::map<std::shared_ptr<State>, std::size_t> mStartGroups;
 
 public:
 
@@ -48,6 +49,15 @@ public:
      * @return number of start state
     */
     std::size_t getNbStart(void);
+    // Start states sharing a group receive the same node (anchor roots, see
+    // PGInterpreterTG::interpretRooted). Indexed like getStartStates().
+    std::vector<std::size_t> getStartGroups(void);
+    // Candidate nodes per start group, in `nodes` order: those accepted by a
+    // predicate the group can test first, or every node when its path may
+    // start without consuming one. An empty graph yields {nullopt}.
+    std::vector<std::vector<std::optional<NodeId>>> startCandidates(
+        const std::vector<NodeId>& nodes, const NodePredicates& predicates);
+    void setStartGroups(std::map<std::shared_ptr<State>, std::size_t> groups) { mStartGroups = std::move(groups); }
 
     /**
      * @brief get the set of all the node in the graph
