@@ -183,3 +183,43 @@ TEST_CASE("Hand-specified mutations of generated graphs check ports boundaries a
         }
     }
 }
+
+TEST_CASE("Failure artifacts replay the same graph pattern and matches", "[generation-matching][replay][app]") {
+    const Dictionary dictionary({"GmA", "GmB", "GmC", "GmD"});
+    const Settings settings;
+    std::uint64_t replayed = 0;
+    for (std::uint64_t seed = settings.seed; replayed < 5; ++seed) {
+        auto item = randomCase(seed, settings, {(examples / "library/nodes").string()});
+        if (!item || search(*item, true).truncated) continue;
+        std::mt19937 random(static_cast<std::uint32_t>(seed));
+        embed(*item, random);
+        addDisconnected(*item, random, 2, 2);
+        const auto original = search(*item, true);
+        std::ostringstream text;
+        writeJson(text, caseJson(*item, "match", original));
+        const auto copy = caseFromJson(parseJson(text.str()));
+        INFO(text.str());
+        REQUIRE(copy.query == item->query);
+        REQUIRE(copy.repetitions == item->repetitions);
+        REQUIRE(copy.mutations == item->mutations);
+        std::ostringstream before, after;
+        writeJson(before, item->graph.json());
+        writeJson(after, copy.graph.json());
+        REQUIRE(before.str() == after.str());
+        REQUIRE(signatures(search(copy, true)) == signatures(original));
+        ++replayed;
+    }
+}
+
+// Replays one saved artifact: CORGIREG_GM_REPLAY=path tests "[replay-file]"
+TEST_CASE("Replay a saved generation-matching artifact", "[.][replay-file]") {
+    const char* path = std::getenv("CORGIREG_GM_REPLAY");
+    REQUIRE(path);
+    std::ifstream input(path, std::ios::binary);
+    REQUIRE(input);
+    std::ostringstream text;
+    text << input.rdbuf();
+    const auto document = parseJson(text.str());
+    const auto item = caseFromJson(document);
+    check(item, std::get<std::string>(std::get<O>(document.data).at("expectation").data));
+}

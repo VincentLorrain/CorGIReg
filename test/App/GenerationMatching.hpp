@@ -104,6 +104,32 @@ struct Graph {
         for (const auto& [from, to] : pairs) jsonEdges.push_back(A{V(std::uint64_t(from)), V(std::uint64_t(to))});
         return O{{"nodes", jsonNodes}, {"edges", jsonEdges}, {"connections", connections}};
     }
+    static Graph fromJson(const NodeValue& value) {
+        Graph graph;
+        const auto& object = std::get<O>(value.data);
+        auto text = [](const O& node, const char* key) {
+            auto found = node.find(key);
+            return found == node.end() ? std::string{} : std::get<std::string>(found->second.data);
+        };
+        for (const auto& item : std::get<A>(object.at("nodes").data)) {
+            const auto& node = std::get<O>(item.data);
+            const auto common = node.find("common");
+            graph.nodes.emplace(std::get<std::uint64_t>(node.at("id").data),
+                                Node{text(node, "op"), text(node, "predicate_key"), text(node, "identity"),
+                                     common != node.end() && std::get<bool>(common->second.data)});
+        }
+        for (const auto& item : std::get<A>(object.at("connections").data)) {
+            const auto& edge = std::get<O>(item.data);
+            auto port = [&](const char* key) -> std::optional<PortNumber> {
+                const auto& value = edge.at(key).data;
+                if (std::holds_alternative<std::nullptr_t>(value)) return std::nullopt;
+                return static_cast<PortNumber>(std::get<std::uint64_t>(value));
+            };
+            graph.connect(std::get<std::uint64_t>(edge.at("from").data), std::get<std::uint64_t>(edge.at("to").data),
+                          {port("input"), port("output")});
+        }
+        return graph;
+    }
 };
 
 // Syntactic facts read from the AST. Quantifier indices follow the lexical
@@ -491,6 +517,24 @@ inline NodeValue caseJson(const Case& item, const std::string& expectation, cons
              {"node_library", paths}, {"format", item.format}, {"max_starts", V(item.maxStarts)},
              {"generated_graph", item.generated.json()}, {"graph", item.graph.json()}, {"mutations", mutations},
              {"expectation", expectation}, {"expected_node_ids", expected}, {"actual_matches", matchesJson(actual)}};
+}
+
+inline Case caseFromJson(const NodeValue& value) {
+    const auto& object = std::get<O>(value.data);
+    Case item;
+    item.seed = std::get<std::uint64_t>(object.at("seed").data);
+    item.query = std::get<std::string>(object.at("query").data);
+    for (const auto& [index, count] : std::get<O>(object.at("repetitions").data))
+        item.repetitions[std::stoull(index)] = std::get<std::uint64_t>(count.data);
+    for (const auto& path : std::get<A>(object.at("node_library").data))
+        item.libraryPaths.push_back(std::get<std::string>(path.data));
+    item.format = std::get<std::string>(object.at("format").data);
+    item.maxStarts = std::get<std::uint64_t>(object.at("max_starts").data);
+    item.generated = Graph::fromJson(object.at("generated_graph"));
+    item.graph = Graph::fromJson(object.at("graph"));
+    for (const auto& mutation : std::get<A>(object.at("mutations").data))
+        item.mutations.push_back(std::get<std::string>(mutation.data));
+    return item;
 }
 
 // Directory for failure artifacts: CORGIREG_GM_ARTIFACTS, else the test's
