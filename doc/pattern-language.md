@@ -29,7 +29,9 @@ raw operation predicates or [node-library definitions](node-library.md).
 `B#1`, `$B#1`, `B$1` and `$B$1` share identity, while retaining their respective
 constraints. `$B#1` is the numbered input-only form; `$B1` names predicate B1.
 Numeric suffixes are interpreted numerically (`#01` and `#1`); an omitted suffix
-differs from explicit zero. Plain repeated B occurrences do not establish shared
+differs from explicit zero. A source node holds at most one identity: `B#1` and
+`B#2` bind different nodes, and a walk reaching a bound node as another identity
+is rejected. Plain repeated B occurrences do not establish shared
 identity. Suffix identities are normalized digit strings, without integer conversion.
 
 There is no alternation `|`, wildcard `.`, character class, `{m,n}`, lazy or
