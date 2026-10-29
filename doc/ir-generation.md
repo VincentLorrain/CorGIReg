@@ -182,7 +182,9 @@ On PowerShell, use `.\build\corgireg-generate.exe` with the same arguments.
 `--seed` and `--max-loops` override the corresponding file settings, independent
 of option order. Defaults without a file are deterministic: missing reached
 counts are errors. The executable generates and validates before opening its
-output file. `--help` lists the options.
+output file. `--node-library PATH` (repeatable) and `--format NAME` emit library
+keys as concrete operations; see [generating from library keys](node-library.md#generating-graphs-from-library-keys).
+`--help` lists the options.
 
 The output includes stable insertion-order node IDs, operation names and port
 connections, and is directly accepted by the matching CLI. It exports topology,

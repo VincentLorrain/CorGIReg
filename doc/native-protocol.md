@@ -9,6 +9,15 @@ The worker accepts an optional process argument `--jobs N` (1..256, default 1).
 It controls [parallel traversal](multithreading.md) without changing the stdin
 protocol or public report schema.
 
+`--node-library PATH` (repeatable) and `--format NAME` (default `json`) make the
+worker load and resolve [node definitions](node-library.md) natively. The request
+must then be version 3 (or 6) with a definition count of 0: the worker resolves
+definitions from the node documents, and its reply contains the public
+`node_definitions` object instead of `definition_nodes`. This is what the public
+CLI sends. `--list-definitions` validates the libraries, prints them as JSON
+(name to `schema_version`, `name`, `description`, `formats`, `source`) and exits
+without reading stdin.
+
 Whitespace separates tokens. Text tokens are hexadecimal UTF-8 bytes; `-`
 represents an empty string. IDs are unsigned 64-bit integers. The query is
 encoded text; Python normalizes its whitespace for the native lexer while
@@ -30,6 +39,8 @@ has a membership count followed by source IDs. Version 3 then appends a typed
 `where` rule (`n` if absent) and the hex-encoded definition source filename.
 Version 1 uses raw predicates; version 2 transports alias memberships; version
 3 also supports native rule evaluation and diagnostics identifying the file.
+Versions 2 and 3 with caller-resolved memberships remain accepted for existing
+clients; the public CLI no longer resolves definitions itself.
 
 ## Version 3 typed values
 
@@ -54,8 +65,9 @@ the original source document in the public report.
 
 A successful native reply has `query` and `matches`, using the match fields
 described in [the report reference](match-report-json.md). Rule requests also
-return `definition_nodes`, mapping aliases to filtered source IDs. Python removes
-that internal field and incorporates it into public `node_definitions`.
+return `definition_nodes`, mapping aliases to filtered source IDs. With
+`--node-library`, the worker returns the complete public `node_definitions`
+object instead, which Python copies into the report.
 The worker does not add source path, format, graph or report schema version.
 
 Worker failure is indicated by a nonzero process exit status and stderr text.

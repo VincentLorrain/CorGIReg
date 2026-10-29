@@ -69,9 +69,10 @@ For example, a version 2 definition selects a declared 3-by-3 kernel:
 
 The imported node is the rule document: `op`, `name`, `attributes`, `inputs`
 and other metadata can be addressed by paths. See [NodeTest rules](node-rules.md)
-for operators, presence semantics and the C++ API. Python transports documents
-and rules; C++ compiles the selected format's rules and evaluates them before
-graph matching. Invalid rules report the definition file, predicate and rule
+for operators, presence semantics and the rule API. The native engine reads and
+validates definition files, resolves `op_types`, and compiles and evaluates the
+selected format's rules before graph matching. Python only imports the source
+graph and transports its node documents. Invalid rules report the definition file, predicate and rule
 path, including when no source operation is a candidate. Format rules for other
 input formats are not compiled during this invocation.
 
@@ -79,8 +80,10 @@ A complete example and verification script are available in
 [conditional matching examples](../examples/matches/README.md#conditional-nodes-with-nodetest).
 
 Pass `--node-library` repeatedly for several files or directories. Directories
-load their immediate `*.json` files in sorted order, without recursion. Duplicate
-predicate names are errors. An explicit library predicate overrides a raw
+load their immediate `*.json` files in sorted order, without recursion; other
+files and subdirectories are ignored, and a directory without definitions is an
+error. A file argument must have a `.json` extension. Duplicate
+predicate names are errors, including the same file given twice. An explicit library predicate overrides a raw
 predicate with the same name for that invocation. Multiple predicates may match
 the same source node; definitions do not mutate the global NodeDictionary.
 
@@ -89,6 +92,69 @@ A valid mapping whose operations are absent simply matches no nodes. Unused
 definitions may omit the current format. Additional format names can be stored,
 but importing those formats still requires an importer: the CLI currently reads
 JSON graphs, ONNX and StableHLO, not OpenVX.
+
+Definition files are strict UTF-8 JSON (a leading BOM is accepted). Every
+error starts with the absolute definition file and, for rules, names the
+predicate. The native reader also rejects duplicate object keys, `NaN`/`Infinity`
+and integers outside 64 bits; the former Python reader silently kept the last
+duplicate key or failed later while encoding such numbers.
+
+## Library directories
+
+A node library is any directory supplied explicitly on the command line; there
+is no search path, environment variable or global registry. The repository keeps
+its data separate from the engine sources:
+
+| Directory | Role |
+| --- | --- |
+| `examples/library/nodes/` | Reusable base vocabulary (11 operation families) |
+| `examples/library/conditional-nodes/` | Demonstration of version 2 `where` rules |
+| `examples/matches/`, `examples/rewrite/` | Self-contained demonstration fixtures |
+
+Project-specific libraries can live anywhere, for example `libraries/nodes/hardware/`
+in a consumer repository, and are loaded with `--node-library` like the bundled one.
+
+## Native C++ API
+
+`NodeTest/NodeLibrary.hpp` exposes the same behavior without Python:
+
+```cpp
+#include "NodeTest/NodeLibrary.hpp"
+
+auto library = CorGIReg::NodeLibrary::load({"examples/library/nodes"});
+// documents: source node ID -> NodeValue object with at least {"op": ...}
+auto memberships = library.resolve("stablehlo", documents);
+CorGIReg::NodePredicates predicates;  // raw predicates first, if any
+CorGIReg::addDefinitionPredicates(predicates, memberships);
+auto result = CorGIReg::PGInterpreterTG("conv+->$").interpret()->test(graph, starts, predicates);
+```
+
+`resolve` returns, per definition, the matching source IDs or `std::nullopt`
+when the definition has no mapping for that format. `NodeDefinition::fromDocument`
+validates an already parsed document; `parseJson`/`writeJson` in
+`NodeTest/NodeValueJson.hpp` read and write node documents. The library object
+owns its definitions and is passed explicitly; it never registers predicates in
+the process-wide `NodeDictionary`.
+
+The native worker exposes the same operations for tooling:
+`corgireg-match --node-library DIR --list-definitions` validates a library and
+prints it as JSON. See the [worker protocol](native-protocol.md).
+
+## Generating graphs from library keys
+
+`corgireg-generate --node-library DIR [--format NAME]` (default format `json`)
+replaces each pattern key that names a definition with that definition's first
+`op_type` for the format; node names keep the key (`conv_0`). The result matches
+the same pattern when loaded with the same library:
+
+```sh
+./build/corgireg-generate -r 'conv+->negate' --random --seed 7 --node-library examples/library/nodes -o graph.json
+corgireg -i graph.json -r 'conv+->negate' --node-library examples/library/nodes
+```
+
+Keys without a definition stay raw operation names. A definition without a
+mapping for the selected format, or with a `where` rule for it, is an error:
+generation only produces an operation name, so it cannot guarantee a condition.
 
 ## Results and pattern reuse
 

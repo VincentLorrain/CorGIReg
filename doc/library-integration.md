@@ -56,6 +56,7 @@ ONNX/StableHLO readers are installed separately using `pyproject.toml` or the
 | `PGInterpreterTG` / `TGCompiled::test` | Compile a pattern and retrieve source captures |
 | `IRGenerationOptions` / `PGInterpreterIR` | Instantiate a replacement fragment with explicit repetitions |
 | `writeGraphJson` | Export generated topology with node IDs and port connections |
+| `NodeLibrary` / `addDefinitionPredicates` | Load node-definition directories and turn them into predicates |
 
 An edge port binding stores the destination input and source output separately.
 Either can be unspecified. IDs identify nodes; ports identify uses of their values.

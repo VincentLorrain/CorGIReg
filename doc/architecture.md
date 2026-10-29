@@ -31,7 +31,7 @@ pattern text -> PartitionGraphLexer -> PartitionGraphParser -> AST
     -> PGInterpreterTG visits original AST -> TransitionGraph -> TGCompiled
 
 source file -> importer -> normalized graph -> ImportedGraph / GraphView
-node definitions -> operation candidates -> compiled NodeTest rules -> predicates
+node definitions -> NodeLibrary (JSON, validation, op_types) -> compiled NodeTest rules -> predicates
 
 TGCompiled + GraphView + predicates + starting tuple -> MatchSolution(s)
 CLI search + source metadata -> public JSON report
@@ -68,6 +68,9 @@ ownership. Its IDs are local to the view, not pointer addresses or globally
 persistent operation IDs. `ImportedGraph` uses explicit imported IDs. Results
 retain their graph view; C++ names are read from that view when requested.
 
+Node libraries are explicit `NodeLibrary` objects owned by one invocation. The
+C++ engine loads, validates and resolves them for both matching and generation;
+Python front ends only import external formats and transport node documents.
 Legacy NodeNN conditions use the process-wide `NodeDictionary` singleton. It
 has no public reset; registration rejects duplicate/invalid keys. Imported
 per-request predicates avoid changing that registry. Do not assume shared
@@ -81,7 +84,7 @@ compiler/global registry state is thread-safe without additional synchronization
 | `include/`, `src/GraphAccess` | GraphView adapters and traversal helpers |
 | `include/`, `src/CompileTool` | Tokens, AST, parser, interpreters and post-AST planning |
 | `include/`, `src/TransitionGraph` | Machine construction, execution and match traces |
-| `include/`, `src/NodeTest` | Predicate registry, legacy expressions and typed rules |
+| `include/`, `src/NodeTest` | Predicate registry, legacy expressions, typed rules, JSON documents and node libraries |
 | `src/Cli`, `python/corgireg_cli` | Native worker and public CLI/importers |
 | `test`, `benchmarks` | Functional regressions and measured workloads |
 
