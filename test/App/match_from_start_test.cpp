@@ -164,12 +164,10 @@ TEST_CASE("APP", "[app][regression]") {
         }
     }
 
-    SECTION("A syntactically valid pattern need not admit a matching graph") {
-        // An end assertion inside the mandatory group cannot be followed by B.
-        // A random syntax generator is therefore not a positive-match oracle.
+    SECTION("A pattern whose boundary cannot hold is refused") {
+        // An end assertion inside the mandatory group could never be followed by B.
         const auto graph = makeGraph(chain("", {"AppA", "AppB"}));
-        const auto impossible = PGInterpreterTG("(AppA->$)+->AppB").interpret();
-        REQUIRE_FALSE(hasFullMatch(impossible, graph, predicatesFor(graph)));
+        REQUIRE_THROWS_AS(PGInterpreterTG("(AppA->$)+->AppB").interpret(), std::invalid_argument);
         REQUIRE(hasFullMatch(PGInterpreterTG("AppA->AppB->$").interpret(), graph, predicatesFor(graph)));
     }
 }

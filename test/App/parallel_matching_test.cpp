@@ -101,8 +101,9 @@ TEST_CASE("Parallel tuple search handles empty graphs and common cycles", "[para
     auto graph = std::make_shared<ImportedGraph>();
     compareSearch(graph, "PA*", true);
     compareSearch(graph, "PA+", false);
-    compareSearch(graph, "PA*->$", true);
-    compareSearch(graph, "($PA$)?->$", true);
+    // Nothing is guaranteed before these boundaries: refused patterns.
+    REQUIRE_THROWS_AS(PGInterpreterTG("PA*->$").interpret(), std::invalid_argument);
+    REQUIRE_THROWS_AS(PGInterpreterTG("($PA$)?->$").interpret(), std::invalid_argument);
     compareSearch(graph, "($PA$)+", false);
     graph->addNode(0, "PA", "cycle");
     graph->addNode(9, "PA", "other cycle");

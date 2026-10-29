@@ -39,3 +39,20 @@ TEST_CASE("PartitionGraphParser", "Test_GraphParser") {
         REQUIRE_THROWS(PartitionGraphParser("A<-$").parse());
     }
 }
+TEST_CASE("Parser refuses boundaries that cannot hold", "[parser][boundary]") {
+    for (const std::string query : {"A->$", "$<-B<-A", "A->B?->$", "(A->$)?", "A#->$;A#->B?", "(A->D#->$)+",
+                                    "(A+->B)+->$", "A*->B+->C?->$", "A#->$;B->A#", "(A#->B)?;A#->$"}) {
+        INFO(query);
+        REQUIRE_NOTHROW(PartitionGraphParser(query).parse());
+    }
+    // Repeated group without anchor, nothing guaranteed before '$', anchor
+    // ending at '$' with a mandatory successor.
+    for (const std::string query : {"(A->$)+", "(A->$)*", "(B->A->$)+->C", "B?->$", "A;B*->$", "(A?)?->$",
+                                    "$<-B?", "A#->$;A#->B", "(A#->B)+;A#->$", "X#->(A?)?->$;X#->Y", "B<-A#;$<-A#"}) {
+        INFO(query);
+        try { PartitionGraphParser(query).parse(); FAIL("expected an illegal boundary"); }
+        catch (const std::invalid_argument& error) {
+            REQUIRE(std::string(error.what()).rfind("Illegal boundary: ", 0) == 0);
+        }
+    }
+}

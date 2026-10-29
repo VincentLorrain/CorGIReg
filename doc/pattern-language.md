@@ -48,6 +48,20 @@ neighbor type. Constraints apply even at degree one and do not change meaning
 under `<-`. The standalone `$` still asserts a boundary. See
 [directional semantics and migration from V0](directional-strict-nodes.md).
 
+## Boundary rules
+
+`$` asserts that the operation before it has no successor. The parser refuses,
+with an "Illegal boundary" error, patterns where that can never hold or depends
+on how many times a quantifier repeats:
+
+| Refused | Reason | Accepted alternative |
+| --- | --- | --- |
+| `(A->$)+`, `(A->$)*` | A repeated group without anchor chains its iterations, so the next one would follow `$`. | `A->$`, `(A->$)?`, `(A->D#->$)+` |
+| `B?->$`, `A;B*->$`, `(A?)?->$` | No operation is guaranteed before `$` in its path. | `A->B?->$` |
+| `A#->$;A#->B`, `(A#->B)+;A#->$` | An anchor that may end at `$` has a mandatory successor elsewhere. | `A#->$;A#->B?`, `A#->$;B->A#` |
+
+Matching, generation and `RandomExpressionGenerator` apply the same check.
+
 ## Parsing and direction
 
 The following grammar summarizes the current parser (KEY excludes common suffixes):

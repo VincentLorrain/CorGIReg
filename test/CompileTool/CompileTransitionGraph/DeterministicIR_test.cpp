@@ -165,13 +165,20 @@ TEST_CASE("Generation marks boundary operations and rejects unsatisfiable bounda
     REQUIRE(topology(PGInterpreterIR("A#->$;B->A#", IRGenerationOptions{}).interpret()) == "A:;B:0,;");
     options.repetitions = {{1, {2}}};
     REQUIRE(topology(PGInterpreterIR("(A->D#->$)+", options).interpret()) == "A:1,;D:;A:1,;");
-    for (const auto& [query, values] : std::vector<std::pair<std::string, std::map<std::size_t, std::vector<std::size_t>>>>{
-             {"(A->$)+", {{1, {2}}}}, {"A;(D?)?->$", {{1, {0}}, {2, {1}}}}, {"A#->$;A#->B", {}}, {"B?->$", {{1, {0}}}}}) {
+    // Legal patterns whose drawn counts break a boundary are rejected by generation.
+    options.repetitions = {{1, {1}}};
+    try { PGInterpreterIR("A#->$;A#->B?", options).interpret(); FAIL("expected an unsatisfiable boundary"); }
+    catch (const std::invalid_argument& error) {
+        REQUIRE(std::string(error.what()).rfind("Unsatisfiable boundary", 0) == 0);
+    }
+    options.repetitions = {{1, {0}}};
+    REQUIRE(topology(PGInterpreterIR("A#->$;A#->B?", options).interpret()) == "A:;");
+    // Illegal boundaries are refused by the parser for any counts.
+    for (const std::string query : {"(A->$)+", "A;(D?)?->$", "A#->$;A#->B", "B?->$"}) {
         INFO(query);
-        options.repetitions = values;
-        try { PGInterpreterIR(query, options).interpret(); FAIL("expected an unsatisfiable boundary"); }
+        try { PGInterpreterIR(query, options).interpret(); FAIL("expected an illegal boundary"); }
         catch (const std::invalid_argument& error) {
-            REQUIRE(std::string(error.what()).rfind("Unsatisfiable boundary", 0) == 0);
+            REQUIRE(std::string(error.what()).rfind("Illegal boundary", 0) == 0);
         }
     }
     // Generated boundary graphs match their pattern with every generated node.

@@ -1,4 +1,5 @@
 #include "Grexgex/RandomExpressionGenerator.h"
+#include "CompileTool/CompileTransitionGraph/PartitionGraphParser.hpp"
 #include <stdexcept>
 
 namespace CorGIReg {
@@ -56,12 +57,16 @@ std::string RandomExpressionGenerator::sequence(unsigned depth, bool reverse) {
 }
 std::string RandomExpressionGenerator::allExpr(unsigned maxDepth) {
     if (maxDepth > 6) throw std::invalid_argument("Generator depth must be between 0 and 6");
-    std::string out;
-    const auto paths = 1 + pick(3);
-    for (unsigned i = 0; i < paths; ++i) {
-        if (i) out += ';';
-        out += sequence(maxDepth, pick(2) != 0);
+    // Draw again until the parser accepts the boundaries (still seeded).
+    while (true) {
+        std::string out;
+        const auto paths = 1 + pick(3);
+        for (unsigned i = 0; i < paths; ++i) {
+            if (i) out += ';';
+            out += sequence(maxDepth, pick(2) != 0);
+        }
+        try { PartitionGraphParser(out).parse(); return out; }
+        catch (const std::invalid_argument&) {}
     }
-    return out;
 }
 }
