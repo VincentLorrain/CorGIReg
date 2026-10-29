@@ -31,7 +31,10 @@ constraints. `$B#1` is the numbered input-only form; `$B1` names predicate B1.
 Numeric suffixes are interpreted numerically (`#01` and `#1`); an omitted suffix
 differs from explicit zero. A source node holds at most one identity: `B#1` and
 `B#2` bind different nodes, and a walk reaching a bound node as another identity
-is rejected. Plain repeated B occurrences do not establish shared
+is rejected. A plain occurrence is a node of its own: no other occurrence of the
+match, plain or anchor, in the same or another path, captures it. `A->B;B#->C`
+therefore needs `A->B#;B#->C` to share B. Each combination of path walks is
+reported once. Plain repeated B occurrences do not establish shared
 identity. Suffix identities are normalized digit strings, without integer conversion.
 
 There is no alternation `|`, wildcard `.`, character class, `{m,n}`, lazy or

@@ -119,3 +119,34 @@ TEST_CASE("An anchor identity binds a single source node", "[regression][app]") 
             REQUIRE(match->getAll().size() <= 2);
         }
 }
+
+TEST_CASE("Paths combine into one solution per set of walks with consistent captures", "[regression][app]") {
+    // A0 -> B1 -> C2, searched over every start tuple of the path-order machine.
+    const auto chain = anchorGraph({"A", "B", "C"}, {{0, 1}, {1, 2}});
+    auto solutions = [&](const std::string& query) {
+        auto pattern = PGInterpreterTG(query).interpret();
+        NodePredicates predicates;
+        for (const std::string key : {"A", "B", "C"})
+            predicates[key] = [chain, key](NodeId id) { return chain->getNodes().at(id).predicate == key; };
+        std::vector<NodeIds> found;
+        const std::size_t arity = pattern->getNbStart();
+        std::size_t tuples = 1;
+        for (std::size_t i = 0; i < arity; ++i) tuples *= 3;
+        for (std::size_t tuple = 0; tuple < tuples; ++tuple) {
+            std::vector<std::optional<NodeId>> starts;
+            for (std::size_t i = 0, rest = tuple; i < arity; ++i, rest /= 3) starts.push_back(rest % 3);
+            const auto result = pattern->test(chain, starts, predicates);
+            for (const auto& match : result->getMatches()) found.push_back(match->getAll());
+        }
+        return found;
+    };
+    // One solution, not one per order in which the two walks are combined.
+    REQUIRE(solutions("A;B") == std::vector<NodeIds>{{0, 1}});
+    REQUIRE(solutions("A->B#;B#->C") == std::vector<NodeIds>{{0, 1, 2}});
+    // A plain occurrence never shares its node with another occurrence...
+    REQUIRE(solutions("A->B;B->C").empty());
+    REQUIRE(solutions("A->B;B#->C").empty());
+    REQUIRE(solutions("B;B#").empty());
+    // ...and one node holds one identity.
+    REQUIRE(solutions("B#1;B#2").empty());
+}

@@ -159,34 +159,18 @@ bool RunTimeContext::areEqual(const std::shared_ptr<RunTimeContext>& context) co
 }
 
 bool RunTimeContext::areCompatible(const std::shared_ptr<RunTimeContext>& context) const{
-    /*
-    Context are compatible if all the Common node are the same
-    the valid node are the different 
-     */
-
-   if (mEnvironment != context->mEnvironment) return false;
-   for (const auto& ref : mCommonNodes) {
-        for (const auto& test : context->mCommonNodes) {
-            //same index
-            if(ref.second == test.second){
-                if(ref.first != test.first){
-                    return false;
-                }
-            }
-        }
-   }
-
-   //valid nodes
-    std::set<NodeId> commonElements;
-    std::set<NodeId> A = getValidNodesNoCommon();
-    std::set<NodeId> B = context->getValidNodesNoCommon();
-    std::set_intersection(
-        A.begin(),A.end(),
-        B.begin(),  B.end(),
-        std::inserter(commonElements, commonElements.end())
-       );
-
-    return (commonElements.empty()) ? true : false;
+    // Walks agree on anchors: an identity binds one node and a node holds one
+    // identity. A plain capture is its own node: no other walk captures it.
+    if (mEnvironment != context->mEnvironment) return false;
+    for (const auto& ref : mCommonNodes)
+        for (const auto& test : context->mCommonNodes)
+            if ((ref.second == test.second) != (ref.first == test.first)) return false;
+    auto disjoint = [](const std::set<NodeId>& plain, const std::set<NodeId>& all) {
+        for (auto node : plain) if (all.count(node)) return false;
+        return true;
+    };
+    return disjoint(getValidNodesNoCommon(), context->getValidNodes()) &&
+           disjoint(context->getValidNodesNoCommon(), getValidNodes());
 }
 
 

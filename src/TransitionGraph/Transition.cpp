@@ -160,6 +160,9 @@ const TransitionResult TransitionUnique::test(const std::shared_ptr<RunTimeConte
     if(!opNode){
         return {false,std::set<NodeId>()};//none
     }
+    // A plain occurrence is a node of its own: it never re-captures a node of
+    // this walk, even one an anchor allows the walk to revisit.
+    if (context->isAlreadyValid(*opNode)) return {false,std::set<NodeId>()};
     // if the node have more than one parent or child it is not unique by definition
     if(context->testNode(mNodeTestKey, *opNode) && context->graph().children(*opNode).size() <= 1  && context->graph().parents(*opNode).size() <= 1){
         //the actual node is unique and pass the test so we set it as valid

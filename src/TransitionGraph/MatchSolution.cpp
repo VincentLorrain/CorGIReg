@@ -90,7 +90,12 @@ bool MatchSolution::areCompatible(const std::shared_ptr<MatchSolution>& solution
             return;
         }
 
+        // Walks are combined in one canonical order: each step covers the
+        // lowest path not covered yet, so a set of walks yields one solution.
+        std::size_t next = 0;
+        for (auto origin : mAllGraphOrigin) if (!actOrigin.count(origin)) { next = origin; break; }
         for (const auto& oneOfAll : mValidRunTime) {
+            if (!oneOfAll->getActState()->getOrigin().count(next)) continue;
             if (precedence.empty()) {
             //if (oneOfAll->getActState()->getOrigin().empty()) {
                 precedence.push_back(oneOfAll);
