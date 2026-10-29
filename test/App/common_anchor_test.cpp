@@ -63,3 +63,59 @@ TEST_CASE("Distinct numbered identities reject a node already bound to another o
     for (NodeId start = 0; start < 3; ++start)
         REQUIRE_FALSE(pattern->test(cycle, {start}, predicatesOf(cycle))->isMatch());
 }
+
+namespace {
+std::shared_ptr<ImportedGraph> anchorGraph(const std::vector<std::string>& types,
+                                           const std::vector<std::pair<NodeId, NodeId>>& edges) {
+    auto graph = std::make_shared<ImportedGraph>();
+    for (NodeId id = 0; id < types.size(); ++id) graph->addNode(id, types[id], types[id] + std::to_string(id));
+    for (const auto& [from, to] : edges) graph->addEdge(from, to);
+    return graph;
+}
+std::vector<std::shared_ptr<MatchSolution>> allMatches(const std::string& query, const std::shared_ptr<ImportedGraph>& graph) {
+    NodePredicates predicates;
+    for (const auto& entry : graph->getNodes()) {
+        const auto key = entry.second.predicate;
+        predicates[key] = [graph, key](NodeId id) { return graph->getNodes().at(id).predicate == key; };
+    }
+    std::vector<std::shared_ptr<MatchSolution>> result;
+    auto pattern = PGInterpreterTG(query).interpret();
+    for (const auto& entry : graph->getNodes()) {
+        const auto found = pattern->test(graph, {entry.first}, predicates);
+        result.insert(result.end(), found->getMatches().begin(), found->getMatches().end());
+    }
+    return result;
+}
+}
+
+TEST_CASE("Anchored repetitions restart at every distance of a variable prefix", "[regression][app]") {
+    // Before, the next iteration restarted at one fixed distance from the anchor:
+    // the skip path of A? (distance 0) or a single A for A+.
+    const auto fork = anchorGraph({"A", "D", "A"}, {{0, 1}, {2, 1}});
+    for (const std::string query : {"(A?->D#)+", "(A*->D#)+", "(A+->D#)+"}) {
+        INFO(query);
+        bool full = false;
+        for (const auto& match : allMatches(query, fork)) full |= match->getAll() == NodeIds{0, 1, 2};
+        REQUIRE(full);
+    }
+    // A0 -> A1 -> D2 <- A4 <- A3: two iterations of two A each.
+    const auto chains = anchorGraph({"A", "A", "D", "A", "A"}, {{0, 1}, {1, 2}, {3, 4}, {4, 2}});
+    bool counted = false;
+    for (const auto& match : allMatches("(A+->D#)+", chains)) {
+        if (match->getAll() != NodeIds{0, 1, 2, 3, 4}) continue;
+        std::vector<std::pair<std::size_t, std::size_t>> counts;
+        for (const auto& q : match->getWalks().at(0).quantifiers) counts.emplace_back(q.index, q.count());
+        counted |= counts == std::vector<std::pair<std::size_t, std::size_t>>{{2, 2}, {1, 2}, {1, 2}};
+    }
+    REQUIRE(counted);
+}
+
+TEST_CASE("An anchor identity binds a single source node", "[regression][app]") {
+    // Two separate A->D pairs are not one anchored repetition.
+    const auto pairs = anchorGraph({"A", "D", "A", "D"}, {{0, 1}, {2, 3}});
+    for (const std::string query : {"(A->D#)+", "(A*->D#)+", "(A?->D#)+"})
+        for (const auto& match : allMatches(query, pairs)) {
+            INFO(query);
+            REQUIRE(match->getAll().size() <= 2);
+        }
+}

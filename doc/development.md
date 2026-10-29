@@ -74,10 +74,7 @@ have hand-specified expectations. Explicit graph tests elsewhere remain the
 independent reference, since generator and matcher share the parser.
 
 Patterns whose boundaries cannot hold with the drawn counts are skipped, since
-generation rejects them as unsatisfiable. Quantifiers nested in a repeated group
-containing a common anchor are excluded: the matcher misses whole-graph allocations there, for
-example `(A?->D#)+` on `A0->D1<-A2`, or `(A+->D#)+` with two A per iteration, and
-this limitation is not fixed yet.
+generation rejects them as unsatisfiable.
 
 The fast deterministic subset runs with every `ctest`. Larger campaigns use
 environment variables (defaults in parentheses), on the test binary directly:

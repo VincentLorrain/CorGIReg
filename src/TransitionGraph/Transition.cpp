@@ -213,9 +213,11 @@ const TransitionResult TransitionCommon::test(const std::shared_ptr<RunTimeConte
         return {false,std::set<NodeId>()};//none
     }
     if(context->testNode(mNodeTestKey, *opNode)){
-        // A node holds one common identity: reaching it as another identity
-        // (A#1 then A#2) rejects this walk instead of aborting the search.
-        if (context->isCommonDefined(*opNode) && context->getCommonNodeFromIdx(mCommonIdx) != opNode)
+        // A node holds one common identity and an identity binds one node:
+        // A#1 then A#2 on the same node, or one anchor on two nodes, rejects
+        // this walk instead of aborting the search.
+        const auto bound = context->getCommonNodeFromIdx(mCommonIdx);
+        if (bound ? *bound != *opNode : context->isCommonDefined(*opNode))
             return {false,std::set<NodeId>()};
         context->setCommon(*opNode,mCommonIdx);
         context->setValid(*opNode,mNodeTestKey);
@@ -275,46 +277,79 @@ TransitionRef::TransitionRef(std::shared_ptr<State> source,std::shared_ptr<State
 }
 
 
-std::pair<std::size_t,int> TransitionRef::getAnchor(std::shared_ptr<State>& dest) const{
+TransitionRef::Anchor TransitionRef::getAnchor(std::shared_ptr<State>& dest) const{
     // Find an actual common transition in the repeated body. Falling back to
     // global ID zero made matches depend on which query was compiled first.
+    // Optional or repeated operands before the anchor give several distances:
+    // (A?->D#)+ starts its next iteration at D or at a parent of D.
+    Anchor anchor;
+    std::optional<std::size_t> commonIdx;
     std::deque<std::pair<std::shared_ptr<State>, int>> pending{{dest, 0}};
-    std::set<std::shared_ptr<State>> visited;
+    std::set<std::pair<std::shared_ptr<State>, int>> visited;
     while (!pending.empty()) {
         auto [state, delta] = pending.front();
         pending.pop_front();
-        if (!visited.insert(state).second) continue;
+        if (!visited.insert({state, delta}).second) continue;
         for (const auto& edge : state->getTransitions()) {
             auto transition = edge.lock();
             if (!transition) throw std::runtime_error("Expired transition while finding common anchor");
-            if (transition->isCommon()) return {transition->getCommonIdx(), delta};
+            if (transition->isCommon()) {
+                if (!commonIdx) commonIdx = transition->getCommonIdx();
+                if (*commonIdx == transition->getCommonIdx()) anchor.deltas.insert(delta);
+                continue;
+            }
             // Do not follow another repetition's jump when locating its body.
             if (std::dynamic_pointer_cast<TransitionRef>(transition)) continue;
             if (std::dynamic_pointer_cast<TransitionEmpty>(transition)) {
                 pending.push_front({transition->getDestState(), delta});
-            } else {
-                pending.push_back({transition->getDestState(),
-                    delta + (transition->isDirectionIsChildren() ? -1 : 1)});
+                continue;
             }
+            const int next = delta + (transition->isDirectionIsChildren() ? -1 : 1);
+            if (next < -kLimit) anchor.unboundedParents = true;
+            else if (next > kLimit) anchor.unboundedChildren = true;
+            else pending.push_back({transition->getDestState(), next});
         }
     }
-    throw std::runtime_error("No common anchor reachable in repeated body");
+    if (!commonIdx) throw std::runtime_error("No common anchor reachable in repeated body");
+    anchor.commonIdx = *commonIdx;
+    return anchor;
 }
 
 const TransitionResult TransitionRef::test(const std::shared_ptr<RunTimeContext>& context){
     //from all common node defined in the context we try to get the anchor
-    std::optional<NodeId> refNode = context->getCommonNodeFromIdx(mAnchor.first);
-    if (refNode){
-        //from the anchor we get the next node depending on the delta
-        std::set<NodeId> see;
-        return {true,nodesAtDelta(context->graph(), *refNode, mAnchor.second, see)};
+    std::optional<NodeId> refNode = context->getCommonNodeFromIdx(mAnchor.commonIdx);
+    if (!refNode) return {false,std::set<NodeId>()};
+    // Candidate starts of the next iteration. Distances count walk steps; the
+    // repeated body then checks each candidate up to the same anchor.
+    const auto& graph = context->graph();
+    NodeIds result;
+    if (mAnchor.deltas.count(0)) result.insert(*refNode);
+    for (const bool parents : {true, false}) {
+        const bool unbounded = parents ? mAnchor.unboundedParents : mAnchor.unboundedChildren;
+        int last = 0;
+        for (int delta : mAnchor.deltas) if (parents ? delta < 0 : delta > 0) last = std::max(last, std::abs(delta));
+        NodeIds layer{*refNode}, seen;
+        for (int step = 1; !layer.empty() && (unbounded || step <= last); ++step) {
+            NodeIds next;
+            for (NodeId node : layer)
+                for (NodeId neighbor : parents ? graph.parents(node) : graph.children(node)) next.insert(neighbor);
+            if (unbounded) {
+                // Every node on an unbounded side is a candidate.
+                for (auto it = next.begin(); it != next.end();) it = seen.insert(*it).second ? std::next(it) : next.erase(it);
+                result.insert(next.begin(), next.end());
+            } else if (mAnchor.deltas.count(parents ? -step : step)) {
+                result.insert(next.begin(), next.end());
+            }
+            layer = std::move(next);
+        }
     }
-    return  {false,std::set<NodeId>()};
+    return {true, result};
 }
 std::string TransitionRef::strRep(void) const{
     std::stringstream ss;
     ss << mStateSource->getId();
-    ss << fmt::format("-->|REF{} {}|", mAnchor.first,mAnchor.second);
+    ss << fmt::format("-->|REF{} {}{}{}|", mAnchor.commonIdx, fmt::join(mAnchor.deltas, ","),
+                      mAnchor.unboundedParents ? " -inf" : "", mAnchor.unboundedChildren ? " +inf" : "");
     ss << mStateDest->getId();
     return ss.str();
 }

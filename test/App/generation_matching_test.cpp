@@ -28,7 +28,6 @@ std::optional<Case> randomCase(std::uint64_t seed, const Settings& settings,
                                std::vector<std::string> library = {}, std::string format = "json") {
     RandomExpressionGenerator::setSeed(static_cast<std::uint32_t>(seed));
     const auto query = RandomExpressionGenerator::allExpr(static_cast<unsigned>(seed % (settings.depth + 1)));
-    if (PatternInfo(query).nestedInAnchoredRepetition()) return std::nullopt;
     return generated(seed, query, settings, std::move(library), std::move(format));
 }
 }

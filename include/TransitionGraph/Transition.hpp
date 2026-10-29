@@ -262,11 +262,19 @@ namespace CorGIReg{
     */
     class TransitionRef:public Transition
     {
+        public:
+        // Common anchor of the repeated body and every signed distance from
+        // the body start to it (+1 per parent step, -1 per child step).
+        // Distances beyond kLimit make that side unbounded.
+        struct Anchor {
+            std::size_t commonIdx = 0;
+            std::set<int> deltas;
+            bool unboundedParents = false, unboundedChildren = false;
+        };
+        static constexpr int kLimit = 32;
+
         private:
-        /**
-         * @brief the pair of the common node id and the delta in term of child or parent 
-         */
-        const std::pair<std::size_t,int> mAnchor;
+        const Anchor mAnchor;
 
         public:
         /**
@@ -281,7 +289,7 @@ namespace CorGIReg{
         std::string strRep(void) const override;
 
         private:
-        std::pair<std::size_t,int> getAnchor(std::shared_ptr<State>& dest) const;
+        Anchor getAnchor(std::shared_ptr<State>& dest) const;
 
     };
 

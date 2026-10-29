@@ -82,7 +82,10 @@ this enumeration.
 Quantifier results count whole-body iterations. Ambiguous allocations remain
 distinct solutions and ordering is not a greedy ranking. Nullable and repeated
 common-node patterns use finite canonical traces: after the first iteration,
-each additional iteration must cover a new source node. See
+each additional iteration must cover a new source node. In a repeated group
+containing an anchor, each iteration reaches the same anchor node and may start
+at any distance from it allowed by the body: `(A?->D#)+` and `(A+->D#)+` accept
+branches of different lengths joining at D. See
 [match traces](match-traces.md) for nesting, zero counts and termination.
 
 ## Practical examples

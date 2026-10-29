@@ -182,13 +182,6 @@ struct PatternInfo {
         };
         visit(PartitionGraphParser(query).parse());
     }
-    // Known matcher limitation, excluded from generator oracles: a quantifier
-    // nested in a repeated group containing a common anchor, e.g. (A?->D#)+
-    // or (A+->D#)+, misses whole-graph allocations on explicit graphs too.
-    bool nestedInAnchoredRepetition() const {
-        for (const auto& q : quantifiers) if (q.common && !q.nested.empty()) return true;
-        return false;
-    }
     // Generated nodes are the only nodes with their operation and every
     // element is mandatory: any match must cover exactly the generated nodes.
     bool distinctMandatory() const {
