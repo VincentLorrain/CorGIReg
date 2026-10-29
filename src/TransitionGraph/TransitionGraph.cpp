@@ -2,6 +2,7 @@
 #include "TransitionGraph/TransitionGraph.hpp"
 #include "GraphAdapters/BasicGraphAdapter.hpp"
 #include "NodeTest/NodeDictionary.hpp"
+#include <unordered_set>
 
 namespace CorGIReg{
 
@@ -161,46 +162,32 @@ std::shared_ptr<SolutionFromStartingPoint> TGCompiled::test(
          throw std::runtime_error("bad number of Start nodes");
     }
 
+    // Each walk is explored once: a walk whose key was already reached has the
+    // same continuations, typically the same passes taken in another order.
+    std::unordered_set<std::string> seen, results;
     std::vector<std::shared_ptr<RunTimeContext>> walks;
     for(std::size_t i = 0; i < startNodes.size(); i++){
         if (startNodes[i]) {
             graph->parents(*startNodes[i]);
             graph->children(*startNodes[i]);
         }
-        walks.push_back(std::make_shared<RunTimeContext>(startNodesFsm[i],startNodes[i],environment));
+        auto walk = std::make_shared<RunTimeContext>(startNodesFsm[i],startNodes[i],environment);
+        if (seen.insert(walk->key()).second) walks.push_back(walk);
     }
 
     std::vector<std::shared_ptr<RunTimeContext>> nextWalks;
     std::vector<std::shared_ptr<RunTimeContext>> allValidContext;
-    std::vector<std::shared_ptr<RunTimeContext>> allContextSee;
 
     while (!walks.empty())
     {
         for(auto actContext : walks){
-            allContextSee.push_back(actContext);
             //if we are in a valid st we save it
             //it's one solution of the possible solution of the matching
-            if(actContext->isOnValidState()){
-                //not save 2 time the same end point
-                if(!std::any_of(allValidContext.begin(), allValidContext.end(),
-                    [&](std::shared_ptr<RunTimeContext> oldValid) {
-                        return actContext->areEqual(oldValid);
-                })){
-                    allValidContext.push_back(actContext);
-                }
+            if(actContext->isOnValidState() && results.insert(actContext->key(false)).second)
+                allValidContext.push_back(actContext);
 
-            }
-
-            //dont test 2 time a actContext
-            std::vector<std::shared_ptr<RunTimeContext>> tmpNextWalks = actContext->getActState()->test(actContext);
-            for(auto PotentialFsmContext : tmpNextWalks){
-
-                if(!std::any_of(allContextSee.begin(), allContextSee.end(),
-                    [&](std::shared_ptr<RunTimeContext> oldSee) {
-                        return PotentialFsmContext->areEqual(oldSee);
-                })){
-                    nextWalks.push_back(PotentialFsmContext);
-                }
+            for(auto PotentialFsmContext : actContext->getActState()->test(actContext)){
+                if (seen.insert(PotentialFsmContext->key()).second) nextWalks.push_back(PotentialFsmContext);
             }
 
         }

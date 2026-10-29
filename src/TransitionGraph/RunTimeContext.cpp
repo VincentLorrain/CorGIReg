@@ -1,10 +1,18 @@
 #include "TransitionGraph/RunTimeContext.hpp"
 #include "TransitionGraph/State.hpp"
+#include <algorithm>
+#include <functional>
+#include <sstream>
 
 namespace CorGIReg {
 void RunTimeContext::beginQuantifier(std::size_t index, char symbol) {
     std::optional<std::size_t> parent;
-    if (!mActiveQuantifiers.empty()) parent = mActiveQuantifiers.back().first;
+    std::size_t pass = 0;
+    if (!mActiveQuantifiers.empty()) {
+        parent = mActiveQuantifiers.back().first;
+        pass = mQuantifiers.at(*parent).count();
+    }
+    mInvocationPass.push_back(pass);
     mQuantifiers.push_back({index, symbol, parent, mCaptures.size(), mCaptures.size(), {}});
     mActiveQuantifiers.push_back({mQuantifiers.size() - 1, getValidNodes().size()});
 }
@@ -133,29 +141,71 @@ bool RunTimeContext::isOnValidState(void){
 
 
 bool RunTimeContext::areEqual(const std::shared_ptr<RunTimeContext>& context) const{
-    /*
-    A Context is equal all the evaluation are the same
-    */
-    if (mEnvironment != context->mEnvironment) return false;
-    if (mRejectedNodes != context->mRejectedNodes) return false;
-    if (mPortScopes != context->mPortScopes) return false;
-    if (!mPortScopes.empty() && mCaptures != context->mCaptures) return false;
-    if ((!mQuantifiers.empty() && mCaptures != context->mCaptures) || mQuantifiers != context->mQuantifiers ||
-        mActiveQuantifiers != context->mActiveQuantifiers) return false;
-    if(mActOpNode != context->mActOpNode){
-        return false;
-    }
-    if (mActState != context->mActState){
-        return false;
-    }
-    if (mValidNodes != context->mValidNodes){
-        return false;
-    }
-    if (mCommonNodes != context->mCommonNodes){
-        return false;
-    }
+    return mEnvironment == context->mEnvironment && key() == context->key();
+}
 
-    return true;
+std::string RunTimeContext::key(bool position) const {
+    std::ostringstream out;
+    if (position) {
+        out << mActState.get() << '@';
+        if (mActOpNode) out << *mActOpNode;
+    } else {
+        out << 'o';
+        for (auto origin : getSubStmId()) out << ' ' << origin;
+    }
+    out << "|c";
+    for (const auto& [node, idx] : mCommonNodes) out << ' ' << node << ':' << idx;
+    out << "|r";
+    for (auto node : mRejectedNodes) out << ' ' << node;
+    out << "|v";
+    for (const auto& [tag, nodes] : mValidNodes) {
+        out << ' ' << tag << ':';
+        for (auto node : nodes) out << node << ',';
+    }
+    // An open port check reads the last capture: keep the exact sequence.
+    out << "|p";
+    for (auto scope : mPortScopes) out << ' ' << scope;
+    if (!mPortScopes.empty())
+        for (const auto& capture : mCaptures) out << ' ' << capture.node << capture.predicate;
+    if (mQuantifiers.empty()) return out.str();
+
+    // The trace as a tree: captures and invocations in walk order, except that
+    // the completed passes of each invocation are sorted.
+    std::map<std::size_t, std::size_t> open;
+    for (const auto& [position, size] : mActiveQuantifiers) open[position] = size;
+    auto end = [&](std::size_t i) { return open.count(i) ? mCaptures.size() : mQuantifiers[i].end; };
+    std::function<std::string(std::optional<std::size_t>, std::size_t, std::size_t, std::size_t)> sequence;
+    auto invocation = [&](std::size_t i) {
+        const auto& q = mQuantifiers[i];
+        std::ostringstream text;
+        text << '(' << q.index << q.symbol << q.count();
+        if (open.count(i)) text << " open " << open[i];
+        std::vector<std::string> passes;
+        std::size_t begin = q.begin;
+        for (std::size_t pass = 0; pass < q.count(); ++pass) {
+            passes.push_back(sequence(i, pass, begin, q.iterationEnds[pass]));
+            begin = q.iterationEnds[pass];
+        }
+        std::sort(passes.begin(), passes.end());
+        for (const auto& pass : passes) text << '[' << pass << ']';
+        text << '{' << sequence(i, q.count(), begin, end(i)) << "})";
+        return text.str();
+    };
+    sequence = [&](std::optional<std::size_t> parent, std::size_t pass, std::size_t from, std::size_t to) {
+        std::ostringstream text;
+        std::size_t position = from;
+        for (std::size_t i = 0; i < mQuantifiers.size(); ++i) {
+            if (mQuantifiers[i].parent != parent || mInvocationPass[i] != pass) continue;
+            for (; position < mQuantifiers[i].begin && position < to; ++position)
+                text << ' ' << mCaptures[position].node << mCaptures[position].predicate;
+            text << ' ' << invocation(i);
+            position = std::max(position, end(i));
+        }
+        for (; position < to; ++position) text << ' ' << mCaptures[position].node << mCaptures[position].predicate;
+        return text.str();
+    };
+    out << "|q" << sequence(std::nullopt, 0, 0, mCaptures.size());
+    return out.str();
 }
 
 bool RunTimeContext::areCompatible(const std::shared_ptr<RunTimeContext>& context) const{
