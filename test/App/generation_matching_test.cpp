@@ -80,3 +80,102 @@ TEST_CASE("Match-preserving embedding and enrichment keep the generated subgraph
     }
     REQUIRE(checked * 4 >= settings.iterations);
 }
+
+TEST_CASE("Mutations of distinct mandatory patterns are classified and rejected", "[generation-matching][negative][random][app]") {
+    const Dictionary dictionary({"NgA", "NgB", "NgC", "NgD", "NgE", "NgF", "NgG", "NgH", "NgI", "NgJ"});
+    auto settings = Settings::fromEnvironment({});
+    std::uint64_t accepted = 0, rejected = 0, attempts = 0;
+    for (std::uint64_t seed = settings.seed; accepted < settings.iterations && attempts < 100 * settings.iterations; ++seed, ++attempts) {
+        RandomExpressionGenerator::setSeed(static_cast<std::uint32_t>(seed));
+        const auto query = RandomExpressionGenerator::allExpr(0);
+        if (!PatternInfo(query).distinctMandatory()) continue;
+        const auto base = Case::generate(seed, query, settings);
+        if (!check(base, "match")) continue;
+        ++accepted;
+        // Every element is required and owns the only nodes of its operation.
+        const auto all = search(base);
+        for (const auto& match : all.matches) {
+            INFO(describe(base));
+            REQUIRE(match->getAll() == base.generated.ids());
+        }
+        std::set<std::pair<NodeId, NodeId>> pairs;
+        for (const auto& edge : base.generated.edges) pairs.emplace(edge.from, edge.to);
+        for (const auto& [from, to] : pairs) {
+            auto item = base;
+            removeEdge(item, from, to);
+            rejected += check(item, "no-match");
+        }
+        for (const auto& [id, node] : base.generated.nodes) {
+            auto item = base;
+            retype(item, id);
+            rejected += check(item, "no-match");
+            item = base;
+            const auto parent = item.acceptsParent(id);
+            addParent(item, id);
+            rejected += check(item, parent ? "match" : "no-match") && !parent;
+            item = base;
+            const auto child = item.acceptsChild(id);
+            addChild(item, id);
+            rejected += check(item, child ? "match" : "no-match") && !child;
+        }
+    }
+    REQUIRE(accepted == settings.iterations);
+    REQUIRE(rejected > accepted);
+}
+
+TEST_CASE("Hand-specified mutations of generated graphs check ports boundaries and identities", "[generation-matching][negative][app]") {
+    const Settings settings;
+    SECTION("numbered ports") {
+        auto item = Case::generate(0, "PortA-2->PortB", settings);
+        REQUIRE(item.generated.edges.size() == 1);
+        REQUIRE(item.generated.edges[0].ports.input == PortNumber{2});
+        REQUIRE(check(item, "match"));
+        REQUIRE(check(item.withQuery("PortA->PortB"), "match"));
+        REQUIRE(check(item.withQuery("PortA-*->PortB"), "match"));
+        REQUIRE(check(item.withQuery("PortA-1->PortB"), "no-match"));
+        for (const std::optional<PortNumber> port : {std::optional<PortNumber>{1}, std::optional<PortNumber>{}}) {
+            auto mutated = item;
+            setInputPort(mutated, 0, 1, port);
+            REQUIRE(check(mutated, "no-match"));
+            REQUIRE(check(mutated.withQuery("PortA-*->PortB"), "match"));
+        }
+    }
+    SECTION("numbered identities") {
+        auto item = Case::generate(0, "IdA#1->IdB;IdA#1->IdC", settings);
+        REQUIRE(item.generated.nodes.size() == 3);
+        REQUIRE(check(item, "match"));
+        split(item, 0, {2});
+        REQUIRE(check(item, "no-match"));
+        auto separate = item.withQuery("IdA#1->IdB;IdA#2->IdC");
+        separate.generated = separate.graph;
+        REQUIRE(check(separate, "match"));
+    }
+    SECTION("boundaries and plain degrees") {
+        const auto item = Case::generate(0, "BdA->BdB->$", settings);
+        REQUIRE(check(item, "match"));
+        auto mutated = item;
+        addChild(mutated, 1);
+        REQUIRE(check(mutated, "no-match"));                             // B is no longer terminal.
+        REQUIRE(check(mutated.withQuery("BdA->BdB"), "match"));          // Plain B: at most one child.
+        addChild(mutated, 1);
+        REQUIRE(check(mutated.withQuery("BdA->BdB"), "no-match"));
+        REQUIRE(check(mutated.withQuery("BdA->BdB#"), "match"));
+        mutated = item;
+        addParent(mutated, 0);
+        REQUIRE(check(mutated, "match"));
+        addParent(mutated, 0);
+        REQUIRE(check(mutated, "no-match"));
+    }
+    SECTION("strict sides") {
+        const auto item = Case::generate(0, "StP->$StH$->StC", settings);
+        for (const auto& [side, query] : std::vector<std::pair<int, std::string>>{
+                 {0, "StP->StH#->StC"}, {1, "StP->$StH->StC"}, {2, "StP->StH$->StC"}, {3, "StP->$StH$->StC"}}) {
+            INFO(query);
+            auto parent = item.withQuery(query), child = item.withQuery(query);
+            addParent(parent, 1);
+            addChild(child, 1);
+            REQUIRE(check(parent, side & 1 ? "no-match" : "match"));
+            REQUIRE(check(child, side & 2 ? "no-match" : "match"));
+        }
+    }
+}

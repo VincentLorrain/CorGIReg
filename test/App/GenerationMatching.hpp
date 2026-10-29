@@ -201,6 +201,14 @@ struct Case {
         return node.common ? !strict(node).second : graph.children(id).empty();
     }
 
+    // Same graph and mutations, matched with another pattern.
+    Case withQuery(std::string other) const {
+        Case result = *this;
+        result.query = std::move(other);
+        result.info.reset();
+        return result;
+    }
+
     static Case generate(std::uint64_t seed, std::string query, const Settings& settings,
                          std::vector<std::string> libraryPaths = {}, std::string format = "json") {
         Case result;
@@ -307,6 +315,40 @@ inline void linkAnchors(Case& item, std::mt19937& random, std::size_t count) {
         item.graph.connect(source, target);
         item.mutations.push_back("anchor edge " + std::to_string(source) + "->" + std::to_string(target));
     }
+}
+
+// Constraint-violating mutations. Callers assert "no-match" only when the
+// mutation invalidates every interpretation (see PatternInfo::distinctMandatory).
+inline void removeEdge(Case& item, NodeId from, NodeId to) {
+    auto& edges = item.graph.edges;
+    edges.erase(std::remove_if(edges.begin(), edges.end(),
+                               [&](const Edge& edge) { return edge.from == from && edge.to == to; }), edges.end());
+    item.mutations.push_back("remove edge " + std::to_string(from) + "->" + std::to_string(to));
+}
+inline void retype(Case& item, NodeId id) {
+    item.graph.nodes.at(id).op = unrelated;
+    item.mutations.push_back("retype " + std::to_string(id) + " to " + unrelated);
+}
+inline void addParent(Case& item, NodeId id) {
+    item.graph.connect(addUnrelated(item), id);
+    item.mutations.push_back("extra parent of " + std::to_string(id));
+}
+inline void addChild(Case& item, NodeId id) {
+    item.graph.connect(id, addUnrelated(item));
+    item.mutations.push_back("extra child of " + std::to_string(id));
+}
+inline void setInputPort(Case& item, NodeId from, NodeId to, std::optional<PortNumber> port) {
+    for (auto& edge : item.graph.edges) if (edge.from == from && edge.to == to) edge.ports.input = port;
+    item.mutations.push_back("input port of " + std::to_string(from) + "->" + std::to_string(to) + " = " +
+                             (port ? std::to_string(*port) : std::string("unspecified")));
+}
+// Moves the edges from `id` to `children` onto a copy of `id`.
+inline NodeId split(Case& item, NodeId id, const NodeIds& children) {
+    auto copy = item.graph.nodes.at(id);
+    const auto twin = item.graph.add(copy);
+    for (auto& edge : item.graph.edges) if (edge.from == id && children.count(edge.to)) edge.from = twin;
+    item.mutations.push_back("split " + std::to_string(id) + " into " + std::to_string(twin));
+    return twin;
 }
 
 struct Search {
