@@ -54,3 +54,29 @@ TEST_CASE("Library keys generate source operations that match through the same l
     }
     REQUIRE(checked * 4 >= settings.iterations);
 }
+
+TEST_CASE("Match-preserving embedding and enrichment keep the generated subgraph", "[generation-matching][random][app]") {
+    const Dictionary dictionary({"GmA", "GmB", "GmC", "GmD"});
+    const auto settings = Settings::fromEnvironment({});
+    std::uint64_t checked = 0;
+    for (std::uint64_t i = 0; i < settings.iterations; ++i) {
+        auto item = randomCase(settings.seed + i, settings);
+        if (!item || !check(*item, "match")) continue;
+        std::mt19937 random(static_cast<std::uint32_t>(item->seed));
+        const auto before = search(*item, true);
+
+        addDisconnected(*item, random, settings.extraNodes, settings.extraEdges);
+        {
+            // Disconnected components cannot change matches from generated starts.
+            INFO(describe(*item));
+            REQUIRE(signatures(search(*item, true)) == signatures(before));
+        }
+        embed(*item, random);
+        REQUIRE(check(*item, "match"));
+        addBranches(*item, random, settings.extraNodes);
+        linkAnchors(*item, random, settings.extraEdges);
+        REQUIRE(check(*item, "match"));
+        ++checked;
+    }
+    REQUIRE(checked * 4 >= settings.iterations);
+}

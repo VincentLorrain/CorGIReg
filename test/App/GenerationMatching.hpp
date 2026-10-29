@@ -236,6 +236,79 @@ struct Case {
     }
 };
 
+// Match-preserving modifications. Added nodes never satisfy a pattern
+// predicate except disconnected decoys, and every step is recorded.
+inline NodeId addUnrelated(Case& item) { return item.graph.add({unrelated, "", "", false}); }
+
+template<class Accept> std::vector<NodeId> accepting(const Case& item, Accept accept) {
+    std::vector<NodeId> result;
+    for (const auto& [id, node] : item.generated.nodes) if (accept(id)) result.push_back(id);
+    return result;
+}
+
+// Decoy component reusing generated operations, with random edges, cycles and self-loops.
+inline void addDisconnected(Case& item, std::mt19937& random, std::size_t nodes, std::size_t edges) {
+    if (!nodes) return;
+    std::vector<std::string> ops{unrelated};
+    for (const auto& [id, node] : item.generated.nodes) ops.push_back(node.op);
+    std::vector<NodeId> added;
+    for (std::size_t i = 0; i < nodes; ++i)
+        added.push_back(item.graph.add({ops[random() % ops.size()], "", "", false}));
+    for (std::size_t i = 0; i < edges; ++i)
+        item.graph.connect(added[random() % added.size()], added[random() % added.size()]);
+    item.mutations.push_back("disconnected component: " + std::to_string(nodes) + " nodes, " + std::to_string(edges) + " edges");
+}
+
+// Unrelated producers before and consumers after the generated subgraph.
+inline void embed(Case& item, std::mt19937& random) {
+    auto sources = accepting(item, [&](NodeId id) { return item.acceptsParent(id); });
+    if (!sources.empty()) {
+        const auto target = sources[random() % sources.size()];
+        const auto first = addUnrelated(item), second = addUnrelated(item);
+        item.graph.connect(first, second);
+        item.graph.connect(second, target);
+        item.mutations.push_back("upstream chain into " + std::to_string(target));
+    }
+    auto sinks = accepting(item, [&](NodeId id) { return item.acceptsChild(id); });
+    if (!sinks.empty()) {
+        const auto origin = sinks[random() % sinks.size()];
+        const auto first = addUnrelated(item), second = addUnrelated(item);
+        item.graph.connect(origin, first);
+        item.graph.connect(first, second);
+        item.mutations.push_back("downstream chain from " + std::to_string(origin));
+    }
+}
+
+// Extra unrelated branches, with a cycle outside the generated subgraph.
+inline void addBranches(Case& item, std::mt19937& random, std::size_t count) {
+    for (std::size_t i = 0; i < count && !item.generated.nodes.empty(); ++i) {
+        const NodeId id = random() % item.generated.nodes.size();
+        if (item.acceptsParent(id)) {
+            const auto cycle = addUnrelated(item), producer = addUnrelated(item);
+            item.graph.connect(cycle, producer);
+            item.graph.connect(producer, cycle);
+            item.graph.connect(producer, id);
+            item.mutations.push_back("cyclic producer into " + std::to_string(id));
+        } else if (item.acceptsChild(id)) {
+            const auto consumer = addUnrelated(item);
+            item.graph.connect(id, consumer);
+            item.graph.connect(consumer, consumer);
+            item.mutations.push_back("self-looping consumer from " + std::to_string(id));
+        }
+    }
+}
+
+// Extra edges between generated anchors whose touched sides are not strict.
+inline void linkAnchors(Case& item, std::mt19937& random, std::size_t count) {
+    auto from = accepting(item, [&](NodeId id) { return item.graph.nodes.at(id).common && item.acceptsChild(id); });
+    auto to = accepting(item, [&](NodeId id) { return item.graph.nodes.at(id).common && item.acceptsParent(id); });
+    for (std::size_t i = 0; i < count && !from.empty() && !to.empty(); ++i) {
+        const auto source = from[random() % from.size()], target = to[random() % to.size()];
+        item.graph.connect(source, target);
+        item.mutations.push_back("anchor edge " + std::to_string(source) + "->" + std::to_string(target));
+    }
+}
+
 struct Search {
     std::vector<std::shared_ptr<MatchSolution>> matches;
     bool truncated = false;
@@ -274,6 +347,18 @@ inline Search search(const Case& item, bool generatedStarts = false) {
         result.matches.insert(result.matches.end(), found->getMatches().begin(), found->getMatches().end());
     }
     return result;
+}
+
+// Node set and quantifier counts of every match, for order-independent comparison.
+inline std::set<std::pair<NodeIds, std::vector<std::size_t>>> signatures(const Search& result) {
+    std::set<std::pair<NodeIds, std::vector<std::size_t>>> out;
+    for (const auto& match : result.matches) {
+        std::vector<std::size_t> counts;
+        for (const auto& walk : match->getWalks())
+            for (const auto& q : walk.quantifiers) { counts.push_back(q.index); counts.push_back(q.count()); }
+        out.emplace(match->getAll(), counts);
+    }
+    return out;
 }
 
 // Checks every match against the graph and the pattern text, not the matcher.
