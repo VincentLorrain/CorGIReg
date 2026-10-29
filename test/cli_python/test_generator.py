@@ -41,6 +41,43 @@ class GeneratorTests(unittest.TestCase):
         self.assertEqual(alias.returncode, 0, alias.stderr)
         self.assertEqual(json.loads(plain.stdout), json.loads(alias.stdout))
 
+    def test_node_library_keys_generate_operations_that_match_through_the_library(self):
+        nodes = ROOT / "examples/library/nodes"
+        with tempfile.TemporaryDirectory() as folder:
+            values = Path(folder) / "two.values"
+            values.write_text("1 = 2\n", encoding="utf-8")
+            result = self.generate("-r", "conv+->negate->B", "-v", values, "--node-library", nodes)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            graph = json.loads(result.stdout)
+            self.assertEqual([n["op"] for n in graph["nodes"]], ["Conv", "Conv", "Neg", "B"])
+            self.assertEqual([n["name"] for n in graph["nodes"]], ["conv_0", "conv_1", "negate_2", "B_3"])
+            hlo = self.generate("-r", "conv->negate", "--node-library", nodes, "--format", "stablehlo")
+            self.assertEqual(hlo.returncode, 0, hlo.stderr)
+            self.assertEqual([n["op"] for n in json.loads(hlo.stdout)["nodes"]],
+                             ["stablehlo.convolution", "stablehlo.negate"])
+            path = Path(folder) / "graph.json"
+            path.write_text(result.stdout, encoding="utf-8")
+            process = subprocess.run([sys.executable, "-m", "corgireg_cli", "-i", str(path), "-r", "conv+->negate->B",
+                                      "--node-library", str(nodes)],
+                                     env={**os.environ, "PYTHONPATH": str(ROOT / "python")},
+                                     capture_output=True, text=True, timeout=20)
+            self.assertEqual(process.returncode, 0, process.stderr)
+            report = json.loads(process.stdout)
+            full = next(m for m in report["matches"] if m["starts"] == [0])
+            self.assertEqual(full["node_ids"], [0, 1, 2, 3])
+            self.assertEqual(full["walks"][0]["quantifiers"][0]["count"], 2)
+            self.assertEqual(report["node_definitions"]["conv"]["node_ids"], [0, 1])
+            output = Path(folder) / "keep.json"
+            output.write_text("keep", encoding="utf-8")
+            for args, message in [(("--node-library", nodes, "--format", "openvx"), "format openvx"),
+                                  (("--node-library", ROOT / "examples/library/conditional-nodes", "-r", "conv3x3"),
+                                   "conditional definitions"),
+                                  (("--node-library", Path(folder) / "missing"), "must be JSON files")]:
+                result = self.generate("-r", "conv", *args, "-o", output)
+                self.assertEqual(result.returncode, 2, result.stderr)
+                self.assertIn(message, result.stderr)
+                self.assertEqual(output.read_text(encoding="utf-8"), "keep")
+
     def test_errors_do_not_replace_existing_output(self):
         with tempfile.TemporaryDirectory() as folder:
             output = Path(folder) / "keep.json"

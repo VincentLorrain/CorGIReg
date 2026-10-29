@@ -72,7 +72,7 @@ const NodeValue* NodeDefinition::rule(const std::string& format) const {
 
 std::vector<std::string> NodeDefinition::operations(const std::string& format) const {
     const auto* mapping = rule(format);
-    if (!mapping) throw std::invalid_argument("No definition for predicate '" + name + "' in the selected input format");
+    if (!mapping) throw std::invalid_argument("No definition for predicate '" + name + "' in format " + format);
     std::vector<std::string> result;
     for (const auto& type : std::get<NodeValue::Array>(std::get<NodeValue::Object>(mapping->data).at("op_types").data))
         result.push_back(std::get<std::string>(type.data));
