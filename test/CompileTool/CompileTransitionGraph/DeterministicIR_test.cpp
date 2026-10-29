@@ -48,6 +48,36 @@ TEST_CASE("Deterministic IR preserves reversed links shared anchors and cycles",
     REQUIRE(topology(PGInterpreterIR("(A<-B)+", options).interpret()) == "A:3,;B:0,;A:;B:2,;");
 }
 
+TEST_CASE("Repeated anchored groups connect outer neighbors to one iteration", "[generation][regression]") {
+    // Wiring X to every iteration gave the plain X two children or parents,
+    // so the generated graph could not match its own pattern.
+    IRGenerationOptions options;
+    options.repetitions = {{1, {2}}};
+    REQUIRE(topology(PGInterpreterIR("X->(A->D#)+", options).interpret()) == "X:1,;A:2,;D:;A:2,;");
+    REQUIRE(topology(PGInterpreterIR("(A#->B)+->X", options).interpret()) == "A:1,2,;B:;B:3,;X:;");
+    REQUIRE(topology(PGInterpreterIR("(A->D#)+<-X", options).interpret()) == "A:1,;D:;A:1,;X:0,;");
+    REQUIRE(topology(PGInterpreterIR("X#->(A->D#)+", options).interpret()) == "X:1,;A:2,;D:;A:2,;");
+    for (const std::string query : {"X->(A->D#)+", "(A#->B)+->X", "(A->D#)+<-X", "Y->(B->A#->C)+->Z"}) {
+        INFO(query);
+        auto graph = PGInterpreterIR(query, options).interpret();
+        auto view = std::make_shared<BasicGraphAdapter>(*graph);
+        NodePredicates predicates;
+        for (const auto& node : graph->getNodes()) {
+            const auto type = node->getType();
+            predicates[type] = [view, type](NodeId id) { return view->node(id)->getType() == type; };
+        }
+        NodeIds all;
+        for (NodeId id = 0; id < graph->getNodes().size(); ++id) all.insert(id);
+        auto pattern = PGInterpreterTG(query).interpret();
+        bool full = false;
+        for (NodeId start = 0; start < graph->getNodes().size(); ++start) {
+            const auto result = pattern->test(view, {start}, predicates);
+            for (const auto& match : result->getMatches()) full |= match->getAll() == all;
+        }
+        REQUIRE(full);
+    }
+}
+
 TEST_CASE("Deterministic IR validates values and bounds expansion", "[generation]") {
     IRGenerationOptions options;
     REQUIRE_THROWS_AS(PGInterpreterIR("A+", options).interpret(), std::invalid_argument);

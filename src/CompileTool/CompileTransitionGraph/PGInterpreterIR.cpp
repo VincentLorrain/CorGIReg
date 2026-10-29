@@ -163,8 +163,15 @@ class ConfiguredIRGenerator {
             Fragment result;
             for (std::size_t i = 0; i < repetitions; ++i) {
                 auto body = visit(children.at(0));
-                const bool common = body.common;
-                result = join(std::move(result), std::move(body), false, common);
+                if (!body.common || result.first.empty() || body.first.empty()) {
+                    result = join(std::move(result), std::move(body), false);
+                    continue;
+                }
+                // Iterations sharing an anchor are not chained. The group is entered
+                // through its first iteration and left through its last one, as a
+                // plain neighbor accepts a single parent and child.
+                result.last = std::move(body.last);
+                result.common = true;
             }
             return result;
         }
