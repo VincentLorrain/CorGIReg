@@ -96,6 +96,15 @@ returns counts `(1, 2)` and `(2, 1)`, even though both capture the same node set
 Result ordering is not a ranking or a greedy-match guarantee. Preserving more
 alternatives increases memory use and runtime for ambiguous patterns.
 
+The same iterations taken in another order are not another match. In
+`(B->D#)+` around one `D`, the set of branches {B1, B2} is reported once, not
+once as B1 then B2 and again as B2 then B1. The search explores a walk once
+per state, position, captures, anchors and completed iterations (compared as a
+set), so every distinct count, split and grouping of nodes into iterations is
+still reported. The kept trace lists iterations in the order the search first
+found them. Walks that end at different positions but report the same trace
+also give one match.
+
 Zero occurrences are supported at graph end. To avoid infinitely many traces
 for nullable or common-node-only cycles, the first body iteration may add no
 new node, but each additional iteration must cover at least one new source node.

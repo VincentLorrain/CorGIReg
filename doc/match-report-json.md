@@ -95,7 +95,9 @@ of report schema version 1. See [node libraries](node-library.md) and the
 
 Solutions are not ranked or guaranteed greedy. Different quantifier allocations
 may produce the same `node_ids`; deduplicate only if your application deliberately
-discards those distinctions. There is no explicit matched-edge list: filtering
+discards those distinctions. The same iterations in another order are reported
+once (see [traces](match-traces.md)). Different start tuples can still report
+the same nodes, for example when a repeated anchor prevents rooted search. There is no explicit matched-edge list: filtering
 `graph.edges` to captured endpoints produces an induced subgraph, which can
 contain edges that were not traversed. Names are display labels; IDs identify
 operations within the source graph.

@@ -150,3 +150,33 @@ TEST_CASE("Paths combine into one solution per set of walks with consistent capt
     // ...and one node holds one identity.
     REQUIRE(solutions("B#1;B#2").empty());
 }
+
+TEST_CASE("Repetition passes taken in another order are one match", "[regression][app]") {
+    // B1..B8 -> D0. From B1, every set of branches containing B1 is one match;
+    // before, each set was found once per order of its passes.
+    std::vector<std::string> types{"D"};
+    std::vector<std::pair<NodeId, NodeId>> edges;
+    for (NodeId b = 1; b <= 8; ++b) { types.push_back("B"); edges.push_back({b, 0}); }
+    const auto star = anchorGraph(types, edges);
+    NodePredicates predicates;
+    for (const std::string key : {"B", "D"})
+        predicates[key] = [star, key](NodeId id) { return star->getNodes().at(id).predicate == key; };
+    const auto matches = PGInterpreterTG("(B->D#)+").interpret()->test(star, {1}, predicates)->getMatches();
+    std::set<NodeIds> found;
+    for (const auto& match : matches) found.insert(match->getAll());
+    REQUIRE(matches.size() == 128);
+    REQUIRE(found.size() == 128);
+    for (const auto& nodes : found) REQUIRE((nodes.count(0) && nodes.count(1)));
+
+    // Different splits of the same nodes stay separate matches: B0 -> B1 -> B2
+    // is B*->B+ with counts 0+3, 1+2 and 2+1.
+    const auto chain = anchorGraph({"B", "B", "B"}, {{0, 1}, {1, 2}});
+    std::set<std::vector<std::size_t>> counts;
+    for (const auto& match : allMatches("B*->B+", chain)) {
+        if (match->getAll() != NodeIds{0, 1, 2}) continue;
+        std::vector<std::size_t> split;
+        for (const auto& q : match->getWalks().at(0).quantifiers) split.push_back(q.count());
+        counts.insert(split);
+    }
+    REQUIRE(counts == std::set<std::vector<std::size_t>>{{0, 3}, {1, 2}, {2, 1}});
+}

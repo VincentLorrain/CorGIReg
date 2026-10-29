@@ -1,5 +1,6 @@
 #pragma once
 #include <memory>
+#include <string>
 #include <optional>
 #include "GraphAccess/GraphView.hpp"
 #include "TransitionGraph/MatchTrace.hpp"
@@ -21,6 +22,8 @@ class RunTimeContext {
     std::vector<NodeCapture> mCaptures;
     std::vector<QuantifierCapture> mQuantifiers;
     std::vector<std::pair<std::size_t, std::size_t>> mActiveQuantifiers;
+    // Pass of the parent invocation in which each invocation started.
+    std::vector<std::size_t> mInvocationPass;
     std::vector<std::size_t> mPortScopes;
 public:
     RunTimeContext(std::shared_ptr<State> state, std::optional<NodeId> node,
@@ -62,6 +65,11 @@ public:
     bool isCommonDefined(NodeId node);
     std::set<std::size_t> getSubStmId() const;
     bool areEqual(const std::shared_ptr<RunTimeContext>& context) const;
+    // Identifies a walk by everything later steps read and the report shows,
+    // except the order of completed passes of a repetition. Walks with the
+    // same key have the same continuations and describe the same match.
+    // Without the position, finished walks with equal keys give equal results.
+    std::string key(bool position = true) const;
     bool areCompatible(const std::shared_ptr<RunTimeContext>& context) const;
     bool isOnValidState();
     NodeIds getValidNodes() const;
