@@ -37,11 +37,11 @@ TGCompiled + GraphView + predicates + starting tuple -> MatchSolution(s)
 CLI search + source metadata -> public JSON report
 ```
 
-The root pass is independent of runtime matching and produces plan-local node
-indices, directed constraints, components and optional roots. Quantified regions
-remain opaque; quantified common anchors trigger conservative fallback. The
-original AST still generates the machine. Selection is not yet an execution
-optimization, so it cannot currently be credited with a search speedup.
+The root pass produces plan-local node indices, directed constraints, components
+and optional roots; `interpretRooted()` uses anchor roots to start each component
+on its anchor, as the CLI does. Quantified regions remain opaque; quantified
+common anchors trigger conservative fallback to path-order starts. Both machines
+are generated from the original AST occurrences.
 
 `PGInterpreterIR` is a separate AST visitor that **generates example GraphNN
 graphs** using bounded random repetition choices (default repeat limit 10).

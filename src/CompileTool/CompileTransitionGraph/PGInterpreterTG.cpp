@@ -1,6 +1,9 @@
 #include "CompileTool/CompileTransitionGraph/PGInterpreterTG.hpp"
 #include "TransitionGraph/TransitionTrace.hpp"
 #include "TransitionGraph/TransitionPort.hpp"
+#include "CompileTool/Common/CommonKey.hpp"
+#include <algorithm>
+#include <functional>
 
 
 namespace CorGIReg{
@@ -16,6 +19,118 @@ std::shared_ptr<TGCompiled>  PGInterpreterTG::interpret(void){
     mQuantifierIndices.clear();
     indexQuantifiers(tree);
     return visit(tree)->compile();
+}
+
+namespace {
+using Ast = std::shared_ptr<AstNode<tGTokensTypes>>;
+
+void collectPaths(const Ast& tree, std::vector<Ast>& paths) {
+    if (tree->getType() == tGTokensTypes::SEP) {
+        collectPaths(tree->getChilds()[0], paths);
+        collectPaths(tree->getChilds()[1], paths);
+    } else paths.push_back(tree);
+}
+// Units of a path in traversal order: PREC places its right operand first.
+void flatten(const Ast& tree, std::vector<Ast>& units) {
+    const auto type = tree->getType();
+    if (type != tGTokensTypes::NEXT && type != tGTokensTypes::PREC) { units.push_back(tree); return; }
+    const auto& children = tree->getChilds();
+    flatten(children[type == tGTokensTypes::PREC], units);
+    flatten(children[type == tGTokensTypes::NEXT], units);
+}
+bool any(const Ast& tree, const std::function<bool(const Ast&)>& predicate) {
+    if (predicate(tree)) return true;
+    for (const auto& child : tree->getChilds()) if (any(child, predicate)) return true;
+    return false;
+}
+bool numbered(const Ast& tree) {
+    return (tree->getType() == tGTokensTypes::NEXT || tree->getType() == tGTokensTypes::PREC) &&
+           !tree->getValue().empty() && tree->getValue() != "*";
+}
+std::optional<std::string> anchorIdentity(const Ast& unit) {
+    if (unit->getType() != tGTokensTypes::CKEY && unit->getType() != tGTokensTypes::SCKEY) return std::nullopt;
+    return parseCommonKey(unit->getValue()).identity();
+}
+}
+
+std::shared_ptr<TGCompiled> PGInterpreterTG::interpretRooted(void){
+    mActGroupe = 0;
+    const auto tree = mParser.parse();
+    mRootSelectionPlan = RootSelectionPass{}.run(tree);
+    mQuantifierIndices.clear();
+    indexQuantifiers(tree);
+    std::vector<Ast> paths;
+    collectPaths(tree, paths);
+    // Path index -> (component, root identity) for rerooted components.
+    std::map<std::size_t, std::pair<std::size_t, std::string>> rooted;
+    const auto& plan = mRootSelectionPlan;
+    for (std::size_t c = 0; c < plan.components.size(); ++c) {
+        const auto& component = plan.components[c];
+        if (component.status != RootSelectionStatus::Selected || !component.root) continue;
+        const auto& root = plan.nodes[*component.root];
+        const auto identity = anchorIdentity(std::const_pointer_cast<AstNode<tGTokensTypes>>(root.occurrences.front()));
+        if (!identity) continue;
+        std::set<std::size_t> members;
+        for (auto node : component.nodes) members.insert(plan.nodes[node].paths.begin(), plan.nodes[node].paths.end());
+        bool eligible = std::includes(root.paths.begin(), root.paths.end(), members.begin(), members.end());
+        // A boundary also holds when the successors were captured earlier in
+        // the same walk, which splitting a path would change: keep path order.
+        for (auto path : members)
+            eligible = eligible && !any(paths[path], numbered) &&
+                !any(paths[path], [](const Ast& node) { return node->getType() == tGTokensTypes::END; });
+        if (!eligible) continue;
+        for (auto path : members) rooted.emplace(path, std::make_pair(c, *identity));
+    }
+    std::shared_ptr<TransitionGraph> result;
+    std::map<std::shared_ptr<State>, std::size_t> groups;
+    auto add = [&](std::shared_ptr<TransitionGraph> part, std::optional<std::size_t> group) {
+        if (group) groups.emplace(part->getStartStates().at(0), *group);
+        result = result ? sepF(result, part) : part;
+    };
+    for (std::size_t p = 0; p < paths.size(); ++p) {
+        auto found = rooted.find(p);
+        if (found == rooted.end()) { add(visit(paths[p]), std::nullopt); continue; }
+        std::vector<Ast> units;
+        flatten(paths[p], units);
+        std::size_t k = 0;
+        while (anchorIdentity(units[k]) != found->second.second) ++k;
+        if (k + 1 < units.size() || k == 0) {
+            auto forward = visit(units[k]);
+            for (std::size_t j = k + 1; j < units.size(); ++j) forward = nextF(forward, visit(units[j]));
+            add(forward, found->second.first);
+        }
+        if (k > 0) {
+            auto backward = reversed(units[k]);
+            for (std::size_t j = k; j-- > 0;) backward = nextF(backward, reversed(units[j]));
+            add(backward, found->second.first);
+        }
+    }
+    auto compiled = result->compile();
+    compiled->setStartGroups(std::move(groups));
+    return compiled;
+}
+
+std::shared_ptr<TransitionGraph> PGInterpreterTG::reversed(std::shared_ptr<AstNode<tGTokensTypes>> AstTree){
+    const auto type = AstTree->getType();
+    const auto& children = AstTree->getChilds();
+    if (type == tGTokensTypes::KEY || type == tGTokensTypes::CKEY || type == tGTokensTypes::SCKEY)
+        return keyF(AstTree)->setTransitionChildToParent();
+    if (type == tGTokensTypes::NEXT || type == tGTokensTypes::PREC) {
+        const auto& first = children[type == tGTokensTypes::PREC];
+        const auto& second = children[type == tGTokensTypes::NEXT];
+        return nextF(reversed(second), reversed(first));
+    }
+    if (type == tGTokensTypes::QOM) return quantify(reversed(children[0]), mQuantifierIndices.at(AstTree.get()), '+');
+    if (type == tGTokensTypes::QZM) return quantify(reversed(children[0]), mQuantifierIndices.at(AstTree.get()), '*');
+    if (type == tGTokensTypes::QZO) return quantify(reversed(children[0]), mQuantifierIndices.at(AstTree.get()), '?');
+    if (type == tGTokensTypes::LPAREN) {
+        mActGroupe += 1;
+        auto out = reversed(children[0]);
+        mActGroupe -= 1;
+        return out;
+    }
+    // A boundary only ends a path; it never precedes the root of that path.
+    throw std::logic_error("Cannot reverse this path unit");
 }
 
 std::shared_ptr<TransitionGraph> PGInterpreterTG::visit(std::shared_ptr<AstNode<tGTokensTypes>> AstTree){

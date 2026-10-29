@@ -108,6 +108,8 @@ CORGIREG_GM_REPLAY=build/test/generation-matching-failures/seed-42-2-match.json 
 ```
 
 The artifact's `graph` is also valid input for `corgireg -i` with its `query`.
+Set `CORGIREG_GM_TRACE=1` to save every case as `*-pending.json` before its
+search, which leaves a replayable file for a case that does not finish.
 
 When Python is found, CTest includes CLI, installer and benchmark-report tests.
 `CORGIREG_IMPORT_PYTHON` selects a Python interpreter with optional ONNX and

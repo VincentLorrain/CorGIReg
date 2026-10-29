@@ -231,3 +231,26 @@ TEST_CASE("Replay a saved generation-matching artifact", "[.][replay-file]") {
     const auto item = caseFromJson(document);
     check(item, std::get<std::string>(std::get<O>(document.data).at("expectation").data));
 }
+
+TEST_CASE("Rooted search finds the same node sets and counts as path-order search", "[generation-matching][rooted][random][app]") {
+    const Dictionary dictionary({"GmA", "GmB", "GmC", "GmD"});
+    const auto settings = Settings::fromEnvironment({});
+    std::uint64_t compared = 0, ran = 0;
+    for (std::uint64_t i = 0; i < settings.iterations && !settings.exhausted(); ++i, ++ran) {
+        auto item = randomCase(settings.seed + i, settings);
+        if (!item) continue;
+        std::mt19937 random(static_cast<std::uint32_t>(item->seed));
+        embed(*item, random);
+        addDisconnected(*item, random, settings.extraNodes, settings.extraEdges);
+        trace(*item);
+        const auto plain = search(*item, false, false);
+        const auto rooted = search(*item, false, true);
+        if (plain.truncated || rooted.truncated) continue;
+        INFO(describe(*item));
+        const bool same = invariantError(*item, rooted).empty() && allocations(rooted) == allocations(plain);
+        if (!same) INFO("artifact=" << saveFailure(*item, "same-as-path-order", rooted));
+        REQUIRE(same);
+        ++compared;
+    }
+    REQUIRE(compared * 4 >= ran);
+}

@@ -391,7 +391,8 @@ struct Search {
 
 // Enumerates starting tuples like the CLI. generatedStarts limits candidates to
 // generated nodes: every match covering only generated nodes starts there.
-inline Search search(const Case& item, bool generatedStarts = false) {
+// rooted selects PGInterpreterTG::interpretRooted, as the CLI does.
+inline Search search(const Case& item, bool generatedStarts = false, bool rooted = true) {
     const auto graph = item.graph.view();
     NodePredicates predicates;
     for (const auto& [id, node] : item.graph.nodes) {
@@ -403,7 +404,8 @@ inline Search search(const Case& item, bool generatedStarts = false) {
     std::vector<NodeId> nodes;
     for (const auto& [id, node] : item.graph.nodes)
         if (!generatedStarts || item.generated.nodes.count(id)) nodes.push_back(id);
-    const auto pattern = PGInterpreterTG(item.query).interpret();
+    PGInterpreterTG compiler(item.query);
+    const auto pattern = rooted ? compiler.interpretRooted() : compiler.interpret();
     const auto groups = pattern->getStartGroups();
     const auto candidates = pattern->startCandidates(nodes, predicates);
     std::uint64_t combinations = 1;
@@ -431,6 +433,18 @@ inline std::set<std::pair<NodeIds, std::vector<std::size_t>>> signatures(const S
         std::vector<std::size_t> counts;
         for (const auto& walk : match->getWalks())
             for (const auto& q : walk.quantifiers) { counts.push_back(q.index); counts.push_back(q.count()); }
+        out.emplace(match->getAll(), counts);
+    }
+    return out;
+}
+
+// Node set and quantifier counts, independent of how walks split a match.
+inline std::set<std::pair<NodeIds, std::multiset<std::pair<std::size_t, std::size_t>>>> allocations(const Search& result) {
+    std::set<std::pair<NodeIds, std::multiset<std::pair<std::size_t, std::size_t>>>> out;
+    for (const auto& match : result.matches) {
+        std::multiset<std::pair<std::size_t, std::size_t>> counts;
+        for (const auto& walk : match->getWalks())
+            for (const auto& q : walk.quantifiers) counts.emplace(q.index, q.count());
         out.emplace(match->getAll(), counts);
     }
     return out;
@@ -548,6 +562,12 @@ inline std::string saveFailure(const Case& item, const std::string& expectation,
     return std::filesystem::absolute(path).string();
 }
 
+// With CORGIREG_GM_TRACE set, every case is saved as "pending" before its
+// search, so a case that does not finish can still be replayed.
+inline void trace(const Case& item) {
+    if (const char* enabled = std::getenv("CORGIREG_GM_TRACE"); enabled && *enabled) saveFailure(item, "pending", {});
+}
+
 inline std::string describe(const Case& item) {
     std::ostringstream out;
     out << "seed=" << item.seed << "\nquery=" << item.query << "\nrepetitions=";
@@ -568,6 +588,7 @@ inline std::string describe(const Case& item) {
 // Returns false, without asserting, when the start budget is exceeded.
 inline bool check(const Case& item, const std::string& expectation) {
     INFO(describe(item));
+    trace(item);
     Search result;
     try { result = search(item, expectation == "match"); }
     catch (const std::exception& error) {
