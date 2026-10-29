@@ -80,6 +80,7 @@ class ConfiguredIRGenerator {
     struct Fragment {
         std::vector<NodeNN::Ptr> first, last;
         bool common = false;
+        bool boundary = false; // Ends with '$': nothing may follow `last`.
     };
     const IRGenerationOptions& options;
     std::mt19937 random;
@@ -129,10 +130,26 @@ class ConfiguredIRGenerator {
         return std::uniform_int_distribution<std::size_t>(type == tGTokensTypes::QOM ? 1 : 0,
             type == tGTokensTypes::QZO ? 1 : options.maxLoops + (type == tGTokensTypes::QOM ? 1 : 0))(random);
     }
+    static void anchored(const Fragment& fragment) {
+        if (fragment.boundary && fragment.first.empty())
+            throw std::invalid_argument("Unsatisfiable boundary: '$' has no preceding operation");
+    }
     Fragment join(Fragment left, Fragment right, bool reverse, bool separate = false, const std::string& port = "") {
         if (reverse) std::swap(left, right);
+        if (separate) { anchored(left); anchored(right); }
         if (!port.empty() && (left.first.empty() || right.first.empty()))
             throw std::invalid_argument("A numbered connection requires two nonempty operands");
+        if (!separate && left.boundary && !right.first.empty())
+            throw std::invalid_argument("Unsatisfiable boundary: '$' is followed by an operation");
+        if (!separate && right.boundary && right.first.empty()) {
+            // The boundary also applies through skipped operands: A->B?->$ with
+            // no B makes A terminal, as in matching.
+            if (left.first.empty()) return right;
+            for (const auto& node : left.last) node->setInfo("isTerminal", true);
+            left.boundary = true;
+            left.common = left.common || right.common;
+            return left;
+        }
         if (left.first.empty()) return right;
         if (right.first.empty()) return left;
         if (separate) {
@@ -142,6 +159,7 @@ class ConfiguredIRGenerator {
             for (const auto& from : left.last) for (const auto& to : right.first)
                 connect(from, to, port);
             left.last = std::move(right.last);
+            left.boundary = right.boundary;
         }
         left.common = left.common || right.common;
         return left;
@@ -157,7 +175,7 @@ class ConfiguredIRGenerator {
             return join(std::move(left), std::move(right), type == tGTokensTypes::PREC, type == tGTokensTypes::SEP, tree->getValue());
         }
         if (type == tGTokensTypes::LPAREN) return visit(children.at(0));
-        if (type == tGTokensTypes::END) return {};
+        if (type == tGTokensTypes::END) return {{}, {}, false, true};
         if (type == tGTokensTypes::QOM || type == tGTokensTypes::QZM || type == tGTokensTypes::QZO) {
             const auto repetitions = count(tree);
             Fragment result;
@@ -172,6 +190,7 @@ class ConfiguredIRGenerator {
                 // plain neighbor accepts a single parent and child.
                 result.last = std::move(body.last);
                 result.common = true;
+                result.boundary = body.boundary;
             }
             return result;
         }
@@ -207,7 +226,10 @@ public:
                     throw std::invalid_argument("Invalid value for quantifier " + std::to_string(item.first));
             }
         }
-        visit(tree);
+        anchored(visit(tree));
+        for (const auto& node : graph->getNodes())
+            if (node->hasArgument("isTerminal") && !node->getChildren().empty())
+                throw std::invalid_argument("Unsatisfiable boundary: an operation before '$' has a successor");
         for (const auto& item : options.repetitions)
             if (item.second.size() > 1 && consumed[item.first] != item.second.size())
                 throw std::invalid_argument("Unused values for quantifier " + std::to_string(item.first));

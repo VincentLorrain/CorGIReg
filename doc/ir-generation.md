@@ -166,6 +166,13 @@ Repeated interpretation of the same instance reuses its seed. Pass explicit
 options or a values file to reproduce a fixture across independently created
 instances. All constructors preserve port bindings and assign automatic inputs.
 
+A `$` boundary marks the operations before it as terminal, also through skipped
+operands: `A->B?->$` without B makes A terminal. Generation fails with an
+"Unsatisfiable boundary" error, before writing output, when the drawn counts or
+anchors give a terminal operation a successor (`(A->$)+` with two iterations,
+`A#->$;A#->B`) or leave `$` with no preceding operation (`A;B?->$` without B);
+such graphs could not match their own pattern.
+
 Repeated groups whose body contains a common anchor are not chained between
 iterations: an outer neighbor connects to the first iteration's entry and the
 last iteration's exit, so `X->(A->D#)+` gives X a single child.

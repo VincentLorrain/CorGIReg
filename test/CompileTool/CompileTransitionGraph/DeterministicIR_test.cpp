@@ -148,3 +148,59 @@ TEST_CASE("IR parameter series has independent node and edge expectations", "[ge
 }
 
 
+
+TEST_CASE("Generation marks boundary operations and rejects unsatisfiable boundaries", "[generation][regression]") {
+    IRGenerationOptions options;
+    options.repetitions = {{1, {0}}};
+    // The boundary applies through the skipped B: A must be terminal.
+    auto skipped = PGInterpreterIR("A->B?->$", options).interpret();
+    REQUIRE(topology(skipped) == "A:;");
+    REQUIRE(skipped->getNodes()[0]->hasArgument("isTerminal"));
+    options.repetitions = {{1, {1}}};
+    auto taken = PGInterpreterIR("A->B?->$", options).interpret();
+    REQUIRE(topology(taken) == "A:1,;B:;");
+    REQUIRE_FALSE(taken->getNodes()[0]->hasArgument("isTerminal"));
+    REQUIRE(taken->getNodes()[1]->hasArgument("isTerminal"));
+    REQUIRE(topology(PGInterpreterIR("$<-B<-A", IRGenerationOptions{}).interpret()) == "B:;A:0,;");
+    REQUIRE(topology(PGInterpreterIR("A#->$;B->A#", IRGenerationOptions{}).interpret()) == "A:;B:0,;");
+    options.repetitions = {{1, {2}}};
+    REQUIRE(topology(PGInterpreterIR("(A->D#->$)+", options).interpret()) == "A:1,;D:;A:1,;");
+    for (const auto& [query, values] : std::vector<std::pair<std::string, std::map<std::size_t, std::vector<std::size_t>>>>{
+             {"(A->$)+", {{1, {2}}}}, {"A;(D?)?->$", {{1, {0}}, {2, {1}}}}, {"A#->$;A#->B", {}}, {"B?->$", {{1, {0}}}}}) {
+        INFO(query);
+        options.repetitions = values;
+        try { PGInterpreterIR(query, options).interpret(); FAIL("expected an unsatisfiable boundary"); }
+        catch (const std::invalid_argument& error) {
+            REQUIRE(std::string(error.what()).rfind("Unsatisfiable boundary", 0) == 0);
+        }
+    }
+    // Generated boundary graphs match their pattern with every generated node.
+    for (const std::string query : {"A->B?->$", "$<-B<-A", "A#->$;B->A#"}) {
+        INFO(query);
+        options.repetitions = query == "A->B?->$" ? std::map<std::size_t, std::vector<std::size_t>>{{1, {0}}}
+                                                  : std::map<std::size_t, std::vector<std::size_t>>{};
+        auto graph = PGInterpreterIR(query, options).interpret();
+        auto view = std::make_shared<BasicGraphAdapter>(*graph);
+        NodePredicates predicates;
+        for (const auto& node : graph->getNodes()) {
+            const auto type = node->getType();
+            predicates[type] = [view, type](NodeId id) { return view->node(id)->getType() == type; };
+        }
+        auto pattern = PGInterpreterTG(query).interpret();
+        const std::size_t count = graph->getNodes().size();
+        auto matched = [&] {
+            std::size_t tuples = 1;
+            for (std::size_t i = 0; i < pattern->getNbStart(); ++i) tuples *= count;
+            for (std::size_t tuple = 0; tuple < tuples; ++tuple) {
+                std::vector<std::optional<NodeId>> starts;
+                for (std::size_t i = 0, rest = tuple; i < pattern->getNbStart(); ++i, rest /= count)
+                    starts.push_back(rest % count);
+                const auto result = pattern->test(view, starts, predicates);
+                for (const auto& match : result->getMatches())
+                    if (match->getAll().size() == count) return true;
+            }
+            return false;
+        };
+        REQUIRE(matched());
+    }
+}

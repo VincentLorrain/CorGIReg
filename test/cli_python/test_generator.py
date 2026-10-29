@@ -82,7 +82,7 @@ class GeneratorTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             output = Path(folder) / "keep.json"
             output.write_text("keep", encoding="utf-8")
-            for args in [("-r", "A+"), ("-r", "A-0->B"), ("-r", "A", "--seed", "-1"),
+            for args in [("-r", "A+"), ("-r", "A-0->B"), ("-r", "A", "--seed", "-1"), ("-r", "A#->$;A#->B"),
                          ("-r", "A", "-v", "missing.values")]:
                 result = self.generate(*args, "-o", output)
                 self.assertEqual(result.returncode, 2, result.stderr)
