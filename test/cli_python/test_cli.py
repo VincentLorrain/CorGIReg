@@ -129,22 +129,30 @@ class CliTests(unittest.TestCase):
         self.assertEqual(full["walks"][0]["quantifiers"][0]["count"], 2)
 
     def test_bundled_node_library_maps_each_format_without_false_positives(self):
-        from corgireg_cli.node_library import load_definitions, resolve_definitions
-        definitions = load_definitions([ROOT / "examples/library/nodes"])
+        from corgireg_cli.cli import find_engine
+        from corgireg_cli.graph import encode_request
+        from corgireg_cli.node_library import library_arguments, load_definitions
+        library = [ROOT / "examples/library/nodes"]
+        definitions = load_definitions(library)
         expected = {"conv": ("Conv", "convolution"), "negate": ("Neg", "negate"),
                     "abs": ("Abs", "abs"), "add": ("Add", "add"),
                     "multiply": ("Mul", "multiply"), "subtract": ("Sub", "subtract"),
                     "divide": ("Div", "divide"), "exponential": ("Exp", "exponential"),
                     "log": ("Log", "log"), "sqrt": ("Sqrt", "sqrt"), "tanh": ("Tanh", "tanh")}
         self.assertEqual(set(definitions), set(expected))
+        self.assertEqual(definitions["conv"]["source"], str((library[0] / "conv.json").resolve()))
         for name, (onnx, hlo) in expected.items():
             for format_name, op in [("onnx", onnx), ("stablehlo", "stablehlo." + hlo), ("json", onnx)]:
                 with self.subTest(name=name, format=format_name):
                     graph = validate_graph({"nodes": [{"id": 42, "op": op},
                                                        {"id": 9, "op": "Unrelated"}], "edges": []})
-                    memberships, _ = resolve_definitions(definitions, graph, format_name)
-                    self.assertEqual(memberships[name], [42])
-                    self.assertTrue(all(ids == [] for key, ids in memberships.items() if key != name))
+                    process = subprocess.run([str(find_engine()), *library_arguments(library, format_name)],
+                                             input=encode_request(graph, name, 100, {}, {}),
+                                             capture_output=True, text=True, encoding="utf-8", timeout=20)
+                    self.assertEqual(process.returncode, 0, process.stderr)
+                    report = json.loads(process.stdout)["node_definitions"]
+                    self.assertEqual(report[name]["node_ids"], [42])
+                    self.assertTrue(all(value["node_ids"] == [] for key, value in report.items() if key != name))
 
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory(prefix="corgireg-test-", dir=ROOT / "build")

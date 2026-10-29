@@ -8,7 +8,7 @@ import sys
 import tempfile
 
 from .graph import encode_request, load_json
-from .node_library import load_definitions, resolve_definitions
+from .node_library import library_arguments
 
 
 def positive_int(value):
@@ -80,18 +80,21 @@ def write_report(path, report):
             temp.unlink()
 
 
+def check_output(path, sources):
+    if path == "-":
+        return
+    destination = Path(path)
+    for source in sources:
+        if source is not None and (destination.resolve() == source.resolve() or
+                                  (destination.exists() and source.exists() and destination.samefile(source))):
+            raise ValueError("Output must not overwrite an input file")
+
+
 def run(args):
     query = args.regex if args.regex is not None else args.regex_file.read_text(encoding="utf-8-sig")
     if not query.strip():
         raise ValueError("The regex must not be empty")
-    definitions = load_definitions(args.node_library)
-    if args.output != "-":
-        destination = Path(args.output)
-        sources = [args.input, args.regex_file, *(Path(value["source"]) for value in definitions.values())]
-        for source in sources:
-            if source is not None and (destination.resolve() == source.resolve() or
-                                      (destination.exists() and source.exists() and destination.samefile(source))):
-                raise ValueError("Output must not overwrite an input file")
+    check_output(args.output, [args.input, args.regex_file])
     format_name = args.format or {".json": "json", ".onnx": "onnx", ".mlir": "stablehlo",
                                  ".stablehlo": "stablehlo"}.get(args.input.suffix.lower())
     if args.function and format_name != "stablehlo":
@@ -106,12 +109,15 @@ def run(args):
         graph = load_stablehlo(args.input, args.function)
     else:
         raise ValueError("Unknown input format; specify --format")
-    memberships, definition_report = resolve_definitions(definitions, graph, format_name)
-    request = encode_request(graph, query, args.max_starts, memberships if args.node_library else None,
-                             definition_report if args.node_library else None)
+    # The native engine loads, validates and resolves node definitions from the
+    # node documents of protocol version 3 (empty definition section).
+    library = {} if args.node_library else None
+    request = encode_request(graph, query, args.max_starts, library, library)
     command = [str(find_engine(args.engine))]
     if args.jobs != 1:
         command.extend(["--jobs", str(args.jobs)])
+    if args.node_library:
+        command.extend(library_arguments(args.node_library, format_name))
     process = subprocess.run(command, input=request,
                              text=True, encoding="utf-8", capture_output=True, timeout=args.timeout, check=False)
     if process.returncode:
@@ -120,9 +126,8 @@ def run(args):
     result.update(schema_version=1, query=query, source=str(args.input.resolve()), format=format_name,
                   graph=graph)
     if args.node_library:
-        for name, ids in result.pop("definition_nodes").items():
-            definition_report[name]["node_ids"] = ids
-        result["node_definitions"] = definition_report
+        result["node_definitions"] = result.pop("node_definitions")  # Keep the report's field order.
+        check_output(args.output, [Path(value["source"]) for value in result["node_definitions"].values()])
     write_report(args.output, result)
     return 0
 
