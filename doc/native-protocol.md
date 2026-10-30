@@ -15,7 +15,7 @@ must then be version 3 (or 6) with a definition count of 0: the worker resolves
 definitions from the node documents, and its reply contains the public
 `node_definitions` object instead of `definition_nodes`. This is what the public
 CLI sends. `--list-definitions` validates the libraries, prints them as JSON
-(name to `schema_version`, `name`, `description`, `formats`, `source`) and exits
+(name to `schema_version`, `name`, `description`, `formats`, `openmath`, `source`) and exits
 without reading stdin.
 
 Whitespace separates tokens. Text tokens are hexadecimal UTF-8 bytes; `-`

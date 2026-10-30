@@ -82,14 +82,15 @@ Use `index` for textual identity and `parent` for invocation nesting; see the
 ## Node-definition manifest
 
 Each `node_definitions[name]` object records `description` (string), `source`
-(absolute definition-file path), `format` (selected input format), `rule`
+(absolute definition-file path), `openmath` (the definition's `{cd, name, cdbase?}`
+OpenMath symbol, or null), `format` (selected input format), `rule`
 (selected `{op_types, where?}` object), and `node_ids` (filtered source IDs).
 These IDs describe all nodes satisfying the definition, not only captured ones.
 For an unused definition lacking a mapping for this format, `rule` and
 `node_ids` are null. An available definition with no accepted nodes has `[]`.
 A referenced definition with no format mapping is an error.
 
-Definition schema versions 1/2 and internal wire versions 1/2/3 are independent
+Definition schema versions 1/2/3 and internal wire versions 1/2/3 are independent
 of report schema version 1. See [node libraries](node-library.md) and the
 [native protocol](native-protocol.md).
 

@@ -1,7 +1,8 @@
 {
-  "schema_version": 1,
+  "schema_version": 3,
   "name": "abs",
   "description": "Elementwise absolute value.",
+  "openmath": {"cd": "arith1", "name": "abs"},
   "formats": {
     "onnx": {"op_types": ["Abs"]},
     "stablehlo": {"op_types": ["stablehlo.abs"]},

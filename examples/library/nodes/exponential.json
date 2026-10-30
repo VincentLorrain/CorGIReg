@@ -1,7 +1,8 @@
 {
-  "schema_version": 1,
+  "schema_version": 3,
   "name": "exponential",
   "description": "Elementwise exponential operation; attributes and numerical semantics are not constrained.",
+  "openmath": {"cd": "transc1", "name": "exp"},
   "formats": {
     "onnx": {
       "op_types": [

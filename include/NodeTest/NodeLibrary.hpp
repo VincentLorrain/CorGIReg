@@ -7,7 +7,17 @@
 
 namespace CorGIReg {
 
-// One semantic predicate from a node-definition JSON file (schema 1 or 2).
+// Format-independent meaning of a definition: an OpenMath symbol, identified by
+// its content dictionary and name (arith1/plus). cdbase is empty for the
+// standard OpenMath CD base.
+struct OpenMathSymbol {
+    std::string cd, name, cdbase;
+    bool operator==(const OpenMathSymbol& other) const {
+        return cd == other.cd && name == other.name && cdbase == other.cdbase;
+    }
+};
+
+// One semantic predicate from a node-definition JSON file (schema 1, 2 or 3).
 struct NodeDefinition {
     std::uint64_t schemaVersion = 1;
     std::string name, description;
@@ -15,6 +25,8 @@ struct NodeDefinition {
     // Format name -> original rule object: {"op_types": [...]} plus an optional
     // schema 2 "where" NodeTest rule.
     std::map<std::string, NodeValue> formats;
+    // Schema 3 only; absent when no OpenMath symbol states the exact meaning.
+    std::optional<OpenMathSymbol> openmath;
 
     // Validates a parsed document. Errors are prefixed with source.
     static NodeDefinition fromDocument(const NodeValue& document, std::string source);
@@ -22,6 +34,8 @@ struct NodeDefinition {
     const NodeValue* rule(const std::string& format) const;
     // Exact original operation names accepted for the format; throws when unmapped.
     std::vector<std::string> operations(const std::string& format) const;
+    // {"cd", "name", "cdbase"?} as written in reports, or null without a symbol.
+    NodeValue openMathDocument() const;
 };
 
 // Per definition: matching source IDs, or nullopt when the selected format is unmapped.

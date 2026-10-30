@@ -294,6 +294,7 @@ void matchRequest(std::istream& input, std::ostream& output, std::size_t jobs,
             jsonString(output, name);
             output << ":{\"description\":"; jsonString(output, definition.description);
             output << ",\"source\":"; jsonString(output, definition.source);
+            output << ",\"openmath\":"; writeJson(output, definition.openMathDocument());
             output << ",\"format\":"; jsonString(output, format);
             output << ",\"rule\":";
             if (const auto* rule = definition.rule(format)) writeJson(output, *rule); else output << "null";
@@ -324,7 +325,7 @@ void writeNodeLibrary(std::ostream& output, const NodeLibrary& library) {
         definitions.emplace(name, NodeValue::Object{
             {"schema_version", NodeValue(definition.schemaVersion)}, {"name", name},
             {"description", definition.description}, {"formats", std::move(formats)},
-            {"source", definition.source}});
+            {"openmath", definition.openMathDocument()}, {"source", definition.source}});
     }
     writeJson(output, NodeValue(std::move(definitions)));
     output << '\n';

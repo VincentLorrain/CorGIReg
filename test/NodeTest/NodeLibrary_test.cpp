@@ -3,8 +3,10 @@
 #include "CompileTool/CompileTransitionGraph/PGInterpreterTG.hpp"
 #include "GraphAdapters/ImportedGraph.hpp"
 #include "NodeTest/NodeDictionary.hpp"
+#include "NodeTest/NodeValueJson.hpp"
 #include <fstream>
 #include <random>
+#include <sstream>
 
 using namespace CorGIReg;
 namespace {
@@ -28,6 +30,15 @@ struct Folder {
 };
 std::string definition(const std::string& name, const std::string& formats = R"({"json": {"op_types": ["A"]}})") {
     return R"({"schema_version": 1, "name": ")" + name + R"(", "formats": )" + formats + "}";
+}
+std::string json(const NodeValue& value) {
+    std::ostringstream text;
+    writeJson(text, value);
+    return text.str();
+}
+std::string openMath(const std::string& version, const std::string& symbol) {
+    return R"({"schema_version": )" + version + R"(, "name": "x", "openmath": )" + symbol +
+           R"(, "formats": {"json": {"op_types": ["A"]}}})";
 }
 std::string error(const std::function<void()>& action) {
     try { action(); }
@@ -60,6 +71,46 @@ TEST_CASE("Node library loads the bundled definitions for every format", "[NodeT
             }
         }
     }
+}
+
+TEST_CASE("Bundled definitions state their exact OpenMath symbol", "[NodeTest][library][openmath]") {
+    const auto library = NodeLibrary::load({examples / "nodes"});
+    const std::map<std::string, std::optional<OpenMathSymbol>> expected{
+        {"abs", OpenMathSymbol{"arith1", "abs", ""}}, {"add", OpenMathSymbol{"arith1", "plus", ""}},
+        {"subtract", OpenMathSymbol{"arith1", "minus", ""}}, {"multiply", OpenMathSymbol{"arith1", "times", ""}},
+        {"divide", OpenMathSymbol{"arith1", "divide", ""}}, {"negate", OpenMathSymbol{"arith1", "unary_minus", ""}},
+        {"exponential", OpenMathSymbol{"transc1", "exp", ""}}, {"log", OpenMathSymbol{"transc1", "ln", ""}},
+        {"tanh", OpenMathSymbol{"transc1", "tanh", ""}},
+        // No exact standard symbol: arith1.root takes a degree, convolution has none.
+        {"sqrt", std::nullopt}, {"conv", std::nullopt}};
+    REQUIRE(library.definitions().size() == expected.size());
+    for (const auto& [name, symbol] : expected) {
+        INFO(name);
+        const auto* found = library.find(name);
+        REQUIRE(found);
+        REQUIRE(found->openmath == symbol);
+        REQUIRE(found->schemaVersion == (symbol ? 3u : 1u));
+    }
+}
+
+TEST_CASE("Schema 3 definitions keep conditions and an optional OpenMath symbol", "[NodeTest][library][openmath]") {
+    Folder folder;
+    const auto path = folder.write("plus.json", R"({"schema_version": 3, "name": "plus", "openmath":
+        {"cd": "arith1", "name": "plus", "cdbase": "http://www.openmath.org/cd"},
+        "formats": {"json": {"op_types": ["Add"], "where": {"path": ["name"], "regex": "keep.*"}}}})");
+    const auto bare = folder.write("bare.json", R"({"schema_version": 3, "name": "bare", "formats": {"json": {"op_types": ["Add"]}}})");
+    const auto library = NodeLibrary::load({path, bare});
+    const auto* plus = library.find("plus");
+    REQUIRE(plus->openmath == OpenMathSymbol{"arith1", "plus", "http://www.openmath.org/cd"});
+    REQUIRE(json(plus->openMathDocument()) == R"({"cd":"arith1","cdbase":"http://www.openmath.org/cd","name":"plus"})");
+    REQUIRE_FALSE(library.find("bare")->openmath);
+    REQUIRE(json(library.find("bare")->openMathDocument()) == "null");
+    // The symbol documents meaning only: membership still comes from op_types and where.
+    const std::map<NodeId, NodeValue> documents{{0, O{{"op", "Add"}, {"name", "keep_1"}}},
+                                                {1, O{{"op", "Add"}, {"name", "drop_1"}}},
+                                                {2, O{{"op", "arith1.plus"}, {"name", "keep_2"}}}};
+    REQUIRE(*library.resolve("json", documents).at("plus") == NodeIds{0});
+    REQUIRE(*library.resolve("json", documents).at("bare") == NodeIds{0, 1});
 }
 
 TEST_CASE("Node library applies conditional rules and keeps missing mappings distinct", "[NodeTest][library]") {
@@ -100,7 +151,8 @@ TEST_CASE("Node definition errors identify the file and definition", "[NodeTest]
     const std::vector<std::pair<std::string, std::string>> cases{
         {"[]", "Invalid node definition fields"},
         {R"({"schema_version": 1, "name": "x", "formats": {"json": {"op_types": ["A"]}}, "extra": 1})", "Invalid node definition fields"},
-        {R"({"schema_version": 3, "name": "x", "formats": {"json": {"op_types": ["A"]}}})", "Unsupported node definition schema"},
+        {R"({"schema_version": 4, "name": "x", "formats": {"json": {"op_types": ["A"]}}})", "Unsupported node definition schema"},
+        {R"({"schema_version": 0, "name": "x", "formats": {"json": {"op_types": ["A"]}}})", "Unsupported node definition schema"},
         {R"({"schema_version": 1.0, "name": "x", "formats": {"json": {"op_types": ["A"]}}})", "Unsupported node definition schema"},
         {R"({"schema_version": true, "name": "x", "formats": {"json": {"op_types": ["A"]}}})", "Unsupported node definition schema"},
         {definition("a-b"), "Invalid predicate name"},
@@ -113,6 +165,18 @@ TEST_CASE("Node definition errors identify the file and definition", "[NodeTest]
         {R"({"schema_version": 2, "name": "x", "formats": {"json": {"op_types": ["A"], "where": []}}})", "where must be a rule object: x/json"},
         {R"({"schema_version": 2, "name": "x", "formats": {"json": {"op_types": ["A"], "other": 1}}})", "Only op_types and where rules are supported for x/json"},
         {"{\"name\": \"x\",}", "JSON line 1, column 14"},
+        {openMath("2", R"({"cd": "arith1", "name": "plus"})"), "openmath requires schema_version 3 for x"},
+        {openMath("1", R"({"cd": "arith1", "name": "plus"})"), "openmath requires schema_version 3 for x"},
+        {openMath("3", R"("arith1.plus")"), "openmath must be an object for x"},
+        {openMath("3", R"({"name": "plus"})"), "openmath cd must match"},
+        {openMath("3", R"({"cd": "arith1"})"), "openmath name must match"},
+        {openMath("3", R"({"cd": "1arith", "name": "plus"})"), "openmath cd must match"},
+        {openMath("3", R"({"cd": "arith1", "name": "_plus"})"), "openmath name must match"},
+        {openMath("3", R"({"cd": "arith1", "name": "plus-1"})"), "openmath name must match"},
+        {openMath("3", R"({"cd": "arith1", "name": 3})"), "openmath name must match"},
+        {openMath("3", R"({"cd": "arith1", "name": "plus", "cdbase": ""})"), "openmath cdbase must be a nonempty string"},
+        {openMath("3", R"({"cd": "arith1", "name": "plus", "cdbase": 1})"), "openmath cdbase must be a nonempty string"},
+        {openMath("3", R"({"cd": "arith1", "name": "plus", "role": "application"})"), "Only cd, name and cdbase are supported in openmath"},
     };
     for (const auto& [text, message] : cases) {
         INFO(text);

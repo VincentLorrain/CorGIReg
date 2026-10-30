@@ -107,6 +107,8 @@ TEST_CASE("Native node libraries resolve request documents and report definition
     REQUIRE(text.find("\"conv\":{\"description\":") != std::string::npos);
     REQUIRE(text.find("\"format\":\"onnx\",\"rule\":{\"op_types\":[\"Conv\"]},\"node_ids\":[0]}") != std::string::npos);
     REQUIRE(text.find("\"negate\":{") != std::string::npos);
+    REQUIRE(text.find("\"openmath\":{\"cd\":\"arith1\",\"name\":\"unary_minus\"},\"format\":\"onnx\",\"rule\":{\"op_types\":[\"Neg\"]}") != std::string::npos);
+    REQUIRE(text.find("\"openmath\":null,\"format\":\"onnx\",\"rule\":{\"op_types\":[\"Conv\"]}") != std::string::npos);
 
     std::istringstream unmapped("CORGiReg3" + graph + "636f6e762d3e6e6567617465 100");
     std::ostringstream ignored;
@@ -122,4 +124,8 @@ TEST_CASE("Native node libraries resolve request documents and report definition
     writeNodeLibrary(listing, conditional);
     REQUIRE(listing.str().rfind("{\"conv3x3\":{\"description\":", 0) == 0);
     REQUIRE(listing.str().find("\"schema_version\":2") != std::string::npos);
+    REQUIRE(listing.str().find("\"openmath\":null") != std::string::npos);
+    std::ostringstream bundled;
+    writeNodeLibrary(bundled, library);
+    REQUIRE(bundled.str().find("\"openmath\":{\"cd\":\"transc1\",\"name\":\"ln\"}") != std::string::npos);
 }

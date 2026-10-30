@@ -1,7 +1,8 @@
 {
-  "schema_version": 1,
+  "schema_version": 3,
   "name": "subtract",
   "description": "Elementwise subtract operation; attributes and numerical semantics are not constrained.",
+  "openmath": {"cd": "arith1", "name": "minus"},
   "formats": {
     "onnx": {
       "op_types": [

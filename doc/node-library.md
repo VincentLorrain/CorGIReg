@@ -44,7 +44,8 @@ normalized into raw predicate keys. ONNX custom-domain operations use
 optional; the other fields are required. Unknown fields and rule kinds are
 rejected. Version 1 supports JSON and operation types only. Version 2 adds an
 optional `where` condition per format, evaluated by native C++ `NodeTest`.
-Neither version supports YAML or composite subgraph definitions.
+Version 3 adds an optional [OpenMath symbol](#openmath-symbols). No version
+supports YAML or composite subgraph definitions.
 
 For example, a version 2 definition selects a declared 3-by-3 kernel:
 
@@ -75,6 +76,44 @@ selected format's rules before graph matching. Python only imports the source
 graph and transports its node documents. Invalid rules report the definition file, predicate and rule
 path, including when no source operation is a candidate. Format rules for other
 input formats are not compiled during this invocation.
+
+## OpenMath symbols
+
+Format mappings say how each IR spells an operation. A schema 3 definition can
+also state what the operation *means*, independently of any IR, with an
+[OpenMath](https://openmath.org/) symbol: a content dictionary (CD) and a symbol
+name, such as `arith1.plus` or `transc1.ln`.
+
+```json
+{
+  "schema_version": 3,
+  "name": "add",
+  "openmath": {"cd": "arith1", "name": "plus"},
+  "formats": {
+    "onnx": {"op_types": ["Add"]},
+    "stablehlo": {"op_types": ["stablehlo.add"]}
+  }
+}
+```
+
+| Field | Meaning |
+| --- | --- |
+| `cd` | Content dictionary, `[A-Za-z][A-Za-z0-9_]*` (`arith1`, `transc1`, `relation1`). |
+| `name` | Symbol in that CD, `[A-Za-z][A-Za-z0-9_]*` (`plus`, `unary_minus`). |
+| `cdbase` | Optional nonempty URI of a non-standard CD collection; omit it for the official CDs. |
+
+Other fields are rejected, and `openmath` is rejected before schema 3. The
+names accept the `[A-Za-z][A-Za-z0-9_]*` subset of OpenMath names.
+
+The symbol documents meaning only. It does not change matching: membership still
+comes from `op_types` and `where`, and a source operation literally named
+`arith1.plus` is not selected by it. It does not prove numerical equivalence
+either: OpenMath symbols are scalar or generic, while IR operations add dtypes,
+broadcasting and rounding. Give a symbol only when the meaning is exact; omit it
+otherwise. For example, `arith1.root` takes the degree as a second argument, so
+unary `sqrt` has none, and convolution has no standard symbol. The symbol is
+listed by `--list-definitions` and reported in `node_definitions` (null when
+absent).
 
 A complete example and verification script are available in
 [conditional matching examples](../examples/matches/README.md#conditional-nodes-with-nodetest).
@@ -167,6 +206,6 @@ There is no additional named-pattern registry. The example library includes
 The result retains the complete query, source graph metadata, captured IDs,
 names and quantifier traces. Captured predicate names are the names used in the
 pattern. The additional `node_definitions` object records each definition's
-description, absolute source file, selected format, rule and matching node IDs
+description, absolute source file, OpenMath symbol, selected format, rule and matching node IDs
 (`null` for a missing format mapping). This identifies the vocabulary used for
 the result. Output cannot overwrite a loaded definition file.

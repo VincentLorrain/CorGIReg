@@ -385,16 +385,19 @@ class CliTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         report = json.loads(result.stdout)["node_definitions"]
         self.assertEqual(report["conv"], {"description": "Portable predicate", "source": str(path.resolve()),
-                                          "format": "json", "rule": {"op_types": ["A", "B"]},
+                                          "openmath": None, "format": "json", "rule": {"op_types": ["A", "B"]},
                                           "node_ids": [0, 9, 42]})
         self.assertEqual(report["other"], {"description": "Portable predicate", "source": str(missing.resolve()),
-                                           "format": "json", "rule": None, "node_ids": None})
+                                           "openmath": None, "format": "json", "rule": None, "node_ids": None})
 
     def test_invalid_definition_documents_are_rejected(self):
         output = self.folder / "keep.json"
         output.write_text("keep", encoding="utf-8")
         base = {"schema_version": 1, "name": "conv", "formats": {"json": {"op_types": ["A"]}}}
-        cases = [({**base, "schema_version": 3}, "Unsupported node definition schema"),
+        symbol = {"cd": "arith1", "name": "plus"}
+        cases = [({**base, "schema_version": 4}, "Unsupported node definition schema"),
+                 ({**base, "openmath": symbol}, "openmath requires schema_version 3"),
+                 ({**base, "schema_version": 3, "openmath": {**symbol, "cd": "arith 1"}}, "openmath cd must match"),
                  ({**base, "schema_version": True}, "Unsupported node definition schema"),
                  ({**base, "schema_version": 1.0}, "Unsupported node definition schema"),
                  ({**base, "name": "a-b"}, "Invalid predicate name"),

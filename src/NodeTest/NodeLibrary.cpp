@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cctype>
 #include <fstream>
+#include <functional>
 #include <sstream>
 
 namespace CorGIReg {
@@ -12,6 +13,33 @@ template<class T> const T* as(const NodeValue& value) { return std::get_if<T>(&v
 bool predicateName(const std::string& name) {
     return !name.empty() && name.find_first_not_of(
         "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_0123456789") == std::string::npos;
+}
+
+// OpenMath CD and symbol names: [A-Za-z][A-Za-z0-9_]*.
+bool openMathName(const std::string& name) {
+    return predicateName(name) && std::isalpha(static_cast<unsigned char>(name.front()));
+}
+
+OpenMathSymbol openMathSymbol(const NodeValue& value, const std::function<void(const std::string&)>& invalid) {
+    const auto* fields = as<NodeValue::Object>(value);
+    if (!fields) invalid("openmath must be an object");
+    for (const auto& entry : *fields)
+        if (entry.first != "cd" && entry.first != "name" && entry.first != "cdbase")
+            invalid("Only cd, name and cdbase are supported in openmath");
+    auto text = [&](const char* key) -> const std::string* {
+        auto found = fields->find(key);
+        return found == fields->end() ? nullptr : as<std::string>(found->second);
+    };
+    OpenMathSymbol symbol;
+    if (!text("cd") || !openMathName(*text("cd"))) invalid("openmath cd must match [A-Za-z][A-Za-z0-9_]*");
+    if (!text("name") || !openMathName(*text("name"))) invalid("openmath name must match [A-Za-z][A-Za-z0-9_]*");
+    symbol.cd = *text("cd");
+    symbol.name = *text("name");
+    if (fields->count("cdbase")) {
+        if (!text("cdbase") || text("cdbase")->empty()) invalid("openmath cdbase must be a nonempty string");
+        symbol.cdbase = *text("cdbase");
+    }
+    return symbol;
 }
 }
 
@@ -23,14 +51,14 @@ NodeDefinition NodeDefinition::fromDocument(const NodeValue& document, std::stri
     if (!object) invalid("Invalid node definition fields");
     for (const auto& entry : *object)
         if (entry.first != "schema_version" && entry.first != "name" &&
-            entry.first != "description" && entry.first != "formats")
+            entry.first != "description" && entry.first != "formats" && entry.first != "openmath")
             invalid("Invalid node definition fields");
     auto field = [&](const char* key) -> const NodeValue* {
         auto found = object->find(key);
         return found == object->end() ? nullptr : &found->second;
     };
     const auto* version = field("schema_version") ? as<std::uint64_t>(*field("schema_version")) : nullptr;
-    if (!version || (*version != 1 && *version != 2)) invalid("Unsupported node definition schema");
+    if (!version || *version < 1 || *version > 3) invalid("Unsupported node definition schema");
     result.schemaVersion = *version;
     const auto* name = field("name") ? as<std::string>(*field("name")) : nullptr;
     if (!name || !predicateName(*name)) invalid("Invalid predicate name");
@@ -39,13 +67,19 @@ NodeDefinition NodeDefinition::fromDocument(const NodeValue& document, std::stri
         if (!as<std::string>(*description)) invalid("Invalid description for " + result.name);
         result.description = *as<std::string>(*description);
     }
+    if (const auto* openmath = field("openmath")) {
+        if (result.schemaVersion < 3) invalid("openmath requires schema_version 3 for " + result.name);
+        result.openmath = openMathSymbol(*openmath, [&](const std::string& message) {
+            invalid(message + " for " + result.name);
+        });
+    }
     const auto* formats = field("formats") ? as<NodeValue::Object>(*field("formats")) : nullptr;
     if (!formats || formats->empty()) invalid("Node " + result.name + " requires format mappings");
     for (const auto& [format, rule] : *formats) {
         const auto where = result.name + "/" + format;
         if (format.empty()) invalid("Invalid format name for " + result.name);
         const auto* fields = as<NodeValue::Object>(rule);
-        const bool conditional = result.schemaVersion == 2;
+        const bool conditional = result.schemaVersion >= 2;
         bool valid = fields && fields->count("op_types");
         if (fields)
             for (const auto& entry : *fields)
@@ -77,6 +111,13 @@ std::vector<std::string> NodeDefinition::operations(const std::string& format) c
     for (const auto& type : std::get<NodeValue::Array>(std::get<NodeValue::Object>(mapping->data).at("op_types").data))
         result.push_back(std::get<std::string>(type.data));
     return result;
+}
+
+NodeValue NodeDefinition::openMathDocument() const {
+    if (!openmath) return NodeValue(nullptr);
+    NodeValue::Object symbol{{"cd", openmath->cd}, {"name", openmath->name}};
+    if (!openmath->cdbase.empty()) symbol.emplace("cdbase", openmath->cdbase);
+    return NodeValue(std::move(symbol));
 }
 
 NodeDefinition NodeLibrary::loadFile(const std::filesystem::path& file) {
