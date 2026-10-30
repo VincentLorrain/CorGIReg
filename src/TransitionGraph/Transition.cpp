@@ -296,16 +296,22 @@ TransitionRef::Anchor TransitionRef::getAnchor(std::shared_ptr<State>& dest) con
         for (const auto& edge : state->getTransitions()) {
             auto transition = edge.lock();
             if (!transition) throw std::runtime_error("Expired transition while finding common anchor");
-            if (transition->isCommon()) {
+            switch (transition->getType()) {
+            case TransitionTypes::COMMON:
+            case TransitionTypes::STRICTCOMMON:
                 if (!commonIdx) commonIdx = transition->getCommonIdx();
                 if (*commonIdx == transition->getCommonIdx()) anchor.deltas.insert(delta);
                 continue;
-            }
             // Do not follow another repetition's jump when locating its body.
-            if (std::dynamic_pointer_cast<TransitionRef>(transition)) continue;
-            if (std::dynamic_pointer_cast<TransitionEmpty>(transition)) {
+            case TransitionTypes::REF:
+                continue;
+            case TransitionTypes::EMPTY:
                 pending.push_front({transition->getDestState(), delta});
                 continue;
+            case TransitionTypes::UNIQUE:
+            case TransitionTypes::NNULL:
+            case TransitionTypes::NONE:
+                break;
             }
             const int next = delta + (transition->isDirectionIsChildren() ? -1 : 1);
             if (next < -kLimit) anchor.unboundedParents = true;

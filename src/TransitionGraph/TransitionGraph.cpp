@@ -85,10 +85,15 @@ std::vector<std::vector<std::optional<NodeId>>> TGCompiled::startCandidates(
             for (const auto& edge : state->getTransitions()) {
                 auto transition = edge.lock();
                 if (!transition) throw std::runtime_error("Expired transition while planning starts");
-                if (std::dynamic_pointer_cast<TransitionEmpty>(transition)) pending.push_back(transition->getDestState());
-                else if (std::dynamic_pointer_cast<TransitionUnique>(transition) || transition->isCommon())
-                    keys.insert(transition->getTestKey());
-                else return std::nullopt;
+                switch (transition->getType()) {
+                case TransitionTypes::EMPTY: pending.push_back(transition->getDestState()); break;
+                case TransitionTypes::UNIQUE:
+                case TransitionTypes::COMMON:
+                case TransitionTypes::STRICTCOMMON: keys.insert(transition->getTestKey()); break;
+                case TransitionTypes::REF:
+                case TransitionTypes::NNULL:
+                case TransitionTypes::NONE: return std::nullopt;
+                }
             }
         }
         return keys;
@@ -362,9 +367,9 @@ std::shared_ptr<TransitionGraph> TransitionGraph::fusionG(const std::shared_ptr<
     std::vector<std::pair<std::shared_ptr<State>,std::shared_ptr<State>>> statesPairsCompat;
 
     for(auto transitionInput : transitionGraph->getTransitions()){
-        if (std::shared_ptr<TransitionCommon> targetEdge = std::dynamic_pointer_cast<TransitionCommon>(transitionInput)) {
+        if (const auto& targetEdge = transitionInput; targetEdge->isCommon()) {
             for(auto transitionSelf : getTransitions()){
-                if (std::shared_ptr<TransitionCommon> actualEdge = std::dynamic_pointer_cast<TransitionCommon>(transitionSelf)) {
+                if (const auto& actualEdge = transitionSelf; actualEdge->isCommon()) {
                     //we get 2 edges of the 2 fsm that test the same condition 
                     if( targetEdge->getTestKey() == actualEdge->getTestKey() ){
 

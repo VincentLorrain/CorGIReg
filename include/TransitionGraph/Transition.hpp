@@ -38,7 +38,8 @@ namespace CorGIReg{
         COMMON,
         STRICTCOMMON,
         UNIQUE,
-        NNULL
+        NNULL,
+        NONE /**< Reject-all transition; not built by TransitionFactory. */
     };
 
     struct TransitionResult {
@@ -103,6 +104,12 @@ namespace CorGIReg{
         */
 
         virtual const TransitionResult test(const std::shared_ptr<RunTimeContext>& context) =0;
+
+        /**
+         * @brief kind of the transition, to switch on instead of casting
+         * @details subclasses of TransitionEmpty (port and trace actions) report EMPTY
+         */
+        virtual TransitionTypes getType(void) const =0;
 
         /**
          * @brief test if the transition is a common transition
@@ -196,6 +203,7 @@ namespace CorGIReg{
         public:
         TransitionUnique(std::shared_ptr<State> source,std::shared_ptr<State> dest, const std::string odeTestKey);
         const TransitionResult test(const std::shared_ptr<RunTimeContext>& context)  override;
+        TransitionTypes getType(void) const override { return TransitionTypes::UNIQUE; }
         std::string strRep(void) const override;
     };
 
@@ -245,6 +253,9 @@ namespace CorGIReg{
 
  
         const TransitionResult test(const std::shared_ptr<RunTimeContext>& context) override;
+        TransitionTypes getType(void) const override {
+            return mFlag == CommonMode::NONE ? TransitionTypes::COMMON : TransitionTypes::STRICTCOMMON;
+        }
         bool isCommon(void) override {
             return true;
         }
@@ -286,6 +297,7 @@ namespace CorGIReg{
          */
         TransitionRef(std::shared_ptr<State> source,std::shared_ptr<State> dest);
         const TransitionResult test(const std::shared_ptr<RunTimeContext>& context) override;
+        TransitionTypes getType(void) const override { return TransitionTypes::REF; }
         std::string strRep(void) const override;
 
         private:
@@ -302,6 +314,7 @@ namespace CorGIReg{
         public:
         TransitionEmpty(std::shared_ptr<State> source,std::shared_ptr<State> dest);
         const TransitionResult test(const std::shared_ptr<RunTimeContext>& context) override;
+        TransitionTypes getType(void) const override { return TransitionTypes::EMPTY; }
         std::string strRep(void) const override;
     };
 
@@ -315,6 +328,7 @@ namespace CorGIReg{
         public:
         TransitionNone(std::shared_ptr<State> source,std::shared_ptr<State> dest);
         const TransitionResult test(const std::shared_ptr<RunTimeContext>& context) override;
+        TransitionTypes getType(void) const override { return TransitionTypes::NONE; }
         std::string strRep(void) const override;
 
     };
@@ -328,6 +342,7 @@ namespace CorGIReg{
         public:
         TransitionNull(std::shared_ptr<State> source,std::shared_ptr<State> dest);
         const TransitionResult test(const std::shared_ptr<RunTimeContext>& context) override;
+        TransitionTypes getType(void) const override { return TransitionTypes::NNULL; }
         std::string strRep(void) const override;
     };
 
