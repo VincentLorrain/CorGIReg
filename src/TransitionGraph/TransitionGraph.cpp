@@ -6,6 +6,15 @@
 
 namespace CorGIReg{
 
+namespace {
+// Start order indexes start tuples and report "starts": sets of states are
+// ordered by address, so order them by creation instead to stay reproducible.
+void sortByCreation(std::vector<std::shared_ptr<State>>& states) {
+    std::sort(states.begin(), states.end(),
+              [](const std::shared_ptr<State>& a, const std::shared_ptr<State>& b) { return a->getId() < b->getId(); });
+}
+}
+
 TGCompiled::TGCompiled(std::set<std::size_t> origins,std::set<std::shared_ptr<Transition>> transitions,CommonMode,const std::string query):mQuery(query){
 
     mAllOrigin = origins;
@@ -34,6 +43,7 @@ const std::vector<std::shared_ptr<State>> TGCompiled::getStartStates(void){
             startStates.push_back(state);
         }
     }
+    sortByCreation(startStates);
     return startStates;
 
 }
@@ -544,6 +554,7 @@ const std::vector<std::shared_ptr<State>> TransitionGraph::getStartStates(void){
             startStates.push_back(state);
         }
     }
+    sortByCreation(startStates);
     return startStates;
 
 }

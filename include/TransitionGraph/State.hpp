@@ -1,6 +1,7 @@
 
 #pragma once
 
+#include <atomic>
 #include <set>
 #include <vector>
 #include <stdexcept>
@@ -35,11 +36,12 @@ class State
 private:
 
     /**
-     * @brief use to have unique id for FSM representation 
+     * @brief use to have unique id for FSM representation
+     * @details atomic so patterns compiled on several threads never share an id
     */
-    static std::size_t sID;
+    static std::atomic<std::size_t> sID;
     /**
-     * the unique id of the state 
+     * the unique id of the state, increasing in creation order within one compilation
     */
     const std::size_t mId;
 
@@ -73,6 +75,10 @@ private:
 public:
     State(bool isAValid,bool isAStart);
     ~State() = default;
+    // A state is identified by its id and its place in the graph: a copy would
+    // duplicate the id and refer to transitions that do not point back to it.
+    State(const State&) = delete;
+    State& operator=(const State&) = delete;
 
 
     void rmTransition(std::shared_ptr<Transition>);

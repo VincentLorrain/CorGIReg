@@ -3,11 +3,11 @@
 
 namespace CorGIReg{
 
-std::size_t State::sID = 0;
+std::atomic<std::size_t> State::sID{0};
 
 
 
-State::State(bool isAValid,bool isAStart ):mId(sID++){
+State::State(bool isAValid,bool isAStart ):mId(sID.fetch_add(1)){
     mValid =isAValid;
     mStart =isAStart;
 }
