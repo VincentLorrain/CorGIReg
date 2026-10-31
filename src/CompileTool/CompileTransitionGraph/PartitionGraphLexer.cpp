@@ -3,6 +3,7 @@
 #include <cctype>
 #include <limits>
 #include "GraphAccess/Ports.hpp"
+#include "CompileTool/Common/NodePattern.hpp"
 
 using namespace CorGIReg; 
 
@@ -34,6 +35,33 @@ std::shared_ptr<ParsingToken<tGTokensTypes>> PartitionGraphLexer::getNextToken(v
     if (prefix || keyChar(current)) {
         if (prefix) ++mPosition;
         while (mPosition < mRegularExpressions.size() && keyChar(mRegularExpressions[mPosition])) ++mPosition;
+        auto afterName = mPosition;
+        while (afterName < mRegularExpressions.size() &&
+               std::isspace(static_cast<unsigned char>(mRegularExpressions[afterName]))) ++afterName;
+        auto conditionKey = afterName + 1;
+        while (conditionKey < mRegularExpressions.size() &&
+               std::isspace(static_cast<unsigned char>(mRegularExpressions[conditionKey]))) ++conditionKey;
+        while (conditionKey < mRegularExpressions.size() && keyChar(mRegularExpressions[conditionKey])) ++conditionKey;
+        while (conditionKey < mRegularExpressions.size() &&
+               std::isspace(static_cast<unsigned char>(mRegularExpressions[conditionKey]))) ++conditionKey;
+        if (afterName < mRegularExpressions.size() && mRegularExpressions[afterName] == '(' &&
+            conditionKey < mRegularExpressions.size() && mRegularExpressions[conditionKey] == '=') {
+            mPosition = afterName + 1;
+            bool quoted = false, escaped = false, closed = false;
+            for (; mPosition < mRegularExpressions.size(); ++mPosition) {
+                const char c = mRegularExpressions[mPosition];
+                if (quoted) {
+                    if (escaped) escaped = false;
+                    else if (c == '\\') escaped = true;
+                    else if (c == '"') quoted = false;
+                } else if (c == '"') quoted = true;
+                else if (c == ')') { ++mPosition; closed = true; break; }
+            }
+            if (!closed) throw badTokenError("Unclosed node condition", start);
+            // Validate values now so malformed filters cannot become group syntax.
+            try { parseNodePattern(mRegularExpressions.substr(start, mPosition - start)); }
+            catch (const std::exception& error) { throw badTokenError(error.what(), start); }
+        }
         char suffix = 0;
         if (mPosition < mRegularExpressions.size() &&
             (mRegularExpressions[mPosition] == '#' || mRegularExpressions[mPosition] == '$')) {

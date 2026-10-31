@@ -468,20 +468,11 @@ TransitionTypes type,const std::string lexeme)
         transition->updateWeak();
         return transition;
     } else if (type == TransitionTypes::UNIQUE) {
-        std::regex uniqueRegex("\\s*([A-Za-z_0-9]+)");
-        
-        std::smatch m;
-        if (std::regex_match(lexeme, m, uniqueRegex)) {
-            std::string nodeConditionKey = m[1];
-
-
-            auto transitionUnique = std::make_shared<TransitionUnique>(source, dest, nodeConditionKey);
-            transitionUnique->updateWeak();
-            return transitionUnique;
-
-        } else {
-            throw std::invalid_argument("error lexeme UNIQUE \"" + std::string(lexeme) +" eee\""); // TODO eee ?
-        }
+        const auto node = parseNodePattern(lexeme);
+        if (node.anchor != node.name) throw std::invalid_argument("Invalid unique node: " + lexeme);
+        auto transition = std::make_shared<TransitionUnique>(source, dest, node.predicate);
+        transition->updateWeak();
+        return transition;
     }else if (type == TransitionTypes::NNULL){
         if (lexeme.empty()) {
             auto transitionNull = std::make_shared<TransitionNull>(source, dest);

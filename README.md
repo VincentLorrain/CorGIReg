@@ -123,6 +123,10 @@ Optional input/output port bindings survive JSON, ONNX and StableHLO import.
 
 For reusable format-independent predicates such as `conv` across ONNX and
 StableHLO, see [node and pattern libraries](doc/node-library.md).
+Patterns also accept inline attribute equality, for example
+`conv(kernel_shape=[3,3])->Relu`. Schema 4 node definitions can map JSON
+attribute names to each IR's names through `key_matching`; unmapped keys keep
+the JSON name by default. See [inline conditions and key mappings](doc/node-library.md#inline-conditions-and-key-matching).
 Ready-to-run scripts and graph fixtures are in [matching examples](examples/matches/README.md).
 The compiler's proposed [post-AST root selection phase](doc/post-ast-root-selection.md)
 prepares traversal planning before TransitionGraph generation.

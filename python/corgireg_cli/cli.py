@@ -111,8 +111,8 @@ def run(args):
         raise ValueError("Unknown input format; specify --format")
     # The native engine loads, validates and resolves node definitions from the
     # node documents of protocol version 3 (empty definition section).
-    library = {} if args.node_library else None
-    request = encode_request(graph, query, args.max_starts, library, library)
+    # Inline conditions need source attributes even without a node library.
+    request = encode_request(graph, query, args.max_starts, {}, {})
     command = [str(find_engine(args.engine))]
     if args.jobs != 1:
         command.extend(["--jobs", str(args.jobs)])
@@ -123,6 +123,8 @@ def run(args):
     if process.returncode:
         raise ValueError(process.stderr.strip() or f"Native matching failed ({process.returncode})")
     result = json.loads(process.stdout)
+    if not args.node_library:
+        result.pop("definition_nodes", None)
     result.update(schema_version=1, query=query, source=str(args.input.resolve()), format=format_name,
                   graph=graph)
     if args.node_library:

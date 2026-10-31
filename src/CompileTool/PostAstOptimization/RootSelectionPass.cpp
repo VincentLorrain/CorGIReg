@@ -23,7 +23,7 @@ bool containsCommon(const Ast& node) {
 // An omitted suffix differs from explicit 0; numeric suffixes ignore leading zeros.
 std::pair<std::string, std::string> commonIdentity(const Ast& node) {
     const auto key = parseCommonKey(node->getValue());
-    return {key.predicate, key.suffix};
+    return {parseNodePattern(key.predicate).name, key.suffix};
 }
 
 class Builder {

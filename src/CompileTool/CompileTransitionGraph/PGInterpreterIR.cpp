@@ -108,6 +108,9 @@ class ConfiguredIRGenerator {
     void index(const IRTree& tree) {
         for (const auto& child : tree->getChilds()) index(child);
         auto type = tree->getType();
+        if ((type == tGTokensTypes::KEY || type == tGTokensTypes::CKEY || type == tGTokensTypes::SCKEY) &&
+            !parseNodePattern(tree->getValue()).conditions.empty())
+            throw std::invalid_argument("Inline node conditions are supported for matching, not graph generation");
         if (type == tGTokensTypes::QOM || type == tGTokensTypes::QZM || type == tGTokensTypes::QZO) {
             auto id = indices.size() + 1;
             indices.emplace(tree.get(), id);

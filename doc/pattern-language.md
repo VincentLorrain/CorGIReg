@@ -26,6 +26,14 @@ not a list of separately executed queries. Comments are not supported.
 
 Predicate keys contain ASCII letters, digits and underscores. They resolve to
 raw operation predicates or [node-library definitions](node-library.md).
+Optional equality conditions follow the predicate, for example
+`conv(kernel_shape=[3,3],group=1)->Relu`. Values use JSON syntax, with quoted
+strings and explicit arrays. Conditions precede anchor markers and quantifiers:
+`conv(group=1)#`, `$conv(group=1)$`, `conv(group=1)+`.
+Conditions do not change a common node's identity; `conv(group=1)#` and
+`conv(strides=[1,1])#` bind the same node and both conditions must hold.
+Format-specific key aliases are declared in schema 4 node definitions under
+[`key_matching`](node-library.md#inline-conditions-and-key-matching).
 `B#1`, `$B#1`, `B$1` and `$B$1` share identity, while retaining their respective
 constraints. `$B#1` is the numbered input-only form; `$B1` names predicate B1.
 Numeric suffixes are interpreted numerically (`#01` and `#1`); an omitted suffix
