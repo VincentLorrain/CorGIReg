@@ -64,6 +64,10 @@ Strictness refers to the source graph, independently of traversal direction,
 and applies even to a single neighbor. The standalone boundary in `A->$` is a
 separate `NNULL` transition. See [directional strict nodes](directional-strict-nodes.md).
 
+An alternation compiles to an entry and an exit state joined to each
+alternative by empty transitions that also pass at graph end. Alternatives
+share their path origin: one alternative is taken per walk.
+
 ## Runtime responsibilities
 
 `TransitionGraph` contains states and transitions; compilation prepares start

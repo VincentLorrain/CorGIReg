@@ -16,6 +16,7 @@ not a list of separately executed queries. Comments are not supported.
 | `A*` | Zero or more occurrences. |
 | `A?` | Zero or one occurrence. |
 | `(A->B)+` | Repeat the entire A-B sequence. Parenthesized groups require a postfix quantifier. |
+| `(A->B\|C)` | [Alternation](#alternation): either the A-B sequence or C. The quantifier is optional. |
 | `B#` | Common node: occurrences of this anchor must identify the same source node. Allows branching. |
 | `B#1`, `B#2` | Separate common identities for the same predicate B. |
 | `$B` | Common node whose input neighbors must all be covered. Outputs remain free. |
@@ -37,8 +38,8 @@ therefore needs `A->B#;B#->C` to share B. Each combination of path walks is
 reported once. Plain repeated B occurrences do not establish shared
 identity. Suffix identities are normalized digit strings, without integer conversion.
 
-There is no alternation `|`, wildcard `.`, character class, `{m,n}`, lazy or
-possessive quantifier. Attribute regexes belong to [NodeTest rules](node-rules.md),
+There is no wildcard `.`, character class, `{m,n}`, lazy or possessive
+quantifier. Attribute regexes belong to [NodeTest rules](node-rules.md),
 whose ECMAScript string syntax is separate from this graph language.
 `(A->B)`, `B#+` and `$B+` are invalid; use `(B#)+` or `($B)+`.
 Markers must touch their predicate: `$ B` is not `$B`.
@@ -47,6 +48,40 @@ These strict markers require neighbor coverage, not a particular degree or
 neighbor type. Constraints apply even at degree one and do not change meaning
 under `<-`. The standalone `$` still asserts a boundary. See
 [directional semantics and migration from V0](directional-strict-nodes.md).
+
+## Alternation
+
+`(X|Y|...)` matches exactly one of its alternatives, each a complete sequence:
+`X->(A->B|C)->Y` matches X-A-B-Y and X-C-Y, but not X-A-Y. Alternatives are
+tried independently; every successful one is reported, so overlapping
+alternatives can give several matches. The group behaves as a single unit of
+its path:
+
+| Pattern | Meaning |
+| --- | --- |
+| `(Relu\|Tanh)->Add` | Relu or Tanh, then Add. |
+| `(Add\|Sub)+` | One or more operations, each Add or Sub: the choice is made again at every iteration. |
+| `X->(A->B\|C)?->Y` | Optional group: X-Y also matches. |
+| `Y<-(A\|C)<-X` | Reverse spelling of `X->(A\|C)->Y`. |
+| `((A\|B)->C\|D)` | Alternatives can contain nested groups. |
+
+A group without alternatives still requires a quantifier. A choice between
+single operation types can also be expressed by a [node definition](node-library.md)
+listing several `op_types`.
+
+The first version refuses, with an "Illegal alternation" error, constructs whose
+meaning depends on which alternative is taken. It also refuses `|` outside
+parentheses and empty alternatives.
+
+| Refused | Reason | Accepted alternative |
+| --- | --- | --- |
+| `A\|B`, `A->B\|C` | Alternation requires parentheses. | `(A\|B)`, `(A->B\|C)` |
+| `(A#\|B)`, `($A\|B)`, `((A#)+\|B)` | An anchor would be bound in only one alternative. | `X#->(A\|B)` with the anchor outside |
+| `(A->$\|B)` | A boundary would end only one alternative. | `(A\|B)->$` |
+| `(A\|)`, `(\|A)`, `()+` | Empty group or alternative. | `(A\|B?)`, `(A)?` |
+
+Boundary rules see an alternation as nullable when one of its alternatives is:
+`(A|B?)->$` is refused because no operation is guaranteed before `$`.
 
 ## Boundary rules
 

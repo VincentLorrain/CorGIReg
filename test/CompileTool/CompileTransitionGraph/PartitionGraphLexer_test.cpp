@@ -35,6 +35,7 @@ TEST_CASE("PartitionGraphLexer") {
             {tGTokensTypes::QZO,      []() -> std::pair<std::string, std::string> { return {"? ", ""}; }},
             {tGTokensTypes::LPAREN,   []() -> std::pair<std::string, std::string> { return {"( ", ""}; }},
             {tGTokensTypes::RPAREN,   []() -> std::pair<std::string, std::string> { return {") ", ""}; }},
+            {tGTokensTypes::ALT,      []() -> std::pair<std::string, std::string> { return {"| ", ""}; }},
 
             {tGTokensTypes::KEY,   [&]() -> std::pair<std::string, std::string> {
                 std::size_t keyLen = len_dist(gen);

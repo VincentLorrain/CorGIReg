@@ -24,6 +24,7 @@ namespace CorGIReg {
         LPAREN, /**< \( */
         RPAREN, /**< \) */
         END, /**< $*/
+        ALT, /**< | between the sequences of a parenthesized group */
     };
 
 }

@@ -79,8 +79,8 @@ Examples:
 
 ## Quantifiers and conservative limits
 
-A quantified expression is kept as a single opaque unit, with the complete
-original subtree. It is never selected as a root, including `+`: selecting a
+A quantified expression, like an unquantified [alternation](pattern-language.md#alternation)
+group, is kept as a single opaque unit, with the complete original subtree. It is never selected as a root, including `+`: selecting a
 particular occurrence inside a repeated region needs a later analysis. `$` is
 an end assertion rather than a source node, so it is also ineligible.
 

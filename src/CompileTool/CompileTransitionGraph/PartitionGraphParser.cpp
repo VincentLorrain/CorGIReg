@@ -40,6 +40,11 @@ bool nullable(const Ast& node) {
     if (type == T::KEY || anchor(type)) return false;
     if (type == T::QZM || type == T::QZO || type == T::END) return true;
     if (type == T::QOM) return nullable(body(node));
+    if (type == T::LPAREN) return nullable(node->getChilds()[0]);
+    if (type == T::ALT) {
+        for (const auto& branch : node->getChilds()) if (nullable(branch)) return true;
+        return false;
+    }
     std::vector<Ast> list;
     units(node, list);
     for (const auto& unit : list) if (!nullable(unit)) return false;
@@ -114,12 +119,25 @@ public:
                 illegal("anchor " + name + " ends at '$' but has a mandatory successor, as in A#->$;A#->B");
     }
 };
+
+// First version of alternation: alternatives hold plain keys, quantifiers and
+// groups only. An anchor bound in one branch only, or a boundary ending one
+// branch, needs semantics that the automaton does not define yet.
+void checkAlternatives(const Ast& node, bool inside = false) {
+    const auto type = node->getType();
+    if (inside && anchor(type))
+        throw std::invalid_argument("Illegal alternation: anchors are not supported inside alternatives, as in (A#|B)");
+    if (inside && type == T::END)
+        throw std::invalid_argument("Illegal alternation: '$' is not supported inside alternatives, as in (A->$|B)");
+    for (const auto& child : node->getChilds()) checkAlternatives(child, inside || type == T::ALT);
+}
 }
 
 std::shared_ptr<AstNode<tGTokensTypes>> PartitionGraphParser::parse(void){
 
     std::shared_ptr<AstNode<tGTokensTypes>> astTree = constructAstAllExpr();
     rstParser();
+    checkAlternatives(astTree);
     BoundaryCheck check;
     check.paths(astTree);
     check.finish();
@@ -295,6 +313,7 @@ std::shared_ptr<AstNode<tGTokensTypes>> PartitionGraphParser::constructAstRseq(v
 
 /*
 LPAREN seq RPAREN (QOM | QZM | QZO)
+LPAREN seq (ALT seq)+ RPAREN (QOM | QZM | QZO)?
 */
 std::shared_ptr<AstNode<tGTokensTypes>> PartitionGraphParser::constructAstDomain(void)
 {
@@ -305,8 +324,26 @@ std::shared_ptr<AstNode<tGTokensTypes>> PartitionGraphParser::constructAstDomain
 
         token = mCurrentToken->copy();
         ackToken(tGTokensTypes::LPAREN);
+        auto alternative = [&] {
+            const auto type = mCurrentToken->getType();
+            if (type == tGTokensTypes::ALT || type == tGTokensTypes::RPAREN || type == tGTokensTypes::STOP)
+                throw std::runtime_error("Empty group or alternative, as in ()+, (A|) or (|A)");
+            return constructAstSeq();
+        };
+        std::shared_ptr<AstNode<tGTokensTypes>> inner = alternative();
+        const bool alternation = mCurrentToken->getType() == tGTokensTypes::ALT;
+        if (alternation) {
+            // An n-ary ALT node keeps every alternative in lexical order.
+            std::shared_ptr<ParsingToken<tGTokensTypes>> altToken = mCurrentToken->copy();
+            std::vector<std::shared_ptr<AstNode<tGTokensTypes>>> alternatives{inner};
+            while (mCurrentToken->getType() == tGTokensTypes::ALT) {
+                ackToken(tGTokensTypes::ALT);
+                alternatives.push_back(alternative());
+            }
+            inner = std::make_shared<AstNode<tGTokensTypes>>(altToken, alternatives);
+        }
         node = std::make_shared<AstNode<tGTokensTypes>>(token,
-        std::vector<std::shared_ptr<AstNode<tGTokensTypes>>>{constructAstSeq()});
+        std::vector<std::shared_ptr<AstNode<tGTokensTypes>>>{inner});
         ackToken(tGTokensTypes::RPAREN);
         //(QOM | QZM)
 
@@ -323,7 +360,7 @@ std::shared_ptr<AstNode<tGTokensTypes>> PartitionGraphParser::constructAstDomain
             ackToken(tGTokensTypes::QZO);
             node = std::make_shared<AstNode<tGTokensTypes>>(token,
             std::vector<std::shared_ptr<AstNode<tGTokensTypes>>>{node});
-        }else{
+        }else if (!alternation){
             std::ostringstream errorMessage;
             errorMessage << "Bad syntax constructAstDomain must have quantifier \n";
             throw std::runtime_error(errorMessage.str());
@@ -360,6 +397,8 @@ std::shared_ptr<AstNode<tGTokensTypes>> PartitionGraphParser::constructAstAllExp
             left = newNode;
         }else//in others case token must be STOP
         {
+            if (mCurrentToken->getType() == tGTokensTypes::ALT)
+                throw std::runtime_error("Alternation requires parentheses, as in (A|B)");
             ackToken(tGTokensTypes::STOP);
         }
         return left;

@@ -168,6 +168,8 @@ a per-quantifier limit, not a bound on the total graph size, and does not change
 matching in `PGInterpreterTG`. `PGInterpreterIR(query, 0)` gives deterministic
 zero-repetition graphs: `A*` produces an empty graph, `A+` one A node, and
 `A->B*->C` an A-to-C edge. The `?` quantifier remains random.
+Each [alternation](pattern-language.md#alternation) draws one alternative from
+the seed at every invocation; values files select quantifier counts only.
 Repeated interpretation of the same instance reuses its seed. Pass explicit
 options or a values file to reproduce a fixture across independently created
 instances. All constructors preserve port bindings and assign automatic inputs.

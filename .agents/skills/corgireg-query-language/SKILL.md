@@ -18,8 +18,10 @@ ne suffisent pas à définir la grammaire.
 
 Le parser est récursif et construit des nœuds dont l'ordre et l'arité sont consommés
 par les deux visiteurs. Les groupes parenthésés passent actuellement par
-constructAstDomain, qui exige un quantificateur après `)`. Ne pas importer implicitement
-la grammaire des regex de texte ou supposer l'existence d'un opérateur `|`.
+constructAstDomain, qui exige un quantificateur après `)`, sauf pour une alternation
+`(X|Y)` (nœud ALT n-aire sous LPAREN). Les ancres et `$` sont refusés dans une
+alternative (checkAlternatives). Ne pas importer implicitement la grammaire des
+regex de texte : `|` n'existe qu'entre parenthèses.
 
 Pour un token ou une production nouvelle, suivre les impacts : enum, reconnaissance,
 consommation, AST, deux visiteurs et erreurs. Si une construction est propre à un

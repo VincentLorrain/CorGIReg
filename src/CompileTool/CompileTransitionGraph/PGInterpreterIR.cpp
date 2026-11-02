@@ -175,6 +175,10 @@ class ConfiguredIRGenerator {
             return join(std::move(left), std::move(right), type == tGTokensTypes::PREC, type == tGTokensTypes::SEP, tree->getValue());
         }
         if (type == tGTokensTypes::LPAREN) return visit(children.at(0));
+        // One alternative per invocation, drawn from the seed: values files
+        // select quantifier counts only.
+        if (type == tGTokensTypes::ALT)
+            return visit(children.at(std::uniform_int_distribution<std::size_t>(0, children.size() - 1)(random)));
         if (type == tGTokensTypes::END) return {{}, {}, false, true};
         if (type == tGTokensTypes::QOM || type == tGTokensTypes::QZM || type == tGTokensTypes::QZO) {
             const auto repetitions = count(tree);

@@ -82,6 +82,7 @@ std::shared_ptr<ParsingToken<tGTokensTypes>> PartitionGraphLexer::getNextToken(v
     case ')': return emit(tGTokensTypes::RPAREN);
     case ';': return emit(tGTokensTypes::SEP);
     case '$': return emit(tGTokensTypes::END);
+    case '|': return emit(tGTokensTypes::ALT);
     default: throw badTokenError(std::string(1, current), mPosition);
     }
 }

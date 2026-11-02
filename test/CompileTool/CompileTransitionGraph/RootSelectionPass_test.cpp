@@ -101,3 +101,19 @@ TEST_CASE("TG interpreter exposes a repeatable post AST plan before generation",
     REQUIRE(second->getNbStart() == 2);
     REQUIRE(first->getTransitions().size() == second->getTransitions().size());
 }
+
+TEST_CASE("Post AST selection keeps alternation groups opaque", "[post-ast][alternation]") {
+    const auto result = plan("X#->(A->B|C)->Y;X#->Z");
+    // X#, the group, Y and Z: branches are not unrolled into plan nodes.
+    REQUIRE(result.nodes.size() == 4);
+    REQUIRE(result.components.size() == 1);
+    REQUIRE(rootName(result) == "X#");
+    std::size_t groups = 0;
+    for (const auto& node : result.nodes)
+        if (node.occurrences.front()->getType() == tGTokensTypes::LPAREN) {
+            ++groups;
+            REQUIRE_FALSE(node.rootEligible);
+        }
+    REQUIRE(groups == 1);
+    REQUIRE_FALSE(result.hasQuantifiedCommon);
+}

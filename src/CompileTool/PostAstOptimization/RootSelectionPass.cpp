@@ -36,7 +36,8 @@ class Builder {
         if (node->nbChild() != count) throw std::invalid_argument("Invalid AST arity in root selection");
     }
 
-    // Quantified regions are opaque units. This phase must not unroll or move them.
+    // Quantified regions and alternation groups are opaque units. This phase
+    // must not unroll, split or move them.
     std::pair<std::size_t, std::size_t> sequence(const Ast& node, std::size_t path) {
         const auto type = node->getType();
         if (type == Type::NEXT || type == Type::PREC) {
@@ -54,6 +55,9 @@ class Builder {
         if (quantified(type)) {
             requireArity(node, 1);
             plan.hasQuantifiedCommon |= containsCommon(node);
+        } else if (type == Type::LPAREN) {
+            // Only an alternation group stands without quantifier; it holds no anchor.
+            requireArity(node, 1);
         } else if (type == Type::KEY || common(type) || type == Type::END) {
             requireArity(node, 0);
         } else {

@@ -38,6 +38,21 @@ void flatten(const Ast& tree, std::vector<Ast>& units) {
     flatten(children[type == tGTokensTypes::PREC], units);
     flatten(children[type == tGTokensTypes::NEXT], units);
 }
+// Entry and exit edge of an alternative. Unlike a plain TransitionEmpty it also
+// passes at graph end, when the branch consumed the last node of the walk.
+class TransitionAlternative final : public TransitionEmpty {
+public:
+    using TransitionEmpty::TransitionEmpty;
+    const TransitionResult test(const std::shared_ptr<RunTimeContext>& context) override {
+        auto node = context->getActNode();
+        return {true, node ? NodeIds{*node} : NodeIds{}};
+    }
+};
+std::shared_ptr<Transition> alternativeEdge(std::shared_ptr<State> from, std::shared_ptr<State> to) {
+    auto edge = std::make_shared<TransitionAlternative>(from, to);
+    edge->updateWeak();
+    return edge;
+}
 bool any(const Ast& tree, const std::function<bool(const Ast&)>& predicate) {
     if (predicate(tree)) return true;
     for (const auto& child : tree->getChilds()) if (any(child, predicate)) return true;
@@ -123,12 +138,7 @@ std::shared_ptr<TransitionGraph> PGInterpreterTG::reversed(std::shared_ptr<AstNo
     if (type == tGTokensTypes::QOM) return quantify(reversed(children[0]), mQuantifierIndices.at(AstTree.get()), '+');
     if (type == tGTokensTypes::QZM) return quantify(reversed(children[0]), mQuantifierIndices.at(AstTree.get()), '*');
     if (type == tGTokensTypes::QZO) return quantify(reversed(children[0]), mQuantifierIndices.at(AstTree.get()), '?');
-    if (type == tGTokensTypes::LPAREN) {
-        mActGroupe += 1;
-        auto out = reversed(children[0]);
-        mActGroupe -= 1;
-        return out;
-    }
+    if (type == tGTokensTypes::LPAREN) return group(AstTree, true);
     // A boundary only ends a path; it never precedes the root of that path.
     throw std::logic_error("Cannot reverse this path unit");
 }
@@ -171,15 +181,50 @@ std::shared_ptr<TransitionGraph> PGInterpreterTG::visit(std::shared_ptr<AstNode<
     }else if (AstTree->getType() == tGTokensTypes::END){
         return endF(AstTree);
     }else if(AstTree->getType() == tGTokensTypes::LPAREN){
-        mActGroupe += 1;
-        std::shared_ptr<TransitionGraph> out = visit(nextAstNodes[0]);
-        mActGroupe -= 1;
-        return out;
+        return group(AstTree, false);
     }else{
         throw std::logic_error("visit Bad token type" );
     }
 }
 
+
+std::shared_ptr<TransitionGraph> PGInterpreterTG::group(const std::shared_ptr<AstNode<tGTokensTypes>>& paren, bool reverse){
+    const auto& inner = paren->getChilds()[0];
+    auto build = [&](const std::shared_ptr<AstNode<tGTokensTypes>>& node) { return reverse ? reversed(node) : visit(node); };
+    mActGroupe += 1;
+    std::vector<std::shared_ptr<TransitionGraph>> parts;
+    if (inner->getType() == tGTokensTypes::ALT)
+        for (const auto& branch : inner->getChilds()) parts.push_back(build(branch));
+    else parts.push_back(build(inner));
+    mActGroupe -= 1;
+    return inner->getType() == tGTokensTypes::ALT ? alternate(parts) : parts.front();
+}
+
+std::shared_ptr<TransitionGraph> PGInterpreterTG::alternate(const std::vector<std::shared_ptr<TransitionGraph>>& branches){
+    /*
+        Thompson construction, no new origin: one branch is taken per walk.
+              -e-> SA -A-> VA -e->
+        entry                      exit
+              -e-> SB -B-> VB -e->
+    */
+    auto entry = std::make_shared<State>(false, true);
+    auto exit = std::make_shared<State>(true, false);
+    entry->setGroupe(mActGroupe);
+    exit->setGroupe(mActGroupe);
+    auto result = branches.front();
+    for (const auto& branch : branches) {
+        const auto starts = branch->getStartStates();
+        const auto ends = branch->getValidStates();
+        if (starts.size() != 1 || ends.size() != 1)
+            throw std::logic_error("Alternative requires a single entry and exit");
+        starts.front()->unStart();
+        (*ends.begin())->unValid();
+        if (branch != result) result->unionG(branch);
+        result->addTransition(alternativeEdge(entry, starts.front()));
+        result->addTransition(alternativeEdge(*ends.begin(), exit));
+    }
+    return result;
+}
 
 std::shared_ptr<TransitionGraph> PGInterpreterTG::keyF(std::shared_ptr<AstNode<tGTokensTypes>> AstNode){
     /*leaf 

@@ -31,7 +31,13 @@ namespace CorGIReg {
         void indexQuantifiers(const std::shared_ptr<AstNode<tGTokensTypes>>& node);
         std::shared_ptr<TransitionGraph> quantify(std::shared_ptr<TransitionGraph> body,
                                                std::size_t index, char symbol);
-        
+        // One entry and one exit, in the enclosing group, joined to every
+        // alternative by empty transitions. Alternatives stay one path.
+        std::shared_ptr<TransitionGraph> alternate(const std::vector<std::shared_ptr<TransitionGraph>>& branches);
+        // Visits a parenthesized group one level deeper; an alternation is
+        // assembled back at the enclosing level.
+        std::shared_ptr<TransitionGraph> group(const std::shared_ptr<AstNode<tGTokensTypes>>& paren, bool reverse);
+
     public:
         PGInterpreterTG(const std::string graphMatchExpr);
         virtual ~PGInterpreterTG() =default;
