@@ -2,6 +2,8 @@
 #include "TransitionGraph/TransitionGraph.hpp"
 #include "GraphAdapters/BasicGraphAdapter.hpp"
 #include "NodeTest/NodeDictionary.hpp"
+#include "NodeTest/NodeLibrary.hpp"
+#include "CompileTool/Common/NodePattern.hpp"
 #include <unordered_set>
 
 namespace CorGIReg{
@@ -20,7 +22,8 @@ TGCompiled::TGCompiled(std::set<std::size_t> origins,std::set<std::shared_ptr<Tr
     mAllOrigin = origins;
     mTransitions = transitions;
     for (const auto& transition : mTransitions) {
-        const auto key = transition->getTestKey();
+        const auto text = transition->getTestKey();
+        const auto key = text.empty() ? text : parseNodePattern(text).name;
         if (NodeDictionary::hasFunction(key)) mLegacyPredicates.emplace(key, NodeDictionary::at(key));
     }
 }
@@ -158,6 +161,26 @@ std::shared_ptr<SolutionFromStartingPoint> TGCompiled::test(const std::vector<st
         predicates.emplace(entry.first, [graph, condition = entry.second](NodeId id) {
             return condition(graph->node(id));
         });
+    }
+    std::set<std::string> keys;
+    bool filtered = false;
+    for (const auto& transition : mTransitions) {
+        const auto key = transition->getTestKey();
+        keys.insert(key);
+        filtered |= !key.empty() && !parseNodePattern(key).conditions.empty();
+    }
+    if (filtered) {
+        std::map<NodeId, NodeValue> documents;
+        std::vector<NodeNN::Ptr> pending = startNodes;
+        std::set<NodeNN::Ptr> seen;
+        for (std::size_t i = 0; i < pending.size(); ++i) {
+            const auto node = pending[i];
+            if (!node || !seen.insert(node).second) continue;
+            documents.emplace(graph->id(node), nodeDocument(*node));
+            pending.insert(pending.end(), node->getParents().begin(), node->getParents().end());
+            pending.insert(pending.end(), node->getChildren().begin(), node->getChildren().end());
+        }
+        addInlineNodePredicates(predicates, keys, documents);
     }
     return test(graph, starts, std::move(predicates));
 }

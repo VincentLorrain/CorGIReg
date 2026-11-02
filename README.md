@@ -108,6 +108,7 @@ A+->B           one or more A, then B
 A#->B;C->A#     two paths joined through the same source node A
 $A$             common node whose inputs and outputs must all be covered
 A->$            A has no successor
+conv(group=1)   inline attribute equality on a node
 ```
 
 See the [pattern language](doc/pattern-language.md) for the complete syntax and
@@ -117,7 +118,8 @@ for the migration from V0 (`A$` became `$A$`).
 ## More
 
 - [C++ SDK and integration test](doc/library-integration.md) for use from a separate graph engine.
-- [Node and pattern libraries](doc/node-library.md) for format-independent predicates such as `conv`.
+- [Node and pattern libraries](doc/node-library.md) for format-independent predicates such as `conv`,
+  and [inline conditions and key mappings](doc/node-library.md#inline-conditions-and-key-matching).
 - [Matching examples](examples/matches/README.md) with ready-to-run scripts and graph fixtures.
 - [IR generation](doc/ir-generation.md): `corgireg-generate` and `PGInterpreterIR` build example graphs from a pattern.
 - [Architecture](doc/architecture.md), including the [post-AST root selection phase](doc/post-ast-root-selection.md).

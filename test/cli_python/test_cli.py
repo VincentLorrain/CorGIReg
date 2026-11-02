@@ -12,6 +12,61 @@ from corgireg_cli.graph import validate_graph
 
 
 class CliTests(unittest.TestCase):
+    def test_inline_node_conditions_default_to_existing_attribute_names(self):
+        graph = {"nodes": [{"id": 42, "op": "Conv", "attributes": {"kernel_shape": [3, 3], "group": 1}},
+                           {"id": 99, "op": "Relu"}], "edges": [[42, 99]]}
+        self.graph.write_text(json.dumps(graph), encoding="utf-8")
+        for query, expected in [("Conv(kernel_shape=[3,3])->Relu", True),
+                                ("Conv(kernel_shape=[5,5])->Relu", False),
+                                ("Conv(kernel_shape=[3,3],group=1)->Relu", True),
+                                ("Conv(kernel_shape=[3,3],group=2)->Relu", False),
+                                ("Conv(missing=null)->Relu", False)]:
+            for jobs in [1, 4]:
+                with self.subTest(query=query, jobs=jobs):
+                    process = self.invoke("-i", self.graph, "-r", query, "--jobs", jobs)
+                    self.assertEqual(process.returncode, 0, process.stderr)
+                    report = json.loads(process.stdout)
+                    self.assertEqual(bool(report["matches"]), expected)
+                    if expected:
+                        self.assertEqual(report["matches"][0]["node_ids"], [42, 99])
+        for query in ["Conv(kernel_shape=3x3)->Relu", "Conv(padding=SAME)->Relu"]:
+            self.assertNotEqual(self.invoke("-i", self.graph, "-r", query).returncode, 0)
+
+    def test_inline_node_conditions_translate_foreign_keys_to_json(self):
+        definition = {"schema_version": 4, "name": "conv", "key_matching": {
+            "kernel_shape": {"onnx": "onnx_kernel", "stablehlo": "filter_size"}},
+            "formats": {"json": {"op_types": ["Conv"], "where": {"path": ["attributes", "group"], "eq": 1}}}}
+        library = self.folder / "conv.json"
+        library.write_text(json.dumps(definition), encoding="utf-8")
+        graph = {"nodes": [{"id": 42, "op": "Conv", "attributes": {"kernel_shape": [3, 3], "group": 1}},
+                           {"id": 99, "op": "Relu"}], "edges": [[42, 99]]}
+        for group in [1, 2]:
+            graph["nodes"][0]["attributes"]["group"] = group
+            self.graph.write_text(json.dumps(graph), encoding="utf-8")
+            for alias in ["kernel_shape", "onnx_kernel", "filter_size"]:
+                process = self.invoke("-i", self.graph, "--node-library", library,
+                                      "-r", f"conv({alias}=[3,3])->Relu")
+                self.assertEqual(process.returncode, 0, process.stderr)
+                report = json.loads(process.stdout)
+                self.assertEqual(bool(report["matches"]), group == 1)
+                self.assertEqual(report["node_definitions"]["conv"]["key_matching"], definition["key_matching"])
+
+    def test_inline_filters_apply_to_each_repetition(self):
+        graph = {"nodes": [{"id": 0, "op": "Conv", "attributes": {"group": 1}},
+                           {"id": 1, "op": "Conv", "attributes": {"group": 1}},
+                           {"id": 2, "op": "Relu"}], "edges": [[0, 1], [1, 2]]}
+        for group, expected in [(1, True), (2, False)]:
+            graph["nodes"][1]["attributes"]["group"] = group
+            self.graph.write_text(json.dumps(graph), encoding="utf-8")
+            process = self.invoke("-i", self.graph, "-r", "Conv(group=1)+->Relu")
+            self.assertEqual(process.returncode, 0, process.stderr)
+            matches = json.loads(process.stdout)["matches"]
+            self.assertEqual(bool(matches), expected)
+            if expected:
+                full = next(m for m in matches if m["starts"] == [0])
+                self.assertEqual(full["node_ids"], [0, 1, 2])
+                self.assertEqual(full["walks"][0]["quantifiers"][0]["count"], 2)
+
     def test_numbered_connections_survive_json_and_parallel_matching(self):
         graph = {"nodes": [{"id": 0, "op": "X"}, {"id": 9, "op": "Sub"}],
                  "edges": [[0, 9]], "connections": [
@@ -395,7 +450,7 @@ class CliTests(unittest.TestCase):
         output.write_text("keep", encoding="utf-8")
         base = {"schema_version": 1, "name": "conv", "formats": {"json": {"op_types": ["A"]}}}
         symbol = {"cd": "arith1", "name": "plus"}
-        cases = [({**base, "schema_version": 4}, "Unsupported node definition schema"),
+        cases = [({**base, "schema_version": 5}, "Unsupported node definition schema"),
                  ({**base, "openmath": symbol}, "openmath requires schema_version 3"),
                  ({**base, "schema_version": 3, "openmath": {**symbol, "cd": "arith 1"}}, "openmath cd must match"),
                  ({**base, "schema_version": True}, "Unsupported node definition schema"),

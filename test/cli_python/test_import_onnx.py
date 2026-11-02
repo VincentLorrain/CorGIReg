@@ -15,6 +15,25 @@ from corgireg_cli.import_onnx import load_onnx
 
 
 class OnnxTests(unittest.TestCase):
+    def test_inline_keys_use_json_defaults_and_foreign_ir_aliases(self):
+        self.save([helper.make_node("Conv", ["x", "w"], ["a"], kernel_shape=[3, 3],
+                                    group=1, strides=[1, 1]),
+                   helper.make_node("Relu", ["a"], ["z"])], inputs=("x", "w"))
+        library = ROOT / "examples/library/inline-nodes"
+        for query, expected in [("conv(kernel_shape=[3,3],group=1)->Relu", True),
+                                ("conv(feature_group_count=1,window_strides=[1,1])->Relu", True),
+                                ("conv(kernel_shape=[5,5])->Relu", False),
+                                ("conv(group=2)->Relu", False)]:
+            with self.subTest(query=query):
+                process = subprocess.run([sys.executable, "-m", "corgireg_cli", "-i", str(self.path),
+                    "--node-library", str(library), "-r", query],
+                    env={**os.environ, "PYTHONPATH": str(ROOT / "python")}, capture_output=True, text=True, timeout=20)
+                self.assertEqual(process.returncode, 0, process.stderr)
+                matches = json.loads(process.stdout)["matches"]
+                self.assertEqual(bool(matches), expected)
+                if expected:
+                    self.assertEqual(matches[0]["node_ids"], [0, 1])
+
     def test_repeated_operand_retains_two_input_connections(self):
         self.save([helper.make_node("Identity", ["x"], ["y"]),
                    helper.make_node("Sub", ["y", "y"], ["z"])])

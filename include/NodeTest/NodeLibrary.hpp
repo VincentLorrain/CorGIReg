@@ -17,7 +17,7 @@ struct OpenMathSymbol {
     }
 };
 
-// One semantic predicate from a node-definition JSON file (schema 1, 2 or 3).
+// One semantic predicate from a node-definition JSON file (schema 1 through 4).
 struct NodeDefinition {
     std::uint64_t schemaVersion = 1;
     std::string name, description;
@@ -27,6 +27,9 @@ struct NodeDefinition {
     std::map<std::string, NodeValue> formats;
     // Schema 3 only; absent when no OpenMath symbol states the exact meaning.
     std::optional<OpenMathSymbol> openmath;
+    // Schema 4: canonical JSON key -> format -> attribute name or document path.
+    NodeValue::Object keyMatching;
+    NodeValue::Array keyPath(const std::string& key, const std::string& format) const;
 
     // Validates a parsed document. Errors are prefixed with source.
     static NodeDefinition fromDocument(const NodeValue& document, std::string source);
@@ -71,5 +74,12 @@ private:
 
 // Available memberships replace raw predicates of the same name.
 void addDefinitionPredicates(NodePredicates& predicates, const DefinitionMemberships& memberships);
+
+// Add predicates for filtered transition keys, combining the base predicate and
+// equality rules. All format aliases resolve through the JSON canonical key.
+// Raw operations use attributes/<key> when no definition supplies a mapping.
+void addInlineNodePredicates(NodePredicates& predicates, const std::set<std::string>& keys,
+    const std::map<NodeId, NodeValue>& documents, const NodeLibrary* library = nullptr,
+    const std::string& format = "json");
 
 }

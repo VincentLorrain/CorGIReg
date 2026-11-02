@@ -38,7 +38,7 @@ that node and walks list captures from the anchor outward (see
 | `nodes` | Captures in execution order; repeated visits may repeat a source ID. |
 | `nodes[].id` | Original source-node ID. |
 | `nodes[].name` | Source name or decimal fallback. |
-| `nodes[].predicate` | Predicate used by the pattern, including semantic aliases. |
+| `nodes[].predicate` | Predicate used by the pattern, including semantic aliases and inline conditions, e.g. `conv(group=1)`. |
 | `quantifiers` | Quantifier invocations in execution order, including skipped invocations. |
 
 Each `quantifiers[]` object contains:
@@ -86,11 +86,14 @@ Each `node_definitions[name]` object records `description` (string), `source`
 OpenMath symbol, or null), `format` (selected input format), `rule`
 (selected `{op_types, where?}` object), and `node_ids` (filtered source IDs).
 These IDs describe all nodes satisfying the definition, not only captured ones.
+Schema 4 definitions also include `key_matching`. Inline occurrence conditions
+filter matches further; the manifest's `node_ids` still describe the base
+definition's `op_types` and `where` membership.
 For an unused definition lacking a mapping for this format, `rule` and
 `node_ids` are null. An available definition with no accepted nodes has `[]`.
 A referenced definition with no format mapping is an error.
 
-Definition schema versions 1/2/3 and internal wire versions 1/2/3 are independent
+Definition schema versions 1/2/3/4 and internal wire versions 1 through 6 are independent
 of report schema version 1. See [node libraries](node-library.md) and the
 [native protocol](native-protocol.md).
 

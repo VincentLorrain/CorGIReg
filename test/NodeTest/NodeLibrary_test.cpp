@@ -151,7 +151,7 @@ TEST_CASE("Node definition errors identify the file and definition", "[NodeTest]
     const std::vector<std::pair<std::string, std::string>> cases{
         {"[]", "Invalid node definition fields"},
         {R"({"schema_version": 1, "name": "x", "formats": {"json": {"op_types": ["A"]}}, "extra": 1})", "Invalid node definition fields"},
-        {R"({"schema_version": 4, "name": "x", "formats": {"json": {"op_types": ["A"]}}})", "Unsupported node definition schema"},
+        {R"({"schema_version": 5, "name": "x", "formats": {"json": {"op_types": ["A"]}}})", "Unsupported node definition schema"},
         {R"({"schema_version": 0, "name": "x", "formats": {"json": {"op_types": ["A"]}}})", "Unsupported node definition schema"},
         {R"({"schema_version": 1.0, "name": "x", "formats": {"json": {"op_types": ["A"]}}})", "Unsupported node definition schema"},
         {R"({"schema_version": true, "name": "x", "formats": {"json": {"op_types": ["A"]}}})", "Unsupported node definition schema"},

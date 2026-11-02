@@ -1,5 +1,6 @@
 #include "NodeTest/NodeLibrary.hpp"
 #include "NodeTest/NodeValueJson.hpp"
+#include "CompileTool/Common/NodePattern.hpp"
 #include <algorithm>
 #include <cctype>
 #include <fstream>
@@ -51,14 +52,15 @@ NodeDefinition NodeDefinition::fromDocument(const NodeValue& document, std::stri
     if (!object) invalid("Invalid node definition fields");
     for (const auto& entry : *object)
         if (entry.first != "schema_version" && entry.first != "name" &&
-            entry.first != "description" && entry.first != "formats" && entry.first != "openmath")
+            entry.first != "description" && entry.first != "formats" && entry.first != "openmath" &&
+            entry.first != "key_matching")
             invalid("Invalid node definition fields");
     auto field = [&](const char* key) -> const NodeValue* {
         auto found = object->find(key);
         return found == object->end() ? nullptr : &found->second;
     };
     const auto* version = field("schema_version") ? as<std::uint64_t>(*field("schema_version")) : nullptr;
-    if (!version || *version < 1 || *version > 3) invalid("Unsupported node definition schema");
+    if (!version || *version < 1 || *version > 4) invalid("Unsupported node definition schema");
     result.schemaVersion = *version;
     const auto* name = field("name") ? as<std::string>(*field("name")) : nullptr;
     if (!name || !predicateName(*name)) invalid("Invalid predicate name");
@@ -72,6 +74,35 @@ NodeDefinition NodeDefinition::fromDocument(const NodeValue& document, std::stri
         result.openmath = openMathSymbol(*openmath, [&](const std::string& message) {
             invalid(message + " for " + result.name);
         });
+    }
+    if (const auto* matching = field("key_matching")) {
+        if (result.schemaVersion < 4) invalid("key_matching requires schema_version 4");
+        const auto* keys = as<NodeValue::Object>(*matching);
+        if (!keys) invalid("key_matching must be an object");
+        std::map<std::string, std::string> aliases;
+        for (const auto& [key, mappings] : *keys) {
+            if (!predicateName(key)) invalid("Invalid canonical key: " + key);
+            const auto* entries = as<NodeValue::Object>(mappings);
+            if (!entries) invalid("key_matching entries must be format objects: " + key);
+            auto alias = [&](const std::string& name) {
+                if (!predicateName(name)) invalid("Invalid key alias: " + name);
+                auto found = aliases.emplace(name, key);
+                if (!found.second && found.first->second != key) invalid("Ambiguous key alias: " + name);
+            };
+            alias(key);
+            for (const auto& [format, path] : *entries) {
+                if (format.empty()) invalid("Empty key mapping format for " + key);
+                if (const auto* name = as<std::string>(path)) alias(*name);
+                else {
+                    const auto* segments = as<NodeValue::Array>(path);
+                    if (!segments || segments->empty()) invalid("Key mapping must be an attribute name or nonempty path: " + key);
+                    try { compileNodeRule(NodeValue::Object{{"path", path}, {"exists", true}}); }
+                    catch (const std::invalid_argument& error) { invalid(error.what()); }
+                    if (const auto* name = as<std::string>(segments->back())) alias(*name);
+                }
+            }
+        }
+        result.keyMatching = *keys;
     }
     const auto* formats = field("formats") ? as<NodeValue::Object>(*field("formats")) : nullptr;
     if (!formats || formats->empty()) invalid("Node " + result.name + " requires format mappings");
@@ -97,6 +128,28 @@ NodeDefinition NodeDefinition::fromDocument(const NodeValue& document, std::stri
         result.formats.emplace(format, rule);
     }
     return result;
+}
+
+NodeValue::Array NodeDefinition::keyPath(const std::string& key, const std::string& format) const {
+    auto path = [](const NodeValue& value) -> NodeValue::Array {
+        if (const auto* name = as<std::string>(value)) return {"attributes", *name};
+        return std::get<NodeValue::Array>(value.data);
+    };
+    for (const auto& [canonical, mappings] : keyMatching) {
+        const auto& entries = std::get<NodeValue::Object>(mappings.data);
+        bool matches = key == canonical;
+        for (const auto& [source, value] : entries) {
+            const auto parts = path(value);
+            const auto* alias = as<std::string>(parts.back());
+            matches |= alias && *alias == key;
+        }
+        if (!matches) continue;
+        auto selected = entries.find(format);
+        if (selected != entries.end()) return path(selected->second);
+        auto json = entries.find("json");
+        return json == entries.end() ? NodeValue::Array{"attributes", canonical} : path(json->second);
+    }
+    return {"attributes", key};
 }
 
 const NodeValue* NodeDefinition::rule(const std::string& format) const {
@@ -207,6 +260,29 @@ std::optional<std::string> NodeLibrary::generatedOperation(const std::string& na
 void addDefinitionPredicates(NodePredicates& predicates, const DefinitionMemberships& memberships) {
     for (const auto& [name, ids] : memberships)
         if (ids) predicates[name] = [ids = *ids](NodeId id) { return ids.count(id) != 0; };
+}
+
+void addInlineNodePredicates(NodePredicates& predicates, const std::set<std::string>& keys,
+    const std::map<NodeId, NodeValue>& documents, const NodeLibrary* library, const std::string& format) {
+    for (const auto& key : keys) {
+        if (key.empty()) continue;
+        const auto node = parseNodePattern(key);
+        if (node.conditions.empty()) continue;
+        const auto* definition = library ? library->find(node.name) : nullptr;
+        if (definition && !definition->rule(format))
+            throw std::invalid_argument("No definition for predicate '" + node.name + "' in format " + format);
+        const auto base = predicates.find(node.name);
+        NodeValue::Array conditions;
+        for (const auto& [name, value] : node.conditions) {
+            auto path = definition ? definition->keyPath(name, format) : NodeValue::Array{"attributes", name};
+            conditions.emplace_back(NodeValue::Object{{"path", std::move(path)}, {"eq", value}});
+        }
+        const auto check = compileNodeRule(NodeValue::Object{{"all", std::move(conditions)}});
+        NodeIds ids;
+        for (const auto& [id, document] : documents)
+            if (base != predicates.end() && base->second(id) && check(document)) ids.insert(id);
+        predicates[key] = [ids = std::move(ids)](NodeId id) { return ids.count(id) != 0; };
+    }
 }
 
 }

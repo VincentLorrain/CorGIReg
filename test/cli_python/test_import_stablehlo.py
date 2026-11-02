@@ -23,6 +23,24 @@ MODULE = """module {
 
 
 class StablehloTests(unittest.TestCase):
+    def test_inline_keys_translate_json_names_to_stablehlo_attributes(self):
+        source = ROOT / "examples/library/conv.mlir"
+        library = ROOT / "examples/library/inline-nodes"
+        for query, expected in [("conv(group=1,strides=[1,1])+->$", True),
+                                ("conv(feature_group_count=1,window_strides=[1,1])+->$", True),
+                                ("conv(group=2)+->$", False),
+                                ("conv(kernel_shape=[3,3])+->$", False)]:
+            with self.subTest(query=query):
+                process = subprocess.run([sys.executable, "-m", "corgireg_cli", "-i", str(source),
+                    "--node-library", str(library), "-r", query],
+                    env={**os.environ, "PYTHONPATH": str(ROOT / "python")}, capture_output=True, text=True, timeout=20)
+                self.assertEqual(process.returncode, 0, process.stderr)
+                matches = json.loads(process.stdout)["matches"]
+                self.assertEqual(bool(matches), expected)
+                if expected:
+                    full = next(m for m in matches if m["starts"] == [0])
+                    self.assertEqual(full["node_ids"], [0, 1])
+
     def test_repeated_operand_preserves_both_argument_positions(self):
         self.path.write_text(MODULE.replace("stablehlo.negate %0", "stablehlo.subtract %0, %0"), encoding="utf-8")
         graph = load_stablehlo(self.path)

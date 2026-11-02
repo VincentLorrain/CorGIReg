@@ -14,6 +14,6 @@ void matchRequest(std::istream& input, std::ostream& output, std::size_t jobs = 
 void matchRequest(std::istream& input, std::ostream& output, std::size_t jobs,
                   const NodeLibrary* library, const std::string& format);
 // Validated definitions as JSON: name -> schema_version, name, description,
-// formats and absolute source file.
+// formats, schema 4 key_matching, and absolute source file.
 void writeNodeLibrary(std::ostream& output, const NodeLibrary& library);
 }

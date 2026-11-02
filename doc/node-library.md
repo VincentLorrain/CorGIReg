@@ -44,8 +44,76 @@ normalized into raw predicate keys. ONNX custom-domain operations use
 optional; the other fields are required. Unknown fields and rule kinds are
 rejected. Version 1 supports JSON and operation types only. Version 2 adds an
 optional `where` condition per format, evaluated by native C++ `NodeTest`.
-Version 3 adds an optional [OpenMath symbol](#openmath-symbols). No version
+Version 3 adds an optional [OpenMath symbol](#openmath-symbols). Version 4 adds
+optional `key_matching` mappings for inline attribute conditions. No version
 supports YAML or composite subgraph definitions.
+
+## Inline conditions and key matching
+
+Use existing attribute names directly in a pattern:
+
+```text
+conv(kernel_shape=[3,3],group=1)->Relu
+```
+
+Each condition compares a typed JSON value. Multiple conditions are combined
+with AND, in addition to the definition's `op_types` and optional `where` rule.
+Arrays use brackets, strings use double quotes, and values are not coerced.
+Missing attributes fail equality, including equality to `null`. There is no
+dimension or unquoted-string shorthand. Keys contain ASCII letters, digits and
+underscores. Without a mapping, a key addresses `attributes/<key>` in every IR;
+there is no convolution-specific vocabulary.
+
+Schema 4 definitions may map the canonical JSON key to another IR's key:
+
+```json
+{
+  "schema_version": 4,
+  "name": "conv",
+  "key_matching": {
+    "group": {"stablehlo": "feature_group_count"},
+    "strides": {"stablehlo": "window_strides"}
+  },
+  "formats": {
+    "json": {"op_types": ["Conv"]},
+    "onnx": {"op_types": ["Conv"]},
+    "stablehlo": {"op_types": ["stablehlo.convolution"]}
+  }
+}
+```
+
+`conv(group=1)` and `conv(feature_group_count=1)` both address `group` in JSON
+and ONNX and `feature_group_count` in StableHLO. Every listed spelling can be
+used with every mapped input format. An omitted format mapping falls back to
+the JSON mapping, or to the canonical key when no JSON override is supplied.
+An unlisted key uses its own name unchanged. Aliases belonging to two different
+canonical keys are rejected when the definition loads.
+
+A string mapping names an attribute. For a nested value, use an absolute path
+such as `{"onnx": ["attributes", "settings", 0, "group"]}`. The last string
+segment is also an alias; a path ending in an array index has no additional
+alias. A `json` mapping can explicitly override the canonical JSON lookup path.
+Mappings rename or locate existing fields; they do not infer missing defaults,
+tensor dimensions, or semantic conversions. In particular, `kernel_shape` is
+not automatically derived from ONNX weights or StableHLO filter types.
+
+The [standalone inline convolution definition](../examples/library/inline-nodes/conv.json)
+uses attribute names present in the existing StableHLO fixture:
+
+```sh
+corgireg -i examples/library/conv.mlir --node-library examples/library/inline-nodes -r 'conv(group=1,strides=[1,1])+->$'
+```
+
+Load this directory on its own: it defines `conv`, as does `examples/library/nodes`.
+Schema versions 1 through 3 remain supported. Listing and matching reports
+include `key_matching` for schema 4 definitions.
+
+For C++ graph views with source documents, call `addDefinitionPredicates` then
+`addInlineNodePredicates` using the compiled transitions' `getTestKey()` values,
+the documents, the library and the selected format. The legacy `NodeNN` test
+entry point evaluates inline keys against its attributes and registered base
+predicates. Inline conditions are supported for matching; `PGInterpreterIR`
+and the generator reject them explicitly, including inside skipped groups.
 
 For example, a version 2 definition selects a declared 3-by-3 kernel:
 
@@ -148,6 +216,7 @@ its data separate from the engine sources:
 | --- | --- |
 | `examples/library/nodes/` | Reusable base vocabulary (11 operation families) |
 | `examples/library/conditional-nodes/` | Demonstration of version 2 `where` rules |
+| `examples/library/inline-nodes/` | Standalone schema 4 convolution vocabulary with attribute key aliases |
 | `examples/matches/`, `examples/rewrite/` | Self-contained demonstration fixtures |
 
 Project-specific libraries can live anywhere, for example `libraries/nodes/hardware/`

@@ -1,0 +1,14 @@
+{
+  "schema_version": 4,
+  "name": "conv",
+  "description": "Convolution with inline attribute equality filters; no attribute defaults or numerical equivalence are inferred.",
+  "key_matching": {
+    "group": {"stablehlo": "feature_group_count"},
+    "strides": {"stablehlo": "window_strides"}
+  },
+  "formats": {
+    "json": {"op_types": ["Conv"]},
+    "onnx": {"op_types": ["Conv"]},
+    "stablehlo": {"op_types": ["stablehlo.convolution"]}
+  }
+}

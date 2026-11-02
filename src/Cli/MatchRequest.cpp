@@ -4,6 +4,7 @@
 #include "CompileTool/CompileTransitionGraph/PGInterpreterTG.hpp"
 #include "NodeTest/NodeRule.hpp"
 #include "NodeTest/NodeValueJson.hpp"
+#include "CompileTool/Common/NodePattern.hpp"
 #include <cmath>
 #include <locale>
 #include <sstream>
@@ -236,7 +237,8 @@ void matchRequest(std::istream& input, std::ostream& output, std::size_t jobs,
     // Rooted: paths sharing an anchor root start together on that anchor.
     const auto pattern = PGInterpreterTG(query).interpretRooted();
     for (const auto& transition : pattern->getTransitions()) {
-        const auto found = definitions.find(transition->getTestKey());
+        const auto key = transition->getTestKey();
+        const auto found = definitions.find(key.empty() ? key : parseNodePattern(key).name);
         if (found != definitions.end() && !found->second)
             throw std::invalid_argument("No definition for predicate '" + found->first + "' in the selected input format");
     }
@@ -246,6 +248,14 @@ void matchRequest(std::istream& input, std::ostream& output, std::size_t jobs,
         predicates.emplace(key, [graph, key](NodeId id) { return graph->getNodes().at(id).predicate == key; });
     }
     addDefinitionPredicates(predicates, definitions);
+    std::set<std::string> inlineKeys;
+    for (const auto& transition : pattern->getTransitions()) inlineKeys.insert(transition->getTestKey());
+    if (protocol != "CORGiReg3") {
+        for (const auto& key : inlineKeys)
+            if (!key.empty() && !parseNodePattern(key).conditions.empty())
+                throw std::invalid_argument("Inline node conditions require node documents (protocol version 3 or 6)");
+    }
+    addInlineNodePredicates(predicates, inlineKeys, documents, library, format);
     // Only nodes a start can accept are tried; tied starts share one node.
     std::vector<NodeId> nodes;
     for (const auto& entry : graph->getNodes()) nodes.push_back(entry.first);
@@ -295,6 +305,9 @@ void matchRequest(std::istream& input, std::ostream& output, std::size_t jobs,
             output << ":{\"description\":"; jsonString(output, definition.description);
             output << ",\"source\":"; jsonString(output, definition.source);
             output << ",\"openmath\":"; writeJson(output, definition.openMathDocument());
+            if (definition.schemaVersion >= 4) {
+                output << ",\"key_matching\":"; writeJson(output, definition.keyMatching);
+            }
             output << ",\"format\":"; jsonString(output, format);
             output << ",\"rule\":";
             if (const auto* rule = definition.rule(format)) writeJson(output, *rule); else output << "null";
@@ -322,10 +335,12 @@ void writeNodeLibrary(std::ostream& output, const NodeLibrary& library) {
     NodeValue::Object definitions;
     for (const auto& [name, definition] : library.definitions()) {
         NodeValue::Object formats(definition.formats.begin(), definition.formats.end());
-        definitions.emplace(name, NodeValue::Object{
+        NodeValue::Object report{
             {"schema_version", NodeValue(definition.schemaVersion)}, {"name", name},
             {"description", definition.description}, {"formats", std::move(formats)},
-            {"openmath", definition.openMathDocument()}, {"source", definition.source}});
+            {"openmath", definition.openMathDocument()}, {"source", definition.source}};
+        if (definition.schemaVersion >= 4) report.emplace("key_matching", definition.keyMatching);
+        definitions.emplace(name, std::move(report));
     }
     writeJson(output, NodeValue(std::move(definitions)));
     output << '\n';

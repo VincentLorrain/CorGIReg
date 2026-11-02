@@ -32,6 +32,11 @@ attribute and argument constraints. Load it with an additional `--node-library`
 option. [`conv3x3.json`](conditional-nodes/conv3x3.json) demonstrates value checks,
 presence checks and regexes on values and keys for JSON and ONNX inputs.
 
+The standalone `inline-nodes/` directory contains a schema 4 convolution
+definition with key mappings: `conv(group=1,strides=[1,1])` uses the same
+pattern for JSON, ONNX and StableHLO. Use this directory alone, since it also
+defines `conv`. See [inline conditions](../../doc/node-library.md#inline-conditions-and-key-matching).
+
 `patterns/conv-chain.txt` is a reusable pattern; `conv.mlir` is a real StableHLO
 fixture with two convolutions. Patterns and node definitions are stored separately
 so one vocabulary can be reused across multiple patterns and input formats.
