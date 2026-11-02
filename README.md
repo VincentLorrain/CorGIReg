@@ -2,7 +2,7 @@
 
 [![CorGIReg CI](https://github.com/VincentLorrain/CorGIReg/actions/workflows/ci.yml/badge.svg)](https://github.com/VincentLorrain/CorGIReg/actions/workflows/ci.yml)
 
-CorGIReg is an C++ library designed to apply regular expression operations on graph structures. This library extends traditional text-based regular expressions to graphs, allowing for powerful and flexible pattern matching in complex data structures.
+CorGIReg is a C++ library designed to apply regular expression operations on graph structures. This library extends traditional text-based regular expressions to graphs, allowing for powerful and flexible pattern matching in complex data structures.
 
 See the [documentation index](doc/README.md) for the concepts, pattern language,
 input IRs, node definitions, complete match JSON format, C++ adapters and tooling.
@@ -98,48 +98,25 @@ Reports are saved in `build/performance/reports/`. Compare two runs with
 checks, slowdown thresholds and CI artifacts. Performance measurements use a
 separate Release build; functional tests retain their own checks.
 
-# Graph-Regex Token Types
+## Pattern language at a glance
 
-CorGIReg extends conventional regular-expression syntax with tokens that describe how a node condition should be interpreted inside a transition graph.  The lexer recognises three flavours of "key" tokens, each mapping to a distinct transition type:
+```text
+A->B            A followed by B along a producer-to-consumer edge
+A+->B           one or more A, then B
+(A->B)*         repeat the whole A-B sequence zero or more times
+A#->B;C->A#     two paths joined through the same source node A
+$A$             common node whose inputs and outputs must all be covered
+A->$            A has no successor
+```
 
-| Token | Lexical form | Transition type | Meaning |
-|-------|--------------|-----------------|---------|
-| `KEY` | `A`, `foo_1` | `TransitionTypes::UNIQUE` | A standard node-condition key; the transition succeeds when the node identified by the key matches. |
-| `CKEY` | `A#`, `foo#2` | `TransitionTypes::COMMON` | A *common* key.  The `#` suffix groups multiple transitions that should share the same common anchor, but without enforcing that every adjacent branch of the common node must be consumed. |
-| `SCKEY` | `$A`, `A$`, `$A$`, `$foo#3`, `$foo$3` | `TransitionTypes::STRICTCOMMON` | Prefix `$` requires coverage of inputs; suffix `$` requires coverage of outputs; both require both sides. |
+See the [pattern language](doc/pattern-language.md) for the complete syntax and
+its semantics, and [directional strict nodes](doc/directional-strict-nodes.md)
+for the migration from V0 (`A$` became `$A$`).
 
-Strictness refers to the source graph, independently of traversal direction, and
-applies even to a single neighbor. `$A` uses `CommonMode::INPUTS`, `A$` uses
-`OUTPUTS`, and `$A$` uses `ALL`; `A#` uses `NONE`. The standalone boundary in
-`A->$` remains unchanged. **Breaking change after V0:** replace old bidirectional
-`A$` anchors with `$A$`. See [directional strict nodes and migration](doc/directional-strict-nodes.md).
+## More
 
-## Generating example graphs
-
-For use from a separate graph engine, see the [C++ SDK and integration test](doc/library-integration.md).
-The standalone `corgireg-generate` command writes graph JSON; the matching CLI
-reads it. Fixed input arrows use `A-1->B`; `A-*->B` is an alias of `A->B`.
-Optional input/output port bindings survive JSON, ONNX and StableHLO import.
-
-For reusable format-independent predicates such as `conv` across ONNX and
-StableHLO, see [node and pattern libraries](doc/node-library.md).
-Ready-to-run scripts and graph fixtures are in [matching examples](examples/matches/README.md).
-The compiler's proposed [post-AST root selection phase](doc/post-ast-root-selection.md)
-prepares traversal planning before TransitionGraph generation.
-
-`PGInterpreterIR(query).interpret()` generates an example graph from a pattern.
-For deterministic generation, pass `IRGenerationOptions` or a values-file path:
-`PGInterpreterIR(query, "examples/generation/nested.values").interpret()`.
-See [IR generation](doc/ir-generation.md) for nested repetition values,
-seeded random fallback and testbench parameter series.
-
-The original constructors remain available:
-An optional second constructor argument limits the randomly selected number of
-copies for each `*`, and the additional copies after the mandatory occurrence of
-each `+`. The default limit is 10. This is a per-quantifier limit, not a bound on
-the total graph size, and does not change matching in `PGInterpreterTG`.
-
-For deterministic zero-repetition cases, use `PGInterpreterIR(query, 0)`:
-`A*` produces an empty graph, `A+` produces one A node, and `A->B*->C`
-produces an A-to-C edge. The `?` quantifier remains random.
-
+- [C++ SDK and integration test](doc/library-integration.md) for use from a separate graph engine.
+- [Node and pattern libraries](doc/node-library.md) for format-independent predicates such as `conv`.
+- [Matching examples](examples/matches/README.md) with ready-to-run scripts and graph fixtures.
+- [IR generation](doc/ir-generation.md): `corgireg-generate` and `PGInterpreterIR` build example graphs from a pattern.
+- [Architecture](doc/architecture.md), including the [post-AST root selection phase](doc/post-ast-root-selection.md).

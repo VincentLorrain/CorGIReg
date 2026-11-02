@@ -49,6 +49,21 @@ It is not an external importer or the matching engine. Generated examples are
 useful for exploration, but independent explicit fixtures are necessary for
 correctness tests because both visitors share the parser.
 
+### Pattern tokens and transitions
+
+The lexer recognises three kinds of key tokens, each compiled into its own
+transition type:
+
+| Token | Lexical form | Transition type | Meaning |
+| --- | --- | --- | --- |
+| `KEY` | `A`, `foo_1` | `TransitionTypes::UNIQUE` | Node-condition key; the node must also have at most one parent and one child. |
+| `CKEY` | `A#`, `foo#2` | `TransitionTypes::COMMON` | Common anchor shared by occurrences of the same identity; other neighbors stay free (`CommonMode::NONE`). |
+| `SCKEY` | `$A`, `A$`, `$A$`, `$foo#3`, `$foo$3` | `TransitionTypes::STRICTCOMMON` | Common anchor whose inputs (`$A`, `INPUTS`), outputs (`A$`, `OUTPUTS`) or both (`$A$`, `ALL`) must be covered. |
+
+Strictness refers to the source graph, independently of traversal direction,
+and applies even to a single neighbor. The standalone boundary in `A->$` is a
+separate `NNULL` transition. See [directional strict nodes](directional-strict-nodes.md).
+
 ## Runtime responsibilities
 
 `TransitionGraph` contains states and transitions; compilation prepares start
@@ -80,11 +95,13 @@ compiler/global registry state is thread-safe without additional synchronization
 
 | Directory | Responsibility |
 | --- | --- |
-| `include/`, `src/BasicGraph` | NodeNN and GraphNN representation |
+| `include/`, `src/BasicGraphIr` | NodeNN and GraphNN representation |
 | `include/`, `src/GraphAccess` | GraphView adapters and traversal helpers |
 | `include/`, `src/CompileTool` | Tokens, AST, parser, interpreters and post-AST planning |
 | `include/`, `src/TransitionGraph` | Machine construction, execution and match traces |
 | `include/`, `src/NodeTest` | Predicate registry, legacy expressions, typed rules, JSON documents and node libraries |
+| `include/`, `src/Generation` | Seeded random pattern generator for tests and fuzzing |
+| `include/Util` | Header-only combination and permutation iterators |
 | `src/Cli`, `python/corgireg_cli` | Native worker and public CLI/importers |
 | `test`, `benchmarks` | Functional regressions and measured workloads |
 

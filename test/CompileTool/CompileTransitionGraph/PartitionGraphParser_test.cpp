@@ -1,7 +1,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 #include "CompileTool/CompileTransitionGraph/PartitionGraphParser.hpp"
-#include "Grexgex/RandomExpressionGenerator.h"
+#include "Generation/RandomExpressionGenerator.h"
 #include <iostream>
 #include <random>
 #include <string>

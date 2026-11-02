@@ -1,5 +1,5 @@
 #include "GenerationMatching.hpp"
-#include "Grexgex/RandomExpressionGenerator.h"
+#include "Generation/RandomExpressionGenerator.h"
 
 using namespace CorGIReg;
 using namespace CorGIReg::GenerationMatching;

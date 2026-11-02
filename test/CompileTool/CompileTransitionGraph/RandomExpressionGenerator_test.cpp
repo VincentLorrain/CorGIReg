@@ -1,5 +1,5 @@
 #include <catch2/catch_test_macros.hpp>
-#include "Grexgex/RandomExpressionGenerator.h"
+#include "Generation/RandomExpressionGenerator.h"
 #include "CompileTool/Common/CommonKey.hpp"
 #include "CompileTool/CompileTransitionGraph/PGInterpreterTG.hpp"
 #include <array>

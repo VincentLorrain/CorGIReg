@@ -1,9 +1,10 @@
-
-#include <vector>
-#include <iostream>
-#include <algorithm>
-
 #pragma once
+
+#include <algorithm>
+#include <iostream>
+#include <numeric>
+#include <stdexcept>
+#include <vector>
 
 namespace CorGIReg {
     

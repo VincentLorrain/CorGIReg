@@ -1,4 +1,4 @@
-#include "Grexgex/RandomExpressionGenerator.h"
+#include "Generation/RandomExpressionGenerator.h"
 #include "CompileTool/CompileTransitionGraph/PartitionGraphParser.hpp"
 #include <stdexcept>
 

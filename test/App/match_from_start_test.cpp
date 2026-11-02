@@ -2,7 +2,7 @@
 #include "CompileTool/CompileTransitionGraph/PGInterpreterTG.hpp"
 #include "GraphAdapters/ImportedGraph.hpp"
 #include <numeric>
-#include "Utile/Utile.hpp"
+#include "Util/Util.hpp"
 #include <random>
 
 using namespace CorGIReg;

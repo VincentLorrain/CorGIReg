@@ -162,6 +162,12 @@ and matcher sharing the same AST must not be each other's only oracle.
 `PGInterpreterIR(query)` and `PGInterpreterIR(query, maxLoops)` now use the same
 expansion engine with random fallback and a randomly selected seed at construction.
 Their repetition bounds are preserved, and the default node/visit limits apply.
+`maxLoops` (default 10) limits the randomly selected number of copies for each
+`*`, and the additional copies after the mandatory occurrence of each `+`. It is
+a per-quantifier limit, not a bound on the total graph size, and does not change
+matching in `PGInterpreterTG`. `PGInterpreterIR(query, 0)` gives deterministic
+zero-repetition graphs: `A*` produces an empty graph, `A+` one A node, and
+`A->B*->C` an A-to-C edge. The `?` quantifier remains random.
 Repeated interpretation of the same instance reuses its seed. Pass explicit
 options or a values file to reproduce a fixture across independently created
 instances. All constructors preserve port bindings and assign automatic inputs.
