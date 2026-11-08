@@ -71,7 +71,8 @@ private:
     * @brief Function of grammar rules for sequence :  seq : exp ((NEXT seq)* | NEXT END)
     * @return AST node
     */
-    std::shared_ptr<AstNode<tGTokensTypes>> constructAstSeq(void);
+    std::shared_ptr<AstNode<tGTokensTypes>> constructAstSeq(
+        std::shared_ptr<AstNode<tGTokensTypes>>* incoming = nullptr, bool afterForward = false);
 
     /**
     * @ingroup ParsingFunctions

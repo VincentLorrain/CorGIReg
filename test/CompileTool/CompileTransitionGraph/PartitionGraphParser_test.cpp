@@ -139,3 +139,31 @@ TEST_CASE("Boundary rules see through alternation groups", "[parser][alternation
         }
     }
 }
+
+TEST_CASE("Parser refuses numbered arrows next to operands that can be skipped", "[parser][ports]") {
+    for (const std::string query : {"X-1->C?->Y", "X*-1->Y", "Y<-1-C?<-X", "Y?<-1-X",
+                                    "X-1->(A|C?)->Y", "(A|C)?-1->Y", "X-1->(C?)+",
+                                    "X->(A-1->C?|D)", "X;A-1->$", "$<-1-A"}) {
+        INFO(query);
+        REQUIRE(parseError(query).find("Illegal numbered arrow") == 0);
+    }
+    for (const std::string query : {"X-1->C->Y?", "Y<-1-C<-X?", "X-1->(A|C->D?)",
+                                    "X-1->(A?->C)+", "X-*->C?->Y", "Y<-*-C?<-X"}) {
+        INFO(query);
+        REQUIRE_NOTHROW(PartitionGraphParser(query).parse());
+    }
+}
+
+TEST_CASE("Converging arrows share a common anchor across paths", "[parser][convergence]") {
+    auto tree = PartitionGraphParser("P->X-1->A#<-B?<-C;D").parse();
+    REQUIRE(shape(tree) == "SEP(NEXT(KEY:P,NEXT(KEY:X,CKEY)),SEP(PREC(CKEY,PREC(?(KEY:B),KEY:C)),KEY:D))");
+    const auto numbered = tree->getChilds()[0]->getChilds()[1];
+    REQUIRE(numbered->getValue() == "1");
+    REQUIRE(numbered->getChilds()[1]->getValue() == "A#");
+    REQUIRE(tree->getChilds()[1]->getChilds()[0]->getChilds()[0]->getValue() == "A#");
+    for (const std::string query : {"X-1->A<-B?", "X->A?<-B", "X->(A|D)<-B", "(X->A#<-B)+"}) {
+        INFO(query);
+        REQUIRE(parseError(query).find("Illegal convergence") == 0);
+    }
+    REQUIRE(parseError("X-1->A#<-2-B?").find("Illegal numbered arrow <-2-") == 0);
+}

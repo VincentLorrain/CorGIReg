@@ -51,6 +51,31 @@ bool nullable(const Ast& node) {
     return true;
 }
 bool mandatory(const Ast& node) { return node->getType() != T::END && !nullable(node); }
+
+Ast separatePaths(const Ast& first, const Ast& rest) {
+    return std::make_shared<AstNode<T>>(std::make_shared<ParsingToken<T>>(T::SEP, ";"),
+                                       std::vector<Ast>{first, rest});
+}
+
+void checkNumberedArrows(const Ast& node) {
+    const auto type = node->getType();
+    const auto& children = node->getChilds();
+    if ((type == T::NEXT || type == T::PREC) && !node->getValue().empty() && node->getValue() != "*") {
+        // The right subtree can be the rest of the sequence. Only its first
+        // textual operand touches this arrow, in either spelling direction.
+        auto right = children[1];
+        if (right->getType() == T::NEXT || right->getType() == T::PREC)
+            right = right->getChilds()[0];
+        if (!mandatory(children[0]) || !mandatory(right)) {
+            const auto port = node->getValue();
+            const auto arrow = type == T::NEXT ? "-" + port + "->" : "<-" + port + "-";
+            throw std::invalid_argument("Illegal numbered arrow " + arrow +
+                                        ": both operands must require at least one node");
+        }
+    }
+    for (const auto& child : children) checkNumberedArrows(child);
+}
+
 bool containsAnchor(const Ast& node) {
     if (anchor(node->getType())) return true;
     for (const auto& child : node->getChilds()) if (containsAnchor(child)) return true;
@@ -138,6 +163,7 @@ std::shared_ptr<AstNode<tGTokensTypes>> PartitionGraphParser::parse(void){
     std::shared_ptr<AstNode<tGTokensTypes>> astTree = constructAstAllExpr();
     rstParser();
     checkAlternatives(astTree);
+    checkNumberedArrows(astTree);
     BoundaryCheck check;
     check.paths(astTree);
     check.finish();
@@ -221,7 +247,7 @@ std::shared_ptr<AstNode<tGTokensTypes>> PartitionGraphParser::constructAstExp(vo
 /*
 seq : (exp (((NEXT seq)* | NEXT END ) )| (exp|END) (PREC rseq)* 
 */
-std::shared_ptr<AstNode<tGTokensTypes>> PartitionGraphParser::constructAstSeq(void)
+std::shared_ptr<AstNode<tGTokensTypes>> PartitionGraphParser::constructAstSeq(Ast* incoming, bool afterForward)
 {
    try{
         std::shared_ptr<AstNode<tGTokensTypes>> left = nullptr;
@@ -242,18 +268,27 @@ std::shared_ptr<AstNode<tGTokensTypes>> PartitionGraphParser::constructAstSeq(vo
                 }
 
                 std::shared_ptr<AstNode<tGTokensTypes>> newNode = std::make_shared<AstNode<tGTokensTypes>>(token,
-                std::vector<std::shared_ptr<AstNode<tGTokensTypes>>>{left,constructAstSeq()});
+                std::vector<std::shared_ptr<AstNode<tGTokensTypes>>>{left,constructAstSeq(incoming, true)});
                 left = newNode;
 
             }
             
             else if(mCurrentToken->getType() == tGTokensTypes::PREC )
             {
+                if (afterForward && !anchor(left->getType()))
+                    throw std::invalid_argument("Illegal convergence: arrows must meet at a common anchor, as in X->A#<-B");
+                if (afterForward && !incoming)
+                    throw std::invalid_argument("Illegal convergence: use a common anchor outside groups");
                 std::shared_ptr<ParsingToken<tGTokensTypes>> token = mCurrentToken->copy();
                 ackToken(tGTokensTypes::PREC);
 
                 std::shared_ptr<AstNode<tGTokensTypes>> newNode = std::make_shared<AstNode<tGTokensTypes>>(token,
                 std::vector<std::shared_ptr<AstNode<tGTokensTypes>>>{left,constructAstRseq()});
+                if (afterForward) {
+                    // X->A#<-B is two incoming paths sharing the same A#.
+                    *incoming = newNode;
+                    return left;
+                }
                 left = newNode;
             }
 
@@ -382,7 +417,8 @@ std::shared_ptr<AstNode<tGTokensTypes>> PartitionGraphParser::constructAstAllExp
 {
 
     try{
-        std::shared_ptr<AstNode<tGTokensTypes>> left = constructAstSeq();
+        Ast incoming;
+        auto left = constructAstSeq(&incoming);
         if(mCurrentToken->getType() == tGTokensTypes::SEP )
         {
             std::shared_ptr<ParsingToken<tGTokensTypes>> token = mCurrentToken->copy();
@@ -390,16 +426,18 @@ std::shared_ptr<AstNode<tGTokensTypes>> PartitionGraphParser::constructAstAllExp
 
             if(mCurrentToken->getType() == tGTokensTypes::STOP )
             {
-                 return left;
+                return incoming ? separatePaths(left, incoming) : left;
             }
-            std::shared_ptr<AstNode<tGTokensTypes>> newNode = std::make_shared<AstNode<tGTokensTypes>>(token,
-            std::vector<std::shared_ptr<AstNode<tGTokensTypes>>>{left,constructAstAllExpr()});
+            auto rest = constructAstAllExpr();
+            if (incoming) rest = separatePaths(incoming, rest);
+            auto newNode = std::make_shared<AstNode<tGTokensTypes>>(token, std::vector<Ast>{left, rest});
             left = newNode;
         }else//in others case token must be STOP
         {
             if (mCurrentToken->getType() == tGTokensTypes::ALT)
                 throw std::runtime_error("Alternation requires parentheses, as in (A|B)");
             ackToken(tGTokensTypes::STOP);
+            if (incoming) left = separatePaths(left, incoming);
         }
         return left;
 

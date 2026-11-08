@@ -117,11 +117,13 @@ exp        := KEY quantifier? | COMMON | STRICT_COMMON | '(' seq ')' quantifier
 quantifier := '+' | '*' | '?'
 ```
 
-Arrow sequences associate to the right. The reverse-arrow interpreter places
-the entire right subtree before the left operand. Do not treat mixed arrows as
-an arbitrary undirected drawing: `A->B<-C` follows those parser rules, and
-`A<-B->C` is rejected. For branching, use explicit paths sharing common anchors,
-such as `A->B#; C->B#`. This also makes the intended identity constraints visible.
+Arrow sequences associate to the right. A sequence of reverse arrows starts
+at its rightmost operand. At the top level, incoming arrows can meet at a
+common anchor. `X-1->A#<-B?` is shorthand for `X-1->A#; A#<-B?`.
+The number belongs to the input of `A` reached from `X`, and the path from
+`B` is optional. `X-1->A<-B?` is invalid because the meeting point has no
+anchor. Write other branching patterns as separate paths with shared anchors,
+for example `A#->B; A#->C`.
 
 ## Matching behavior
 
@@ -172,8 +174,10 @@ Numeric predicate names remain legal, for example `A->123`.
 
 Matching fixed arrows requires port metadata in the source graph; an unspecified
 port does not match a fixed number. Wildcard arrows do not constrain ports.
-Quantifiers retain their existing meaning. A fixed connection requires a node
-on both sides: skipping an entire operand cannot produce a numbered-edge match.
+The parser rejects a numbered arrow if either adjacent operand can consume no
+nodes. For example, `X-1->C?->Y` and `X-1->(A|C?)->Y` are invalid, while
+`X-1->(A|C)->Y` is valid. Use `X->C?->Y` or `X-*->C?->Y` when `C` may be
+skipped without requiring a fixed input port.
 Ports label connections, not common-node identities or node IDs. Output ports
 are preserved in the graph but are not selected by pattern syntax in this version.
 
