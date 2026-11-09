@@ -6,6 +6,7 @@
 #include "TransitionGraph/RunTimeContext.hpp"
 
 
+#include <atomic>
 #include <set>
 #include <sstream>
 #include <memory>
@@ -49,6 +50,9 @@ namespace CorGIReg{
 
 
     class Transition: public std::enable_shared_from_this<Transition> {
+        static std::atomic<std::size_t> sID;
+        const std::size_t mId = sID.fetch_add(1, std::memory_order_relaxed);
+
     protected:
         /**
          * @brief the relative position to this transition relative to all the common Transition 
@@ -104,6 +108,7 @@ namespace CorGIReg{
         */
 
         virtual const TransitionResult test(const std::shared_ptr<RunTimeContext>& context) =0;
+        std::size_t getId() const noexcept { return mId; }
 
         /**
          * @brief kind of the transition, to switch on instead of casting
@@ -274,26 +279,27 @@ namespace CorGIReg{
     class TransitionRef:public Transition
     {
         public:
-        // Common anchor of the repeated body and every signed distance from
-        // the body start to it (+1 per parent step, -1 per child step).
+        // Distances from one common anchor back to the body start
+        // (+1 per parent-directed body step, -1 per child-directed step).
         // Distances beyond kLimit make that side unbounded.
         struct Anchor {
-            std::size_t commonIdx = 0;
             std::set<int> deltas;
             bool unboundedParents = false, unboundedChildren = false;
         };
         static constexpr int kLimit = 32;
 
         private:
-        const Anchor mAnchor;
+        struct Body {
+            std::map<std::size_t, Anchor> anchors;
+            bool canSkipAnchors = false;
+        };
+        const Body mBody;
 
         public:
         /**
          * @brief constructor
          * @param source source state of the edge
          * @param dest dest state of the edge
-         * @param refCommonIdx the id of one common node that we use as an anchor
-         * @param deltaCommonIdx the delta in term of child or parent refer to the anchor
          */
         TransitionRef(std::shared_ptr<State> source,std::shared_ptr<State> dest);
         const TransitionResult test(const std::shared_ptr<RunTimeContext>& context) override;
@@ -301,7 +307,7 @@ namespace CorGIReg{
         std::string strRep(void) const override;
 
         private:
-        Anchor getAnchor(std::shared_ptr<State>& dest) const;
+        static Body analyzeBody(const std::shared_ptr<State>& start, const std::shared_ptr<State>& completed);
 
     };
 

@@ -97,6 +97,22 @@ class CliTests(unittest.TestCase):
             validate_graph({"nodes": [{"id": 0, "op": "A"}], "edges": [],
                             "connections": [{"from": 0, "to": 0, "input": 1}]})
 
+    def test_nullable_alternation_report_order_is_stable_between_compilations(self):
+        graph = {"nodes": [{"id": 0, "op": "X"}, {"id": 1, "op": "Y"}], "edges": [[0, 1]]}
+        self.graph.write_text(json.dumps(graph), encoding="utf-8")
+        args = ("-i", self.graph, "-r", "X->(A?|B?)*->Y", "--jobs", "1")
+        reference = self.invoke(*args)
+        self.assertEqual(reference.returncode, 0, reference.stderr)
+        matches = json.loads(reference.stdout)["matches"]
+        self.assertEqual([match["node_ids"] for match in matches], [[0, 1]] * 3)
+        traces = {tuple((q["index"], q["count"]) for q in match["walks"][0]["quantifiers"])
+                  for match in matches}
+        self.assertEqual(traces, {((3, 0),), ((3, 1), (1, 0)), ((3, 1), (2, 0))})
+        for _ in range(8):
+            report = self.invoke(*args)
+            self.assertEqual(report.returncode, 0, report.stderr)
+            self.assertEqual(report.stdout, reference.stdout)
+
     def test_skipped_strict_group_keeps_its_empty_match(self):
         for jobs in [1, 4]:
             process = self.invoke("-i", self.graph, "-r", "($B)?", "--jobs", jobs)

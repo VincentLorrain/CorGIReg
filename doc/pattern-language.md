@@ -93,7 +93,9 @@ Boundary rules see an alternation as nullable when one of its alternatives is:
 
 ## Boundary rules
 
-`$` asserts that the operation before it has no successor. The parser refuses,
+`$` asserts that the operation before it has no successor available to the
+current walk. A return to an already captured plain node is unavailable, but
+it does not hide another successor. The parser refuses,
 with an "Illegal boundary" error, patterns where that can never hold or depends
 on how many times a quantifier repeats:
 
@@ -145,10 +147,12 @@ this enumeration.
 Quantifier results count whole-body iterations. Ambiguous allocations remain
 distinct solutions and ordering is not a greedy ranking. Nullable and repeated
 common-node patterns use finite canonical traces: after the first iteration,
-each additional iteration must cover a new source node. In a repeated group
-containing an anchor, each iteration reaches the same anchor node and may start
-at any distance from it allowed by the body: `(A?->D#)+` and `(A+->D#)+` accept
-branches of different lengths joining at D. See
+each additional iteration must cover a new source node. An iteration can restart
+at any distance allowed by the body from a previously bound anchor. Each
+visited anchor keeps the same source identity. `(A?->D#)+` and `(A+->D#)+` accept
+branches of different lengths joining at D. A skipped optional anchor does
+not prevent a restart from another bound anchor. A body that can skip all
+anchors can also continue from its current graph position. See
 [match traces](match-traces.md) for nesting, zero counts and termination.
 
 ## Practical examples

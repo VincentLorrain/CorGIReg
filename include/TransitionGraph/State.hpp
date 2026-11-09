@@ -20,14 +20,14 @@ namespace CorGIReg
 class Transition;
 
 
-/** @brief compare two weak pointer for making a set of weak pointer */
+/** @brief Order live graph objects by creation, independently of allocation. */
 template <typename T>
 struct lex_compare {
     bool operator() (const std::weak_ptr<T> &lhs, const std::weak_ptr<T> &rhs)const {
         auto lptr = lhs.lock(), rptr = rhs.lock();
         if (!rptr) return false; // nothing after expired pointer
         if (!lptr) return true;
-        return lptr < rptr;
+        return lptr->getId() < rptr->getId();
     }
 };
 

@@ -120,6 +120,71 @@ TEST_CASE("An anchor identity binds a single source node", "[regression][app]") 
         }
 }
 
+TEST_CASE("Repetitions can restart when an optional anchor was skipped", "[regression][app]") {
+    const auto fork = anchorGraph({"C", "C", "A"}, {{0, 2}, {1, 2}});
+    const auto separate = anchorGraph({"C", "C", "A", "A"}, {{0, 2}, {1, 3}});
+    for (const std::string query : {"((D#)?->C?->A#)+", "(A#<-C?<-(D#)?)+", "((D#)?->C*->A#)+"}) {
+        INFO(query);
+        std::set<NodeIds> captured;
+        bool twoIterations = false;
+        for (const auto& match : allMatches(query, fork)) {
+            captured.insert(match->getAll());
+            if (match->getAll() == NodeIds{0, 1, 2})
+                twoIterations |= match->getWalks().at(0).quantifiers.at(0).count() == 2;
+        }
+        REQUIRE(captured == std::set<NodeIds>{{2}, {0, 2}, {1, 2}, {0, 1, 2}});
+        REQUIRE(twoIterations);
+        for (const auto& match : allMatches(query, separate))
+            REQUIRE(match->getAll().size() <= 2);
+    }
+
+    const auto chain = anchorGraph({"C", "C"}, {{0, 1}});
+    std::set<NodeIds> captured;
+    for (const auto& match : allMatches("((D#)?->C)+", chain)) captured.insert(match->getAll());
+    REQUIRE(captured == std::set<NodeIds>{{0}, {1}, {0, 1}});
+}
+
+TEST_CASE("A return to a captured node does not hide a cycle exit from a boundary", "[boundary][regression][app]") {
+    const auto sink = anchorGraph({"A", "B", "C"}, {{0, 1}});
+    const auto closed = anchorGraph({"A", "B", "C"}, {{0, 1}, {1, 0}});
+    const auto open = anchorGraph({"A", "B", "C"}, {{0, 1}, {1, 0}, {1, 2}});
+    const auto branch = anchorGraph({"A", "B", "C"}, {{0, 1}, {1, 2}});
+    for (const std::string query : {"A->B#->$", "$<-B#<-A"}) {
+        INFO(query);
+        for (const auto& graph : {sink, closed}) {
+            const auto matches = allMatches(query, graph);
+            REQUIRE(matches.size() == 1);
+            REQUIRE(matches[0]->getAll() == NodeIds{0, 1});
+        }
+        REQUIRE(allMatches(query, open).empty());
+        REQUIRE(allMatches(query, branch).empty());
+    }
+    const auto matches = allMatches("A->B#->C->$", open);
+    REQUIRE(matches.size() == 1);
+    REQUIRE(matches[0]->getAll() == NodeIds{0, 1, 2});
+}
+
+TEST_CASE("An anchor beyond the fixed distance window still restarts a repetition", "[regression][app]") {
+    constexpr NodeId length = 33;
+    constexpr NodeId anchor = 2 * length;
+    std::vector<std::string> types(anchor, "C");
+    types.push_back("A");
+    std::vector<std::pair<NodeId, NodeId>> edges;
+    for (NodeId first : {NodeId{0}, length}) {
+        for (NodeId i = first; i + 1 < first + length; ++i) edges.emplace_back(i, i + 1);
+        edges.emplace_back(first + length - 1, anchor);
+    }
+    std::string query = "(";
+    for (NodeId i = 0; i < length; ++i) query += "C->";
+    query += "A#)+";
+    const auto machine = PGInterpreterTG(query).interpret();
+    const auto found = machine->test(anchorGraph(types, edges), {0},
+        {{"C", [](NodeId id) { return id < anchor; }}, {"A", [](NodeId id) { return id == anchor; }}});
+    std::set<std::size_t> sizes;
+    for (const auto& match : found->getMatches()) sizes.insert(match->getAll().size());
+    REQUIRE(sizes == std::set<std::size_t>{length + 1, 2 * length + 1});
+}
+
 TEST_CASE("Paths combine into one solution per set of walks with consistent captures", "[regression][app]") {
     // A0 -> B1 -> C2, searched over every start tuple of the path-order machine.
     const auto chain = anchorGraph({"A", "B", "C"}, {{0, 1}, {1, 2}});
