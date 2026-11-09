@@ -22,10 +22,12 @@ struct QuantifierCapture {
     std::size_t begin; // Half-open range in MatchWalk::nodes.
     std::size_t end;
     std::vector<std::size_t> iterationEnds;
+    std::string notation; // Empty for the original single-character quantifiers.
     std::size_t count() const noexcept { return iterationEnds.size(); }
+    std::string spelling() const { return notation.empty() ? std::string(1, symbol) : notation; }
     bool operator==(const QuantifierCapture& other) const {
-        return std::tie(index, symbol, parent, begin, end, iterationEnds) ==
-               std::tie(other.index, other.symbol, other.parent, other.begin, other.end, other.iterationEnds);
+        return std::tie(index, symbol, parent, begin, end, iterationEnds, notation) ==
+               std::tie(other.index, other.symbol, other.parent, other.begin, other.end, other.iterationEnds, other.notation);
     }
 };
 

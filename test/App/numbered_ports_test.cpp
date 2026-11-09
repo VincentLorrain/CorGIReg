@@ -47,6 +47,31 @@ TEST_CASE("Numbered arrows match actual operand ports in either textual directio
     REQUIRE_FALSE(PGInterpreterTG("X-*->Sub").interpret()->test(plain, {0}, predicates)->getMatches().empty());
 }
 
+TEST_CASE("Brace groups check numbered edges at their two endpoints", "[ports][app][repetition-range]") {
+    auto makeChain = [](PortNumber first, PortNumber last) {
+        auto graph = std::make_shared<ImportedGraph>();
+        for (const auto& [id, key] : std::vector<std::pair<NodeId, std::string>>{{0, "X"}, {1, "A"}, {2, "A"}, {3, "Y"}})
+            graph->addNode(id, key, std::to_string(id));
+        graph->addEdge(0, 1, {first, std::nullopt});
+        graph->addEdge(1, 2, {7, std::nullopt});
+        graph->addEdge(2, 3, {last, std::nullopt});
+        return graph;
+    };
+    const NodePredicates predicates{{"X", [](NodeId id) { return id == 0; }},
+                                   {"A", [](NodeId id) { return id == 1 || id == 2; }},
+                                   {"Y", [](NodeId id) { return id == 3; }}};
+    for (const std::string query : {"X-2->A{1,2}-3->Y", "Y<-3-A{1,2}<-2-X", "X-2->A{2,}-3->Y"}) {
+        INFO(query);
+        const auto pattern = PGInterpreterTG(query).interpret();
+        const auto match = pattern->test(makeChain(2, 3), {0}, predicates);
+        REQUIRE(match->getMatches().size() == 1);
+        REQUIRE(match->getMatches().at(0)->getAll() == NodeIds{0, 1, 2, 3});
+        REQUIRE(match->getMatches().at(0)->getWalks().at(0).quantifiers.at(0).count() == 2);
+        REQUIRE_FALSE(pattern->test(makeChain(1, 3), {0}, predicates)->isMatch());
+        REQUIRE_FALSE(pattern->test(makeChain(2, 1), {0}, predicates)->isMatch());
+    }
+}
+
 TEST_CASE("A numbered arrow cannot match past an optional operand", "[ports][app]") {
     const std::string query = "X-1->C?->Y";
     REQUIRE_THROWS_AS(PGInterpreterTG(query).interpret(), std::invalid_argument);

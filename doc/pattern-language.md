@@ -15,6 +15,9 @@ not a list of separately executed queries. Comments are not supported.
 | `A+` | One or more occurrences. |
 | `A*` | Zero or more occurrences. |
 | `A?` | Zero or one occurrence. |
+| `A{3}` | Exactly three occurrences. |
+| `A{2,}` | Two or more occurrences. |
+| `A{2,4}` | Two through four occurrences, inclusive. |
 | `(A->B)+` | Repeat the entire A-B sequence. Groups without alternatives require a postfix quantifier. |
 | `(A->B\|C)` | [Alternation](#alternation): either the A-B sequence or C. The quantifier is optional. |
 | `B#` | Common node: occurrences of this anchor must identify the same source node. Allows branching. |
@@ -46,11 +49,18 @@ therefore needs `A->B#;B#->C` to share B. Each combination of path walks is
 reported once. Plain repeated B occurrences do not establish shared
 identity. Suffix identities are normalized digit strings, without integer conversion.
 
-There is no wildcard `.`, character class, `{m,n}`, lazy or possessive
+There is no wildcard `.`, character class, lazy or possessive
 quantifier. Attribute regexes belong to [NodeTest rules](node-rules.md),
 whose ECMAScript string syntax is separate from this graph language.
 `(A->B)`, `B#+` and `$B+` are invalid; use `(B#)+` or `($B)+`.
 Markers must touch their predicate: `$ B` is not `$B`.
+
+Brace quantifiers apply to a plain predicate or an entire group, including an
+alternation. Use `(A#){2}` to repeat an anchor. Bounds are decimal integers
+from 0 to 1,000,000. The maximum cannot be smaller than the minimum. Spaces
+around the counts or comma are allowed. `A{0}` skips A, and `(A->B){2,4}`
+repeats the whole A–B sequence. A numbered arrow rejects an adjacent operand
+that can be skipped, including a brace quantifier with a minimum of zero.
 
 These strict markers require neighbor coverage, not a particular degree or
 neighbor type. Constraints apply even at degree one and do not change meaning
@@ -118,7 +128,7 @@ seq        := exp (forward (seq | '$') | reverse rseq)? | '$' reverse rseq
 rseq       := exp (reverse (rseq | '$'))?
 exp        := key quantifier? | common | strict_common | group
 group      := '(' seq ')' quantifier | '(' seq ('|' seq)+ ')' quantifier?
-quantifier := '+' | '*' | '?'
+quantifier := '+' | '*' | '?' | '{' count '}' | '{' count ',' count? '}'
 ```
 
 Arrow sequences associate to the right. A sequence of reverse arrows starts
@@ -149,8 +159,10 @@ group. See [rooted execution](post-ast-root-selection.md#rooted-execution).
 
 Quantifier results count whole-body iterations. Ambiguous allocations remain
 distinct solutions and ordering is not a greedy ranking. Nullable and repeated
-common-node patterns use finite canonical traces: after the first iteration,
-each additional iteration must cover a new source node. An iteration can restart
+common-node patterns with no upper bound use finite canonical traces. After
+the first iteration and once the minimum is satisfied, each additional
+iteration must cover a new source node. A finite brace bound can count empty
+iterations up to its maximum. An iteration can restart
 at any distance allowed by the body from a previously bound anchor. Each
 visited anchor keeps the same source identity. `(A?->D#)+` and `(A+->D#)+` accept
 branches of different lengths joining at D. A skipped optional anchor does

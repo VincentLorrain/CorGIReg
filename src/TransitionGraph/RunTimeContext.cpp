@@ -5,7 +5,7 @@
 #include <sstream>
 
 namespace CorGIReg {
-void RunTimeContext::beginQuantifier(std::size_t index, char symbol) {
+void RunTimeContext::beginQuantifier(std::size_t index, char symbol, const std::string& notation) {
     std::optional<std::size_t> parent;
     std::size_t pass = 0;
     if (!mActiveQuantifiers.empty()) {
@@ -13,18 +13,25 @@ void RunTimeContext::beginQuantifier(std::size_t index, char symbol) {
         pass = mQuantifiers.at(*parent).count();
     }
     mInvocationPass.push_back(pass);
-    mQuantifiers.push_back({index, symbol, parent, mCaptures.size(), mCaptures.size(), {}});
+    mQuantifiers.push_back({index, symbol, parent, mCaptures.size(), mCaptures.size(), {}, notation});
     mActiveQuantifiers.push_back({mQuantifiers.size() - 1, getValidNodes().size()});
 }
 
-bool RunTimeContext::completeIteration(std::size_t index) {
+std::size_t RunTimeContext::quantifierCount(std::size_t index) const {
+    const auto& capture = mQuantifiers.at(mActiveQuantifiers.back().first);
+    if (capture.index != index) throw std::logic_error("Unbalanced quantifier check");
+    return capture.count();
+}
+
+bool RunTimeContext::completeIteration(std::size_t index, std::size_t minimum, bool bounded) {
     auto& active = mActiveQuantifiers.at(mActiveQuantifiers.size() - 1);
     auto& capture = mQuantifiers.at(active.first);
     if (capture.index != index) throw std::logic_error("Unbalanced quantifier iteration");
     const auto size = getValidNodes().size();
-    // Canonical finite traces: another iteration must cover a new source node.
-    // This also bounds nullable and common-node-only repetition cycles.
-    if (capture.count() != 0 && size == active.second) return false;
+    // Finite bounds already prevent cycles. For open ranges, allow empty
+    // iterations to satisfy the minimum, then require progress as usual.
+    if (!bounded && capture.count() != 0 && capture.count() >= minimum && size == active.second)
+        return false;
     active.second = size;
     capture.iterationEnds.push_back(mCaptures.size());
     return true;
@@ -178,7 +185,7 @@ std::string RunTimeContext::key(bool position) const {
     auto invocation = [&](std::size_t i) {
         const auto& q = mQuantifiers[i];
         std::ostringstream text;
-        text << '(' << q.index << q.symbol << q.count();
+        text << '(' << q.index << q.spelling() << q.count();
         if (open.count(i)) text << " open " << open[i];
         std::vector<std::string> passes;
         std::size_t begin = q.begin;

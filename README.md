@@ -104,6 +104,7 @@ separate Release build; functional tests retain their own checks.
 ```text
 A->B            A followed by B along a producer-to-consumer edge
 A+->B           one or more A, then B
+A{2,4}->B       two through four A, then B
 (A->B)*         repeat the whole A-B sequence zero or more times
 (A->B|C)->D      either A-B or C, then D
 A#->B;C->A#     two paths joined through the same source node A

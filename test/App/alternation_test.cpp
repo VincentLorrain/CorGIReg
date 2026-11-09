@@ -120,6 +120,8 @@ TEST_CASE("Alternation composes with anchors outside it, also from anchor roots"
     // 80:B->81:X->82:Z is the counter-example.
     REQUIRE(fixture.search("(A|C)->X#;X#->Z") == NodeSets{{70, 71, 72}});
     REQUIRE(fixture.search("(A|B)->X#;X#->Z") == NodeSets{{80, 81, 82}});
+    REQUIRE(fixture.search("(A|C){1,2}->X#;X#->Z") == NodeSets{{70, 71, 72}});
+    REQUIRE(fixture.search("(A|C){2}->X#;X#->Z").empty());
 }
 
 TEST_CASE("Start planning reaches every alternative head", "[alternation][start]") {

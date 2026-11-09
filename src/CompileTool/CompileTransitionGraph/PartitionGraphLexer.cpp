@@ -4,6 +4,7 @@
 #include <limits>
 #include "GraphAccess/Ports.hpp"
 #include "CompileTool/Common/NodePattern.hpp"
+#include "CompileTool/Common/Repetition.hpp"
 
 using namespace CorGIReg; 
 
@@ -101,6 +102,15 @@ std::shared_ptr<ParsingToken<tGTokensTypes>> PartitionGraphLexer::getNextToken(v
             } catch (const std::exception&) { throw badTokenError("Invalid port", begin); }
         }
         return std::make_shared<ParsingToken<tGTokensTypes>>(type, value == "*" ? "" : value);
+    }
+    if (current == '{') {
+        const auto close = mRegularExpressions.find('}', start + 1);
+        if (close == std::string::npos) throw badTokenError("Unclosed repetition", start);
+        auto value = mRegularExpressions.substr(start, close - start + 1);
+        try { parseRepetition(tGTokensTypes::QRANGE, value); }
+        catch (const std::invalid_argument& error) { throw badTokenError(error.what(), start); }
+        mPosition = close + 1;
+        return std::make_shared<ParsingToken<tGTokensTypes>>(tGTokensTypes::QRANGE, value);
     }
     switch (current) {
     case '*': return emit(tGTokensTypes::QZM);

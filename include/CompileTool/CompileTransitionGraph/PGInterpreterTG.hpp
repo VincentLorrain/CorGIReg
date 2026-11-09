@@ -10,6 +10,7 @@
 
 #include "TransitionGraph/TransitionGraph.hpp"
 #include "CompileTool/Common/AstNode.hpp"
+#include "CompileTool/Common/Repetition.hpp"
 #include "CompileTool/CompileTransitionGraph/PartitionGraphLexer.hpp"
 #include "CompileTool/CompileTransitionGraph/PartitionGraphParser.hpp"
 #include "CompileTool/CompileTransitionGraph/PartitionGraphTokens.hpp"
@@ -28,7 +29,7 @@ namespace CorGIReg {
         std::map<const AstNode<tGTokensTypes>*, std::size_t> mQuantifierIndices;
         void indexQuantifiers(const std::shared_ptr<AstNode<tGTokensTypes>>& node);
         std::shared_ptr<TransitionGraph> quantify(std::shared_ptr<TransitionGraph> body,
-                                               std::size_t index, char symbol);
+                                               std::size_t index, const Repetition& repetition);
         // One entry and one exit, in the enclosing group, joined to every
         // alternative by empty transitions. Alternatives stay one path.
         std::shared_ptr<TransitionGraph> alternate(const std::vector<std::shared_ptr<TransitionGraph>>& branches);

@@ -134,7 +134,7 @@ void writeMatch(std::ostream& out, const MatchSolution& match) {
             if (!firstQ) out << ',';
             firstQ = false;
             out << "{\"index\":" << q.index << ",\"symbol\":";
-            jsonString(out, std::string(1, q.symbol));
+            jsonString(out, q.spelling());
             out << ",\"count\":" << q.count() << ",\"parent\":";
             if (q.parent) out << *q.parent; else out << "null";
             out << ",\"begin\":" << q.begin << ",\"end\":" << q.end << ",\"iteration_ends\":";

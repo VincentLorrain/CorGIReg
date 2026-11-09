@@ -46,7 +46,7 @@ Each `quantifiers[]` object contains:
 | Field | Meaning |
 | --- | --- |
 | `index` | One-based lexical position of the quantifier symbol in `query`. |
-| `symbol` | `+`, `*` or `?`. |
+| `symbol` | Quantifier text, for example `+`, `*`, `?`, `{3}`, `{2,}`, or `{2,4}`. |
 | `count` | Number of completed iterations of the whole body. |
 | `parent` | Null, or zero-based position of the enclosing invocation in this walk's `quantifiers`. |
 | `begin`, `end` | Half-open range `[begin, end)` within this walk's `nodes`. |

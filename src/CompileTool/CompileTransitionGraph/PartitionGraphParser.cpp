@@ -1,5 +1,6 @@
 #include "CompileTool/CompileTransitionGraph/PartitionGraphParser.hpp"
 #include "CompileTool/Common/CommonKey.hpp"
+#include "CompileTool/Common/Repetition.hpp"
 #include <set>
 
 
@@ -22,7 +23,6 @@ namespace {
 using Ast = std::shared_ptr<AstNode<tGTokensTypes>>;
 using T = tGTokensTypes;
 
-bool quantifier(T type) { return type == T::QOM || type == T::QZM || type == T::QZO; }
 bool anchor(T type) { return type == T::CKEY || type == T::SCKEY; }
 // Units of a sequence in traversal order: PREC places its right operand first.
 void units(const Ast& node, std::vector<Ast>& out) {
@@ -37,8 +37,9 @@ Ast body(const Ast& group) {
 bool nullable(const Ast& node) {
     const auto type = node->getType();
     if (type == T::KEY || anchor(type)) return false;
-    if (type == T::QZM || type == T::QZO || type == T::END) return true;
-    if (type == T::QOM) return nullable(body(node));
+    if (type == T::END) return true;
+    if (isQuantifier(type))
+        return parseRepetition(type, node->getValue()).minimum == 0 || nullable(body(node));
     if (type == T::LPAREN) return nullable(node->getChilds()[0]);
     if (type == T::ALT) {
         for (const auto& branch : node->getChilds()) if (nullable(branch)) return true;
@@ -93,7 +94,8 @@ class BoundaryCheck {
     // Anchors that can be the last operation of a unit.
     void lastAnchors(const Ast& node, std::set<std::string>& out) {
         if (anchor(node->getType())) { out.insert(identity(node)); return; }
-        if (!quantifier(node->getType())) return;
+        if (!isQuantifier(node->getType())) return;
+        if (parseRepetition(node->getType(), node->getValue()).maximum == 0) return;
         std::vector<Ast> list;
         units(body(node), list);
         for (auto it = list.rbegin(); it != list.rend(); ++it) {
@@ -123,9 +125,12 @@ public:
                 }
             } else if (anchor(type)) {
                 if (!optional && after[i + 1]) followed.insert(identity(unit));
-            } else if (quantifier(type)) {
-                const bool repeated = type != T::QZO && !containsAnchor(unit);
-                sequence(body(unit), guaranteed, chained || repeated, optional || type != T::QOM, after[i + 1]);
+            } else if (isQuantifier(type)) {
+                const auto repetition = parseRepetition(type, unit->getValue());
+                const bool repeated = repetition.mayRepeat() && !containsAnchor(unit);
+                if (repetition.maximum != 0)
+                    sequence(body(unit), guaranteed, chained || repeated,
+                             optional || repetition.minimum == 0, after[i + 1]);
             }
             guaranteed = guaranteed || mandatory(unit);
         }
@@ -195,7 +200,7 @@ void PartitionGraphParser::ackToken(tGTokensTypes  tokenType){
 }
 
 /*
-exp : KEY(QOM | QZM | QZO)?  | CKEY | SCKEY | domain
+exp : KEY quantifier? | CKEY | SCKEY | domain
 */
 std::shared_ptr<AstNode<tGTokensTypes>> PartitionGraphParser::constructAstExp(void)
 {
@@ -206,24 +211,11 @@ std::shared_ptr<AstNode<tGTokensTypes>> PartitionGraphParser::constructAstExp(vo
 
         if (mCurrentToken->getType() == tGTokensTypes::KEY  ){
             ackToken(tGTokensTypes::KEY );
-            if (mCurrentToken->getType() == tGTokensTypes::QOM  ){
+            const auto quantifier = mCurrentToken->getType();
+            if (isQuantifier(quantifier)) {
                 token = mCurrentToken->copy();
-                ackToken(tGTokensTypes::QOM );
-                std::shared_ptr<AstNode<tGTokensTypes>> newNode = std::make_shared<AstNode<tGTokensTypes>>(token,
-                std::vector<std::shared_ptr<AstNode<tGTokensTypes>>>{node});
-                return newNode;
-            }else if (mCurrentToken->getType() == tGTokensTypes::QZM  ){
-                token = mCurrentToken->copy();
-                ackToken(tGTokensTypes::QZM );
-                std::shared_ptr<AstNode<tGTokensTypes>> newNode = std::make_shared<AstNode<tGTokensTypes>>(token,
-                std::vector<std::shared_ptr<AstNode<tGTokensTypes>>>{node});
-                return newNode;
-            }else if (mCurrentToken->getType() == tGTokensTypes::QZO  ){
-                token = mCurrentToken->copy();
-                ackToken(tGTokensTypes::QZO );
-                std::shared_ptr<AstNode<tGTokensTypes>> newNode = std::make_shared<AstNode<tGTokensTypes>>(token,
-                std::vector<std::shared_ptr<AstNode<tGTokensTypes>>>{node});
-                return newNode;
+                ackToken(quantifier);
+                node = std::make_shared<AstNode<T>>(token, std::vector<Ast>{node});
             }
             return node;
         }else if (mCurrentToken->getType() == tGTokensTypes::CKEY){
@@ -346,8 +338,8 @@ std::shared_ptr<AstNode<tGTokensTypes>> PartitionGraphParser::constructAstRseq(v
 }
 
 /*
-LPAREN seq RPAREN (QOM | QZM | QZO)
-LPAREN seq (ALT seq)+ RPAREN (QOM | QZM | QZO)?
+LPAREN seq RPAREN quantifier
+LPAREN seq (ALT seq)+ RPAREN quantifier?
 */
 std::shared_ptr<AstNode<tGTokensTypes>> PartitionGraphParser::constructAstDomain(void)
 {
@@ -379,22 +371,12 @@ std::shared_ptr<AstNode<tGTokensTypes>> PartitionGraphParser::constructAstDomain
         node = std::make_shared<AstNode<tGTokensTypes>>(token,
         std::vector<std::shared_ptr<AstNode<tGTokensTypes>>>{inner});
         ackToken(tGTokensTypes::RPAREN);
-        //(QOM | QZM)
-
-        token = mCurrentToken->copy();
-        if (mCurrentToken->getType() == tGTokensTypes::QOM){
-            ackToken(tGTokensTypes::QOM);
-            node = std::make_shared<AstNode<tGTokensTypes>>(token,
-            std::vector<std::shared_ptr<AstNode<tGTokensTypes>>>{node});
-        }else if (mCurrentToken->getType() == tGTokensTypes::QZM){
-            ackToken(tGTokensTypes::QZM);
-            node = std::make_shared<AstNode<tGTokensTypes>>(token,
-            std::vector<std::shared_ptr<AstNode<tGTokensTypes>>>{node});
-        }else if (mCurrentToken->getType() == tGTokensTypes::QZO){
-            ackToken(tGTokensTypes::QZO);
-            node = std::make_shared<AstNode<tGTokensTypes>>(token,
-            std::vector<std::shared_ptr<AstNode<tGTokensTypes>>>{node});
-        }else if (!alternation){
+        const auto quantifier = mCurrentToken->getType();
+        if (isQuantifier(quantifier)) {
+            token = mCurrentToken->copy();
+            ackToken(quantifier);
+            node = std::make_shared<AstNode<T>>(token, std::vector<Ast>{node});
+        } else if (!alternation) {
             std::ostringstream errorMessage;
             errorMessage << "Bad syntax constructAstDomain must have quantifier \n";
             throw std::runtime_error(errorMessage.str());

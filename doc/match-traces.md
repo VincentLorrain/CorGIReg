@@ -44,7 +44,7 @@ Each `QuantifierCapture` contains:
 | Field | Meaning |
 | --- | --- |
 | `index` | One-based index of the quantifier symbol in the original pattern, left to right. |
-| `symbol` | `+`, `*` or `?`. |
+| `symbol` / `spelling()` | The C++ field is `+`, `*`, `?`, or `{` for brace quantifiers. `spelling()` returns the complete text, such as `{2,4}`, as used in JSON. |
 | `count()` | Number of completed body iterations for this invocation. |
 | `parent` | Optional zero-based index of the enclosing invocation in this walk's `quantifiers`. |
 | `begin`, `end` | Half-open range in this walk's `nodes`. |
@@ -82,7 +82,7 @@ void describeMatch(const CorGIReg::MatchSolution& match, std::ostream& output) {
                    << " matched " << capture.predicate << '\n';
         }
         for (const auto& quantifier : walk.quantifiers) {
-            output << "  Quantifier " << quantifier.index << " " << quantifier.symbol
+            output << "  Quantifier " << quantifier.index << " " << quantifier.spelling()
                    << " = " << quantifier.count() << '\n';
         }
     }
@@ -107,9 +107,10 @@ allocation addresses do not decide which trace is kept. Walks that end at
 different positions but report the same trace
 also give one match.
 
-Zero occurrences are supported at graph end. To avoid infinitely many traces
-for nullable or common-node-only cycles, the first body iteration may add no
-new node, but each additional iteration must cover at least one new source node.
+Zero occurrences are supported at graph end. Finite brace ranges can count
+empty iterations up to their upper bound. In unbounded repetitions, the first
+iteration and those required to reach the minimum may add no new node. Further
+iterations must cover at least one new source node.
 For example, `(A?)*` when `A` rejects produces canonical outer counts zero and
 one; it does not enumerate arbitrarily many empty iterations.
 

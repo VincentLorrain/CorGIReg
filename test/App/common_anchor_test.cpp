@@ -2,6 +2,7 @@
 #include "NodeTest/NodeDictionary.hpp"
 #include "CompileTool/CompileTransitionGraph/PGInterpreterTG.hpp"
 #include "GraphAdapters/ImportedGraph.hpp"
+#include <regex>
 
 using namespace CorGIReg;
 
@@ -86,6 +87,138 @@ std::vector<std::shared_ptr<MatchSolution>> allMatches(const std::string& query,
     }
     return result;
 }
+}
+
+TEST_CASE("Brace quantifiers enforce inclusive bounds on walks and anchors", "[app][repetition-range]") {
+    const auto chain = anchorGraph({"A", "A", "A", "A"}, {{0, 1}, {1, 2}, {2, 3}});
+    const NodePredicates predicates{{"A", [](NodeId) { return true; }}};
+    auto counts = [&](const std::string& query) {
+        auto result = PGInterpreterTG(query).interpret()->test(chain, {0}, predicates);
+        std::set<std::size_t> found;
+        for (const auto& match : result->getMatches()) {
+            const auto& q = match->getWalks().at(0).quantifiers.at(0);
+            REQUIRE(match->getAll().size() == q.count());
+            REQUIRE(q.spelling() == query.substr(query.find('{'), query.find('}') - query.find('{') + 1));
+            found.insert(q.count());
+        }
+        return found;
+    };
+    REQUIRE(counts("A{0}") == std::set<std::size_t>{0});
+    REQUIRE(counts("A{2}") == std::set<std::size_t>{2});
+    REQUIRE(counts("A{2,3}") == std::set<std::size_t>{2, 3});
+    REQUIRE(counts("A{2,}") == std::set<std::size_t>{2, 3, 4});
+    REQUIRE(counts("A{5}").empty());
+    REQUIRE(counts("A{2,3}->$").empty());
+    REQUIRE(counts("A{4}->$") == std::set<std::size_t>{4});
+
+    const auto fork = anchorGraph({"C", "C", "A"}, {{0, 2}, {1, 2}});
+    const auto matches = allMatches("(C->A#){2}", fork);
+    REQUIRE_FALSE(matches.empty());
+    for (const auto& match : matches) {
+        REQUIRE(match->getAll() == NodeIds{0, 1, 2});
+        REQUIRE(match->getWalks().at(0).quantifiers.at(0).count() == 2);
+    }
+    REQUIRE(allMatches("(C->A#){3}", fork).empty());
+    REQUIRE(allMatches("((C)?->A#){2}", anchorGraph({"A"}, {})).size() == 1);
+}
+
+TEST_CASE("Nullable brace repetitions can satisfy required empty iterations", "[app][repetition-range]") {
+    const auto empty = anchorGraph({}, {});
+    for (const std::string query : {"(A?){2}", "(A?){2,}"}) {
+        INFO(query);
+        const auto result = PGInterpreterTG(query).interpret()->test(empty, {std::nullopt}, {});
+        REQUIRE(result->getMatches().size() == 1);
+        const auto& walk = result->getMatches().at(0)->getWalks().at(0);
+        REQUIRE(walk.nodes.empty());
+        REQUIRE(walk.quantifiers.size() == 3);
+        REQUIRE(walk.quantifiers.at(0).iterationEnds == std::vector<std::size_t>{0, 0});
+    }
+}
+
+TEST_CASE("Brace repetitions agree with a word oracle on directed chains", "[app][repetition-range]") {
+    struct Chain {
+        std::string word;
+        NodeIds ids;
+    };
+    std::vector<Chain> chains;
+    std::vector<std::string> types;
+    std::vector<std::pair<NodeId, NodeId>> edges;
+    // Enumerate every word over A and B through length five. The endpoint
+    // predicates force the matcher to consume the entire word of one chain.
+    for (std::size_t length = 0; length <= 5; ++length) {
+        for (std::size_t mask = 0; mask < (std::size_t{1} << length); ++mask) {
+            Chain chain;
+            for (std::size_t bit = 0; bit < length; ++bit)
+                chain.word += (mask & (std::size_t{1} << bit)) ? 'B' : 'A';
+            const auto first = types.size();
+            for (char key : "X" + chain.word + "Y") {
+                chain.ids.insert(types.size());
+                if (types.size() != first) edges.emplace_back(types.size() - 1, types.size());
+                types.emplace_back(1, key);
+            }
+            chains.push_back(std::move(chain));
+        }
+    }
+    const auto graph = anchorGraph(types, edges);
+    struct Atom {
+        std::string forward, reverse, wordRegex;
+        std::size_t width;
+    };
+    for (const auto& atom : std::vector<Atom>{{"A", "A", "A", 1},
+                                             {"(A|B)", "(A|B)", "(A|B)", 1},
+                                             {"(A->B)", "(B<-A)", "(AB)", 2}}) {
+        for (const std::string suffix : {"{0}", "{1}", "{2}", "{2,}", "{1,3}", "{0,2}"}) {
+            const std::regex oracle(atom.wordRegex + suffix);
+            std::map<NodeIds, std::size_t> expected;
+            for (const auto& chain : chains)
+                if (std::regex_match(chain.word, oracle))
+                    expected.emplace(chain.ids, chain.word.size() / atom.width);
+            for (const auto& query : {"X->" + atom.forward + suffix + "->Y",
+                                      "Y<-" + atom.reverse + suffix + "<-X"}) {
+                INFO(query);
+                std::map<NodeIds, std::size_t> actual;
+                for (const auto& match : allMatches(query, graph)) {
+                    const auto& trace = match->getWalks().at(0).quantifiers;
+                    REQUIRE(trace.size() == 1);
+                    REQUIRE(trace[0].spelling() == suffix);
+                    REQUIRE(actual.emplace(match->getAll(), trace[0].count()).second);
+                }
+                REQUIRE(actual == expected);
+            }
+        }
+    }
+}
+
+TEST_CASE("Brace trace allocations retain nested ranges and finite common cycles", "[app][repetition-range]") {
+    const auto chain = anchorGraph({"X", "A", "A", "A", "Y"}, {{0, 1}, {1, 2}, {2, 3}, {3, 4}});
+    const auto matches = allMatches("X->(A{1,2}){2}->Y", chain);
+    REQUIRE(matches.size() == 2);
+    std::set<std::pair<std::size_t, std::size_t>> splits;
+    for (const auto& match : matches) {
+        REQUIRE(match->getAll() == NodeIds{0, 1, 2, 3, 4});
+        const auto& q = match->getWalks().at(0).quantifiers;
+        REQUIRE(q.size() == 3);
+        REQUIRE(q[0].index == 2);
+        REQUIRE(q[0].count() == 2);
+        REQUIRE(q[1].index == 1);
+        REQUIRE(q[2].index == 1);
+        REQUIRE(q[1].parent == 0);
+        REQUIRE(q[2].parent == 0);
+        splits.emplace(q[1].count(), q[2].count());
+    }
+    REQUIRE(splits == std::set<std::pair<std::size_t, std::size_t>>{{1, 2}, {2, 1}});
+
+    const auto cycle = anchorGraph({"A"}, {{0, 0}});
+    auto counts = [&](const std::string& query) {
+        std::set<std::size_t> result;
+        for (const auto& match : allMatches(query, cycle)) {
+            REQUIRE(match->getAll() == NodeIds{0});
+            result.insert(match->getWalks().at(0).quantifiers.at(0).count());
+        }
+        return result;
+    };
+    REQUIRE(counts("($A$){2,3}") == std::set<std::size_t>{2, 3});
+    REQUIRE(counts("($A$){2,}") == std::set<std::size_t>{2});
 }
 
 TEST_CASE("Anchored repetitions restart at every distance of a variable prefix", "[regression][app]") {

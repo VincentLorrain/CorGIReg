@@ -62,8 +62,9 @@ public:
         mPortScopes.pop_back();
         return true;
     }
-    void beginQuantifier(std::size_t index, char symbol);
-    bool completeIteration(std::size_t index);
+    void beginQuantifier(std::size_t index, char symbol, const std::string& notation = {});
+    std::size_t quantifierCount(std::size_t index) const;
+    bool completeIteration(std::size_t index, std::size_t minimum = 0, bool bounded = false);
     void endQuantifier(std::size_t index);
     void setCommon(NodeId node, std::size_t commonIdx);
     std::optional<NodeId> getCommonNodeFromIdx(const std::size_t& commonIdx);
