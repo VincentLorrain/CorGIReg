@@ -17,6 +17,8 @@ namespace CorGIReg{
 
 class NodeNN;
 
+/// Executable pattern machine. Each starting tuple gets its own environment
+/// and walk contexts while sharing the machine structure.
 class TGCompiled
 {
 private:
@@ -28,8 +30,6 @@ private:
     std::map<std::shared_ptr<State>, std::size_t> mStartGroups;
 
 public:
-
-    // TODO the query is useful ??
 
     TGCompiled(std::set<std::size_t> origins,std::set<std::shared_ptr<Transition>> transitions,CommonMode,const std::string query);
     ~TGCompiled() =default;
@@ -59,15 +59,9 @@ public:
         const std::vector<NodeId>& nodes, const NodePredicates& predicates);
     void setStartGroups(std::map<std::shared_ptr<State>, std::size_t> groups) { mStartGroups = std::move(groups); }
 
-    /**
-     * @brief get the set of all the node in the graph
-     * @return set of all nodes
-    */
+    /// Return the machine's states, which are distinct from source graph nodes.
     const std::set<std::shared_ptr<State>> getStates(void);
-    /**
-     * @brief get the list of the starting states
-     * @details we need to use a vector because the order of the nodes is important for start node initialization \ref test()
-    */
+    /// Return start states in creation order. Explicit tuples use the same indices.
     const std::vector<std::shared_ptr<State>> getStartStates(void);
     /**
      * @brief get the set of the valid states
@@ -95,26 +89,18 @@ public:
 
 
 
+/// Mutable compiler representation. Composing fragments can rewire shared
+/// states and transitions. Finish construction before searching.
 class TransitionGraph: public std::enable_shared_from_this<TransitionGraph> 
 {
 private:
-    /**
-     * @brief the Transition Graph is consist of Transition, and it is made by combine Transition Graph
-     * the origin are all the sub Transition Graph that have been combine in this Transition Graph
-    */
+    // A complete solution must cover this set of path origins.
     std::set<std::size_t> mAllOrigin;
-    /**
-     * @brief the set of all Transition in the graph (edges)
-     */
+    // This graph owns its transitions, which in turn own their endpoint states.
     std::set<std::shared_ptr<Transition>> mTransitions;
-    /**
-     * @brief the query that graph is supposed to match
-     */
+    // Original query text, retained for reports.
     const std::string mQuery;
-    /**
-     * @brief Mode of the common mode
-     * @todo is it necessary? the common mode mode can be set in the query for all the node
-     */
+    // Compatibility parameter. Coverage mode is selected on each consuming edge.
     CommonMode mFlag = CommonMode::NONE;
 
 public:
@@ -149,31 +135,18 @@ public:
      * @brief set all transition to the parent to child direction
      */
     std::shared_ptr<TransitionGraph> setTransitionParentToChild(void);
-    /**
-     * @brief make the union between this graph and an input graph append all the node of 
-     * transitionGraph in the actual graph
-     * @param transitionGraph graph to union
-    */
+    /// Share another fragment's transitions without merging states.
     std::shared_ptr<TransitionGraph> unionG(const std::shared_ptr<TransitionGraph> transitionGraph);
 
-    /**
-     * @brief like unionG and fusion the common edge in the result graph
-     * @param transitionGraph graph to fusion
-    */
+    /// Import another fragment and merge selected states reached through common edges.
     std::shared_ptr<TransitionGraph> fusionG(const std::shared_ptr<TransitionGraph> transitionGraph);
 
-    /**
-     * @brief make the union between this graph and an input graph and merge the valid state to the start state
-     * @param transitionGraph graph to merge
-    */
+    /// Join this fragment's sole exit to the other fragment's sole entry.
+    /// Return null if either side lacks a unique endpoint.
      std::shared_ptr<TransitionGraph> mergeOneStartOneValid(const std::shared_ptr< TransitionGraph> transitionGraph);
 
 
-    /**
-     * @brief increment the origin of all States in the graph by the one of the given transition graph
-     * @param transitionGraph graph that give the origin to increment
-     * @return the modified graph
-    */
+    /// Shift one fragment's origin IDs so the two sets remain disjoint.
     std::shared_ptr<TransitionGraph> incOriginFrom(const std::shared_ptr< TransitionGraph> transitionGraph);
 
    /**
@@ -181,10 +154,7 @@ public:
      * @param path  path of the mermaid
     */
     void save(const std::string& path) const ;
-    /**
-     * @brief get the compiled version of the graph that can be used in runtime
-     * 
-     */
+    /// Create a search machine that shares this graph's transition objects.
     std::shared_ptr<TGCompiled> compile(void) const;
 
     /**

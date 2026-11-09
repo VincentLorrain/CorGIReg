@@ -22,7 +22,7 @@ public:
         : NodeCondition(key, std::string(expression)) {}
     ~NodeCondition()=default;
 
-    /** @brief test if the node is valid TODO */
+    /// Evaluate the stored condition against this node.
     bool test(std::shared_ptr<NodeNN> node) const { return node && mTest(node); }
 
     /**

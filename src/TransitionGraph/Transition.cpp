@@ -19,9 +19,7 @@ Transition::Transition(std::shared_ptr<State> source,std::shared_ptr<State> dest
     mStateSource = source;
     mStateDest   = dest;
     
-    // wen i make the Transition I init the nodes
-    // mStateSource->addTransition(shared_from_this());
-    // mStateDest->addParent(mStateSource);
+    // Endpoint links are registered by updateWeak once shared ownership exists.
 }
 
 void Transition::updateWeak(void){
@@ -55,21 +53,19 @@ void Transition::reSetSourceState(const std::shared_ptr<State> newSource){
 
 void Transition::propagateRelativePos(void){
 
-    // Get the id of common node were the transition is relative to
+    // Compare anchor metadata on each adjacent pair before propagating it.
     std::set<std::size_t> myRelativeID;
     for (const auto& kvp : mRelativeToCommon) {
         myRelativeID.insert(kvp.first);
     }
 
-    // run through all the transition recursively
     for (const auto& nextWeakTransition : mStateDest->getTransitions()){
         
         if (auto nextTransition = nextWeakTransition.lock()) {
-            //if we get the actual Transition we skip it 
+            // A self-loop has no separate neighbor to update.
             if(this == nextTransition.get()){
                 continue;
             }
-            //if we get a others Transition we look at all the common node reference
             std::set<std::size_t> nextRelativeID;
             for (const auto& kvp : nextTransition->getRelative()) {
                 nextRelativeID.insert(kvp.first);
@@ -87,12 +83,8 @@ void Transition::propagateRelativePos(void){
                                 myRelativeID.begin(), myRelativeID.end(),
                                 std::inserter(idxsToGet, idxsToGet.begin()));
 
-            //  test for integrity we look if 2 Transition refer to the same
-            //  ref and are link the ref dif is one
-            //  not working for common node
-            //  we can go deeper by find the all pass to a ref and see if the delta is good
-
-            // Find elements present in both myRelativeID and nextRelativeID
+            // A shared legacy reference must differ by one step between
+            // consecutive transitions.
             std::set<std::size_t> idxsTotest;
             for (auto idx : nextRelativeID){
                 if (myRelativeID.find(idx) != myRelativeID.end()){
@@ -102,9 +94,8 @@ void Transition::propagateRelativePos(void){
                 }
             }
             
-            // this Transition have more relative info than the next
+            // Propagate references that only this transition knows.
             std::map<size_t,int> tmpRelative;
-            // we push this info to the next 
             for(auto idxToPush :idxsToPush ){
                 tmpRelative.insert( std::make_pair(idxToPush, getRelative().at(idxToPush) +1));
             }
@@ -115,7 +106,7 @@ void Transition::propagateRelativePos(void){
             tmpRelative.clear();
 
 
-            // the next node have more info than me i need to get it
+            // Bring back references known only by the next transition.
             for(auto idxToGet :idxsToGet ){
                 tmpRelative.insert( std::make_pair(idxToGet, nextTransition->getRelative().at(idxToGet) -1));
             }
@@ -431,7 +422,7 @@ TransitionNull::TransitionNull(std::shared_ptr<State> source,std::shared_ptr<Sta
 :Transition(source,dest,""){
 }
 
-// TODO check if the context can be pass as ref ??
+// A boundary tests the cursor after unavailable successors have been removed.
 const TransitionResult TransitionNull::test(const std::shared_ptr<RunTimeContext>& context) {
     const auto current_node = context->getActNode();
     if (!current_node) {

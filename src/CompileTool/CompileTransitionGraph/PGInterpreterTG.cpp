@@ -227,9 +227,7 @@ std::shared_ptr<TransitionGraph> PGInterpreterTG::alternate(const std::vector<st
 }
 
 std::shared_ptr<TransitionGraph> PGInterpreterTG::keyF(std::shared_ptr<AstNode<tGTokensTypes>> AstNode){
-    /*leaf 
-        K -> V
-    */
+    // A predicate consumes one graph node. Its token selects the binding mode.
     if (AstNode->getType() == tGTokensTypes::KEY){
         
         return std::make_shared<TransitionGraph>( TransitionTypes::UNIQUE,
@@ -251,68 +249,26 @@ std::shared_ptr<TransitionGraph> PGInterpreterTG::keyF(std::shared_ptr<AstNode<t
 }
 
 std::shared_ptr<TransitionGraph> PGInterpreterTG::endF(std::shared_ptr<AstNode<tGTokensTypes>> AstNode){
-    /*
-        Null
-        S -> V
-    */
+    // A boundary is a zero-width check for an absent source position.
     return std::make_shared<TransitionGraph>( TransitionTypes::NNULL,
                                             AstNode->getValue(), mParser.getQuery(),mActGroupe);
 }
 
 std::shared_ptr<TransitionGraph> PGInterpreterTG::sepF(std::shared_ptr<TransitionGraph> leftTG,std::shared_ptr<TransitionGraph> rightTG){
-
-    /*
-    The idea is to have an identifier for each query, which allows us to verify that in the end all queries have a solution
-    */
-
-   /*
-    The problem with merging, particularly the merging of valid states,
-    is that we lose the origin of the query, which invalidates the solutions. 
-    Two solutions are then possible : 
-
-    - The first is to ensure that a state has multiple queries
-    we can maintain a link between the TG and the query
-
-    - The second possibility is to replace the 2 query indexes with a new one
-    
-    */
+    // Keep the two paths separate and give them disjoint origins. Matching
+    // combines compatible walks only after every origin is covered.
     leftTG->incOriginFrom(rightTG);
     return leftTG->unionG(rightTG);
-    //return leftTG->fusionG(rightTG);
 }
 
 std::shared_ptr<TransitionGraph> PGInterpreterTG::nextF(std::shared_ptr<TransitionGraph> leftTG,std::shared_ptr<TransitionGraph> rightTG){
-    /*
-        combine the 2 Graph
-        all valid node of A are  merge with Start B, Start B is un Start
-        update the relative reference  
-
-           A          B
-        SA -> VA + SB -> VB
-           A    B
-        SA -> q -> VB
-    */
+    // A sequence shares the left exit with the right entry.
     return leftTG->mergeOneStartOneValid(rightTG);
 }
 
 std::shared_ptr<TransitionGraph> PGInterpreterTG::precF(std::shared_ptr<TransitionGraph> leftTG,std::shared_ptr<TransitionGraph> rightTG){
-    /*
-        combine the 2 Graph
-        all valid node of A are  merge with Start B, Start B is un Start
-        update the relative reference  
-
-           A          B
-        SA -> VA + SB -> VB
-           B    A
-        SB -x> q -x> VA
-    */
-    // For the PRECEDENCE operator (<-), the resulting graph should match
-    // a predecessor relationship.  The left graph represents the node that
-    // is preceded, while the right graph represents the preceding node.
-    // We simply merge the valid state of the left graph with the start of
-    // the right graph without flipping the transition directions.
-    // This keeps the transitions directed from the preceding node to the
-    // preceded node.
+    // Reverse spelling changes operand order. The traversal still follows
+    // producer-to-consumer edges from the right operand into the left.
     return rightTG->mergeOneStartOneValid(leftTG);
 }
 

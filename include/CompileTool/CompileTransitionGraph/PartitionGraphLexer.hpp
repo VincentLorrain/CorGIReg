@@ -3,7 +3,7 @@
 #include <string>
 #include <memory>
 #include <regex>
-#include <stdexcept> //error
+#include <stdexcept>
 #include <sstream>
 
 #include "CompileTool/Common/ParsingToken.hpp"
@@ -17,48 +17,29 @@ namespace CorGIReg {
     public:
     PartitionGraphLexer( const std::string gRegexExpressions );
 
-    /**
-     * @brief Get the next token on the gRegexExpressions
-     * @return ConditionalToken
-     */
+    /// Read the next graph-pattern token. Invalid syntax raises a lexer error.
     std::shared_ptr<ParsingToken<tGTokensTypes>> getNextToken(void);
-    /**
-     * @brief Restart at the start of the gRegexExpressions
-     *
-     */
+    /// Rewind to the beginning of the query.
     void rstPosition(void);
 
-    /**
-     * @brief Test if the string is completely read
-     * @return bool
-     */
+    /// Return whether the input has been consumed.
     bool isEnd(void);
 
 
     const std::string getQuery();
 
 
-    /**
-     * @brief Get the representation of the class
-     * @return string
-     */
+    /// Render the query with a marker at the current lexer position.
     const std::string rep();
 
     private:
 
-    /**
-     * @brief Constructs an error message to display the character not understood by the lexer
-     * @return error message
-     */
+    /// Build an error that points to an invalid token in the query.
     std::runtime_error badTokenError(const std::string& currentChars,std::size_t position);
 
-    /**
-     * @brief The expression of the test to be performed on the nodes
-     */
+    /// Complete graph pattern supplied by the caller.
     const std::string mRegularExpressions;
-    /**
-     * @brief The lexer's current position in mConditionalExpressions
-     */
+    /// Byte offset of the next character to read.
     std::size_t mPosition;
 
     };

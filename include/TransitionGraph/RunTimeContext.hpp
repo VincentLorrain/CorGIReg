@@ -10,6 +10,8 @@ struct MatchEnvironment {
     std::shared_ptr<const GraphView> graph;
     NodePredicates predicates;
 };
+// A branch copies its walk state while sharing the read-only source graph
+// and predicates. A state is a pattern position; a NodeId is a source position.
 class RunTimeContext {
     // Obligations belong to this walk; an abandoned alternative must not leak
     // requirements into skipped quantifiers or other successful alternatives.
@@ -21,9 +23,13 @@ class RunTimeContext {
     std::map<std::string, NodeIds> mValidNodes;
     std::vector<NodeCapture> mCaptures;
     std::vector<QuantifierCapture> mQuantifiers;
+    // Active invocations store their trace index and the number of distinct
+    // nodes captured at the last completed iteration.
     std::vector<std::pair<std::size_t, std::size_t>> mActiveQuantifiers;
     // Pass of the parent invocation in which each invocation started.
     std::vector<std::size_t> mInvocationPass;
+    // Each scope records the capture count at the current numbered-arrow
+    // checkpoint. A check and an exit must each follow a consumed operand.
     std::vector<std::size_t> mPortScopes;
 public:
     RunTimeContext(std::shared_ptr<State> state, std::optional<NodeId> node,

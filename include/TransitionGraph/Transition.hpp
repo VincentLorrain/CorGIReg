@@ -21,18 +21,14 @@
 #include "TransitionGraph/State.hpp"
 #include "TransitionGraph/RunTimeContext.hpp"
 
-/** @brief the transition is the relation between two state in the TransitionGraph. 
- * the transition valid a run time context and give the next node(s) in the graph
- * there are multiple transition between two state depending of the  
- */
+/// An edge of the pattern machine. A successful transition updates the walk
+/// context and supplies candidate source positions for the destination state.
 namespace CorGIReg{
     class State;
     class RunTimeContext;
 
 
-    /** @brief the type of the transition 
-     * TODO can we automatically register ??
-    */
+    /// Transition categories used by the compiler and runtime.
     enum class TransitionTypes {
         EMPTY = 0,
         REF,
@@ -54,58 +50,34 @@ namespace CorGIReg{
         const std::size_t mId = sID.fetch_add(1, std::memory_order_relaxed);
 
     protected:
-        /**
-         * @brief the relative position to this transition relative to all the common Transition 
-         * is use for expl in (C#>B)* wen you valid B you need to return to C
-         * first is common id, second is the relative position negative if is a common parent
-        */
+        // Legacy relative-position metadata propagated when edges are rewired.
+        // Repetition restarts use TransitionRef's separate body analysis.
         std::map<size_t,int> mRelativeToCommon;
 
-        /**
-         * @brief The ptr on the source state
-        */
+        // A transition owns its two endpoint states.
         std::shared_ptr<State> mStateSource;
-        /**
-         * @brief The ptr on the destination state
-        */
         std::shared_ptr<State> mStateDest;
 
-        /**
-         * @brief the weak ptr of the transition to solve the recursion state have ptr on Transition and transition on state
-        */
+        // Retained by the legacy constructor. State back-links are also weak.
         std::weak_ptr<Transition> weakPtr;
 
 
-        /** @brief the diction next nodes to child or to parent */
+        // Whether consuming a node moves the cursor to its children or parents.
         bool mDirSourceToDest = true;
 
-        /**
-         * @brief Test to make on the node to validate
-         * @see NodeCondition
-        */
-        //const std::shared_ptr<NodeCondition>  mToTest;
+        // Predicate key resolved against the request's matching environment.
 
         const std::string mNodeTestKey;
 
-        //const std::string mNodeTestKey;
-
     public:
-            /**
-         * @brief constructor of a transition between two state for a test
-         * @param source the source state
-         * @param dest the destination state
-         * @param toTest the condition to validate to cross the transition
-         * @details during construction, the transition is added to the source and destination state
-         */
+        /// Store the endpoints and predicate key. Call updateWeak after shared
+        /// ownership is established to register the endpoint links.
         Transition(std::shared_ptr<State> source,std::shared_ptr<State> dest, const std::string odeTestKey);
         virtual  ~Transition(){};
         Transition() : weakPtr(shared_from_this()) {}       
 
-        /**
-        *  @brief test is the validation of the node, it must be defined for all types of edge
-        * it takes as argument an FSM traversal context and returns a set of next nodes
-        *  @return set of next node or nullptr if not next
-        */
+        /// Evaluate this edge against a branch-local context. A successful
+        /// result with no candidates represents an absent source position.
 
         virtual const TransitionResult test(const std::shared_ptr<RunTimeContext>& context) =0;
         std::size_t getId() const noexcept { return mId; }
@@ -116,33 +88,20 @@ namespace CorGIReg{
          */
         virtual TransitionTypes getType(void) const =0;
 
-        /**
-         * @brief test if the transition is a common transition
-         * @return true if is a common transition
-         * @details a common transition is a transition that is relative to a common node
-         * (i.e. a node that is a common ancestor of all the nodes in the graph)
-         */
+        /// Return whether this edge consumes and binds a common anchor.
         virtual bool isCommon(void){ 
             return false; 
         }
 
-         /**
-         * @brief get the Common idx of the common test in this edge (if is a common edge)
-         * @return idx of the common
-        */
+        /// Return the anchor identity index, or the maximum index for other edges.
         virtual size_t getCommonIdx(void){
             return std::numeric_limits<std::size_t>::max();
         }
-        /**
-         * @brief get the relative postion to the common node deffine in this edge
-         * @return map
-        */
+        /// Expose the legacy relative distances keyed by anchor identity.
         inline const std::map<size_t,int>& getRelative(void){
             return mRelativeToCommon;
         }
-        /**
-         * @brief add new relative position
-        */
+        /// Add relative distances that this transition does not already store.
         void updateRelative( const std::map<size_t,int>& relativePos );
         /**
          * @brief get source FsmNode
@@ -170,13 +129,9 @@ namespace CorGIReg{
         */
         void reSetSourceState(const std::shared_ptr<State> newSource);
 
-        /**
-         * @brief propagate the edge  mRelativePos to the others Edge and reset the relative position
-        */
+        /// Propagate legacy relative-position metadata between adjacent transitions.
         void propagateRelativePos(void);
-        /**
-         * @brief update week ptr for the node, TODO best
-        */
+        /// Register weak outgoing and incoming links at the endpoint states.
         void updateWeak(void);
 
         /**
@@ -214,7 +169,7 @@ namespace CorGIReg{
 
     /**
      * @enum CommonMode 
-     * @brief enum that define the comportment of the rejection node of the common transition
+     * @brief Select which neighbors a common-node occurrence requires the solution to cover.
      */
     enum class CommonMode {
         NONE = 0, /**< no node are rejected (the validation on the others child of parent of common node is not mandatory)*/
@@ -226,7 +181,7 @@ namespace CorGIReg{
     };
 
      /**
-     * @brief class specialization for  commun node transition st0 --A#--> st1
+     * @brief Consume a node and bind it to a common identity such as A#.
      * @see Transition
     */
     class TransitionCommon:public Transition
@@ -234,8 +189,7 @@ namespace CorGIReg{
 
         private:
         /**
-         * @brief the map that defined the relation between the commonKey find by the lexer and a 
-         * unique id use to refer to the common node, this map is common to all the common transition
+         * @brief Process-wide mapping from normalized anchor keys to identity indices.
         */
         static std::map<std::string,std::size_t> mCommonIdxMap;
         /**
@@ -243,15 +197,13 @@ namespace CorGIReg{
         */
         std::size_t mCommonIdx;
         /**
-         * @brief this defined the comportment of the rejection node of the common transition 
+         * @brief Coverage requirement for this occurrence of the anchor.
         */
         CommonMode mFlag;
         public:
 
         /**
-         * @brief constructor  commun node ,
-         * @details during construction,
-         * the node key found by the lexer is converted to a unique id and the relative positions are updated.
+         * @brief Resolve the normalized anchor key to its shared identity index.
         */
         TransitionCommon(std::shared_ptr<State> source,std::shared_ptr<State> dest, const std::string nodeTestKey,
         const std::string commonKey,CommonMode flag);

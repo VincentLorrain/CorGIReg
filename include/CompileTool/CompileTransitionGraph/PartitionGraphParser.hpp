@@ -11,99 +11,53 @@
 
 namespace CorGIReg{
 
-/**
- * @brief this class uses the lexer to create an AST according to a set of gramer rules
- */
+/// Recursive-descent parser for graph patterns. The AST is shared by matching
+/// and graph generation.
 class PartitionGraphParser {
 
 public:
-    /**
-     * @brief AST graph creation function
-     * @param gRegexExpressions String representing the logical fuction to be performed
-     */
+    /// Store the complete query and read its first token.
     PartitionGraphParser(const std::string gRegexExpressions);
 
     ~PartitionGraphParser() noexcept;
 
-    /**
-     * @brief AST graph creation function
-     * @return The AST tree
-     */
+    /// Parse and validate one query. Top-level convergence becomes two paths
+    /// that share an anchor. After reading the AST, rewind the lexer for reuse.
     std::shared_ptr<AstNode<tGTokensTypes>> parse(void);
 
 
-    /**
-     * @brief get the query that be use in the parsing
-     * @return query
-     */
+    /// Return the original query text, including any convergence shorthand.
     const std::string getQuery();
 
 
 private:
-    /**
-     * @brief restart at the start of the ConditionalExpressions for LEXER and restart  mCurrentToken
-     */
+    /// Rewind the lexer and restore the first lookahead token.
     void rstParser(void);
 
-    //////////////////
-
-    /**
-     * @defgroup ParsingFunctions Function for creating AST
-     * @brief Functions for recursive construction of the AST representing grammar rules
-     */
-
-    /**
-     * @ingroup ParsingFunctions
-     * @brief Token reading and verification function
-     *
-     */
+    /// Require the lookahead token and advance to the next token.
     void ackToken(tGTokensTypes  tokenType);
 
-    /**
-     * @ingroup ParsingFunctions
-     * @brief Function of grammar rules for key :  KEY(QOM | QZM)? | CKEY
-     * @return AST node
-     */
+    /// Read one key, anchor, or group, including any permitted postfix quantifier.
     std::shared_ptr<AstNode<tGTokensTypes>> constructAstExp(void);
 
-    /**
-    * @ingroup ParsingFunctions
-    * @brief Function of grammar rules for sequence :  seq : exp ((NEXT seq)* | NEXT END)
-    * @return AST node
-    */
+    /// Read a sequence. A top-level call can return a converging path through
+    /// incoming when a forward sequence meets reverse arrows at an anchor.
     std::shared_ptr<AstNode<tGTokensTypes>> constructAstSeq(
         std::shared_ptr<AstNode<tGTokensTypes>>* incoming = nullptr, bool afterForward = false);
 
-    /**
-    * @ingroup ParsingFunctions
-    * @brief Function of grammar rules for sequence :  rseq : exp ((PREC rseq)* )
-    * @return AST node
-    */
+    /// Read the right operand of a reverse arrow, including further reverse arrows.
     std::shared_ptr<AstNode<tGTokensTypes>> constructAstRseq(void);
 
-    /**
-    * @ingroup ParsingFunctions
-    * @brief Function of grammar rules for domain : (seq NEXT domain)? | LPAREN domain RPAREN (QOM | QZM) (NEXT domain)?
-    * @return AST node
-    */
+    /// Read a parenthesized group. A group with alternatives may omit its quantifier.
     std::shared_ptr<AstNode<tGTokensTypes>> constructAstDomain(void);
 
-    /**
-    * @ingroup ParsingFunctions
-    * @brief Function of grammar rules for multiple exepresion : allExpr: domain (SEP allExpr)*
-    * @return AST node
-    */
+    /// Combine top-level paths, including paths expanded from convergence.
     std::shared_ptr<AstNode<tGTokensTypes>> constructAstAllExpr(void);
 
 
-    /**
-    * @brief The actual token in the parce
-    */
+    /// Lookahead token consumed by the next grammar rule.
     std::shared_ptr<ParsingToken<tGTokensTypes>> mCurrentToken;
 
-    /**
-    * @brief The lexem use
-    */
     PartitionGraphLexer mLexer;
 
 };

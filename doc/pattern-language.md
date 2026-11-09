@@ -15,14 +15,14 @@ not a list of separately executed queries. Comments are not supported.
 | `A+` | One or more occurrences. |
 | `A*` | Zero or more occurrences. |
 | `A?` | Zero or one occurrence. |
-| `(A->B)+` | Repeat the entire A-B sequence. Parenthesized groups require a postfix quantifier. |
+| `(A->B)+` | Repeat the entire A-B sequence. Groups without alternatives require a postfix quantifier. |
 | `(A->B\|C)` | [Alternation](#alternation): either the A-B sequence or C. The quantifier is optional. |
 | `B#` | Common node: occurrences of this anchor must identify the same source node. Allows branching. |
 | `B#1`, `B#2` | Separate common identities for the same predicate B. |
 | `$B` | Common node whose input neighbors must all be covered. Outputs remain free. |
 | `B$` | Common node whose output neighbors must all be covered. Inputs remain free. |
 | `$B$` | Common node requiring coverage of both input and output neighbors. |
-| `A->$` | Boundary assertion: no following source node. The standalone `$` consumes no operation. |
+| `A->$` | Boundary assertion: no successor is available after A in this walk. Standalone `$` consumes no operation. |
 | `A->B#; B#->C` | Two paths joined through their common B anchor. |
 
 Predicate keys contain ASCII letters, digits and underscores. They resolve to
@@ -61,9 +61,9 @@ under `<-`. The standalone `$` still asserts a boundary. See
 
 `(X|Y|...)` matches exactly one of its alternatives, each a complete sequence:
 `X->(A->B|C)->Y` matches X-A-B-Y and X-C-Y, but not X-A-Y. Alternatives are
-tried independently; every successful one is reported, so overlapping
-alternatives can give several matches. The group behaves as a single unit of
-its path:
+tried independently. Distinct traces can produce several matches even when
+they capture the same nodes. Equivalent traces collapse to one result. The
+group behaves as a single unit of its path.
 
 | Pattern | Meaning |
 | --- | --- |
@@ -109,13 +109,15 @@ Matching, generation and `RandomExpressionGenerator` apply the same check.
 
 ## Parsing and direction
 
-The following grammar summarizes the current parser (KEY excludes common suffixes):
+The grammar below omits token spelling details. `forward` and `reverse`
+include the numbered and wildcard forms. `key` includes inline conditions.
 
 ```text
-query      := seq (';' query | ';')?
-seq        := exp ('->' (seq | '$') | '<-' rseq)? | '$' '<-' rseq
-rseq       := exp ('<-' (rseq | '$'))?
-exp        := KEY quantifier? | COMMON | STRICT_COMMON | '(' seq ')' quantifier
+query      := seq (';' query?)?
+seq        := exp (forward (seq | '$') | reverse rseq)? | '$' reverse rseq
+rseq       := exp (reverse (rseq | '$'))?
+exp        := key quantifier? | common | strict_common | group
+group      := '(' seq ')' quantifier | '(' seq ('|' seq)+ ')' quantifier?
 quantifier := '+' | '*' | '?'
 ```
 
@@ -141,8 +143,9 @@ anchors remain disconnected constraints and can require combinations of starts.
 The CLI enumerates starting tuples over the nodes each start can accept first,
 with a `--max-starts` budget (default 100000); exceeding it is an error, not a
 partial successful report.
-The [post-AST root proposal](post-ast-root-selection.md) does not yet replace
-this enumeration.
+Eligible paths that share an anchor start together on a single candidate for
+that anchor. The CLI still enumerates one candidate per independent start
+group. See [rooted execution](post-ast-root-selection.md#rooted-execution).
 
 Quantifier results count whole-body iterations. Ambiguous allocations remain
 distinct solutions and ordering is not a greedy ranking. Nullable and repeated
@@ -168,7 +171,7 @@ Against [the documentation graph](examples/graph.json):
 
 For reusable semantic patterns and conditional operations, start with
 [the node library](node-library.md) and [runnable scripts](../examples/matches/README.md).
-# Numbered input arrows
+## Numbered input arrows
 
 `A-1->B` constrains the connection to input 1 of B. `B<-1-A` is its reverse
 textual form. Ports start at 1 and must fit unsigned 32 bits. The plain arrows

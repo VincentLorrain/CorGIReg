@@ -26,7 +26,10 @@ Edges join each value's producer to its consumers. Graph inputs and initializers
 are boundaries, not extra nodes. Missing optional inputs (`""`) create no edge.
 Duplicate producers, undefined values and invalid graph outputs are rejected;
 operation producers must precede their consumers in source order. Multiple
-tensor connections between the same operations collapse to one adjacency edge.
+tensor connections between the same operations share one adjacency edge.
+The separate `connections` array records their one-based input and output
+ports. Omitted inputs keep their position in the operand list, so later
+ports retain their original numbers.
 
 Nested graph attributes (`GRAPH`/`GRAPHS`) are unsupported. Local function calls
 remain opaque operations; function bodies are not expanded. External tensor data
@@ -54,8 +57,9 @@ Operation names retain the dialect, for example `stablehlo.convolution`. Display
 names derive from the function and canonical SSA results, with an operation-index
 fallback. Metadata includes `function`, `results`, `location`, input SSA names
 and attributes. IDs are block-operation indices, not result-value indices; a
-multi-result operation is still one node. Do not assume IDs remain identical
-after rewriting or reserializing the source IR.
+multi-result operation is still one node. The `connections` array preserves
+which result feeds which operand, with one-based ports. IDs can change after
+rewriting or reserializing the source IR.
 
 Builtin scalar/array attributes become JSON values. Dense numeric attributes up
 to 4096 elements become nested arrays; larger ones retain shape/type metadata.
@@ -66,7 +70,8 @@ to synthesize attributes such as convolution kernel shape.
 ## Adding an importer
 
 For a file format, implement a loader returning `nodes` and `edges`, preserve
-source IDs/names and useful metadata, and apply the shared graph validation.
+source IDs, names, and useful metadata, and apply the shared graph validation.
+Include `connections` when the format provides operand and result positions.
 Register the format and extension in the CLI and add explicit positive and
 unsupported-input tests. Add format mappings to semantic node definitions as
 needed; a definition alone does not install an importer. OpenVX is not currently

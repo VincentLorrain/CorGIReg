@@ -1,5 +1,3 @@
-//PGInterpreterTG
-
 #pragma once
 
 
@@ -19,10 +17,10 @@
 
 namespace CorGIReg {
 
+    /// Compile a parsed pattern into the state machine used for matching.
     class PGInterpreterTG
     {
     private:
-        /* data */
         PartitionGraphParser mParser;
         std::size_t mActGroupe;
         const std::string mGraphMatchExpr;
@@ -42,6 +40,7 @@ namespace CorGIReg {
         PGInterpreterTG(const std::string graphMatchExpr);
         virtual ~PGInterpreterTG() =default;
 
+        /// Compile each path in traversal order, starting from its first operand.
         std::shared_ptr<TGCompiled>  interpret(void);
         // Same matches, searched from anchor roots: each component whose
         // selected root is a common anchor present in every one of its paths
@@ -57,33 +56,18 @@ namespace CorGIReg {
 
         std::shared_ptr<TransitionGraph> visit(std::shared_ptr<AstNode<tGTokensTypes>> AstTree);
 
-        /**
-         * @ingroup graphFsmInterpreterF
-         * @brief leaf of fsm make the fsm for test one transition
-         */
+        /// Compile a single plain, common, or strict predicate transition.
         std::shared_ptr<TransitionGraph> keyF(std::shared_ptr<AstNode<tGTokensTypes>> AstNode);
 
-        /**
-         * @ingroup graphFsmInterpreterF
-         * @brief  leaf of fsm make the fsm for test end of the graph
-         */
+        /// Compile a boundary transition that requires an absent graph position.
         std::shared_ptr<TransitionGraph> endF(std::shared_ptr<AstNode<tGTokensTypes>> AstNode);
 
-        /**
-         * @ingroup graphFsmInterpreterF
-         * @brief combine two fsm of two expression.
-         */
+        /// Keep two paths separate and give their walks distinct origins.
         std::shared_ptr<TransitionGraph> sepF(std::shared_ptr<TransitionGraph> leftFsm,std::shared_ptr<TransitionGraph> rightFsm);
-        /**
-         * @ingroup graphFsmInterpreterF
-         * @brief combine two to make a new that match leftFsm next rightFsm
-         */
+        /// Join the end of the left machine to the start of the right machine.
         std::shared_ptr<TransitionGraph> nextF(std::shared_ptr<TransitionGraph> leftFsm,std::shared_ptr<TransitionGraph> rightFsm);
 
-       /**
-         * @ingroup graphFsmInterpreterF
-         * @brief combine two to make a new that match leftFsm prec rightFsm
-         */
+        /// Join the right machine before the left machine for a reverse arrow.
         std::shared_ptr<TransitionGraph> precF(std::shared_ptr<TransitionGraph> leftFsm,std::shared_ptr<TransitionGraph> rightFsm);
         // A path unit traversed from its end to its start, towards parents.
         std::shared_ptr<TransitionGraph> reversed(std::shared_ptr<AstNode<tGTokensTypes>> AstTree);

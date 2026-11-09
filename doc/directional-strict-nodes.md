@@ -68,8 +68,9 @@ The [canonical termination rule](match-traces.md) for common cycles is unchanged
 ## Standalone boundary and migration
 
 `A->$` still means end of traversal after A. It is not a strict-node suffix.
-For example, `A->$B$->C->$` requires both sides of B to be covered and C to have
-no successor. The lexer distinguishes attached prefix `$B` from standalone `$`.
+For example, `A->$B$->C->$` requires both sides of B to be covered and no
+successor to be available after C in that walk. The lexer distinguishes
+attached prefix `$B` from standalone `$`.
 
 This is an intentional incompatible language change after tag `V0`:
 

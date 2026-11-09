@@ -67,6 +67,7 @@ corgireg -i examples/cli/network.mlir --format stablehlo --regex-file examples/c
 | `--engine` | Native worker path override. |
 | `--max-starts` | Maximum number of starting tuples; default 100000. |
 | `--timeout` | Maximum matching time in seconds; default 60. |
+| `-j`, `--jobs` | Workers for independent starting tuples, from 1 through 256; default 1. |
 
 In PowerShell, use single quotes around a pattern containing `$` to avoid
 variable expansion. Newlines and tabs in a pattern file count as whitespace.
@@ -143,7 +144,7 @@ See [match traces](match-traces.md) for the interpretation of nested counts and
 capture ranges. Result order is not a ranking. Matching can return overlapping
 matches and different quantifier allocations for the same node set.
 
-The JSON example with `A+->B` includes a match starting at 42 with nodes
+The [three-node example graph](examples/graph.json) with `A+->B` includes a match starting at 42 with nodes
 `[42, 0, 9]` in execution order and quantifier 1, `+`, count 2. It also finds
 the shorter match starting at 0 with count 1.
 
@@ -161,7 +162,7 @@ the actual ONNX/MLIR import tests, configure with a Python containing both extra
 ```powershell
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DCORGIREG_IMPORT_PYTHON="$PWD/build/cli-venv/Scripts/python.exe"
 cmake --build build --parallel
-ctest --test-dir build --output-on-failure --timeout 30
+ctest --test-dir build --output-on-failure --no-tests=error
 ```
 
 On Linux/macOS use the corresponding `build/cli-venv/bin/python` absolute path.

@@ -33,7 +33,8 @@ public:
     const std::set<Ptr>& getParents() const;
     const std::set<Ptr>& getChildren() const;
 
-    // Methods to add parents and children
+    // These low-level methods update only this endpoint. Use GraphNN::addEdge
+    // to add reciprocal links and include both endpoints in the graph.
     void addParent(const Ptr& parent);
     void addChild(const Ptr& child);
     void addConnection(const Ptr& child, EdgePorts ports);
@@ -56,10 +57,10 @@ public:
     T getInfo(const std::string& key, const T& defaultValue) const;
 
     /**
-     * @brief Recursive function to get the child or parent of the node (that becomes an anchor) depending on delta
-     * @param delta The delta in terms of child or parent relative to the anchor
-     * @param nodeSee The nodes that we have already seen
-     * @return The set of nodes as delta of this node
+     * @brief Find endpoints at an exact signed distance from this node.
+     * @param delta Positive steps follow children; negative steps follow parents.
+     * @param nodeSee Nodes already visited on the current path.
+     * @return Unique endpoints, with no repeated node on a path.
      */
     std::set<Ptr> getNodeDelta(int delta, std::set<Ptr> nodeSee);
 
@@ -100,9 +101,9 @@ public:
     const std::vector<NodeNN::Ptr>& getNodes() const;
 
     /**
-     * @brief Deep copies the graph while excluding specified nodes from being copied.
+     * @brief Copy the graph's nodes and topology, reusing any excluded nodes.
      * @param nodesNotToCopy A set of nodes that should not be deep copied.
-     * @return A shared pointer to the newly copied graph.
+     * @return The copied graph. Excluded nodes are shared with the original.
      */
     std::shared_ptr<GraphNN> deepCopy(const std::unordered_set<NodeNN::Ptr>& nodesNotToCopy) const;
 
