@@ -135,9 +135,9 @@ std::shared_ptr<TransitionGraph> PGInterpreterTG::reversed(std::shared_ptr<AstNo
         const auto& second = children[type == tGTokensTypes::NEXT];
         return nextF(reversed(second), reversed(first));
     }
-    if (type == tGTokensTypes::QOM) return quantify(reversed(children[0]), mQuantifierIndices.at(AstTree.get()), '+');
-    if (type == tGTokensTypes::QZM) return quantify(reversed(children[0]), mQuantifierIndices.at(AstTree.get()), '*');
-    if (type == tGTokensTypes::QZO) return quantify(reversed(children[0]), mQuantifierIndices.at(AstTree.get()), '?');
+    if (isQuantifier(type))
+        return quantify(reversed(children[0]), mQuantifierIndices.at(AstTree.get()),
+                        parseRepetition(type, AstTree->getValue()));
     if (type == tGTokensTypes::LPAREN) return group(AstTree, true);
     // A boundary only ends a path; it never precedes the root of that path.
     throw std::logic_error("Cannot reverse this path unit");
@@ -170,12 +170,9 @@ std::shared_ptr<TransitionGraph> PGInterpreterTG::visit(std::shared_ptr<AstNode<
         auto step = std::make_shared<TransitionPort>(start, previous, PortAction::Begin, port);
         step->updateWeak(); left->addTransition(step);
         return append(nextF(append(left, PortAction::Check), right), PortAction::End);
-    }else if(AstTree->getType() == tGTokensTypes::QOM){
-        return quantify(visit(nextAstNodes[0]), mQuantifierIndices.at(AstTree.get()), '+');
-    }else if(AstTree->getType() == tGTokensTypes::QZM){
-        return quantify(visit(nextAstNodes[0]), mQuantifierIndices.at(AstTree.get()), '*');
-    }else if(AstTree->getType() == tGTokensTypes::QZO){
-        return quantify(visit(nextAstNodes[0]), mQuantifierIndices.at(AstTree.get()), '?');
+    }else if(isQuantifier(AstTree->getType())){
+        return quantify(visit(nextAstNodes[0]), mQuantifierIndices.at(AstTree.get()),
+                        parseRepetition(AstTree->getType(), AstTree->getValue()));
     }else if(AstTree->getType() == tGTokensTypes::KEY || AstTree->getType() == tGTokensTypes::CKEY || AstTree->getType() == tGTokensTypes::SCKEY){
         return keyF(AstTree);
     }else if (AstTree->getType() == tGTokensTypes::END){
@@ -276,12 +273,12 @@ void PGInterpreterTG::indexQuantifiers(const std::shared_ptr<AstNode<tGTokensTyp
     // Postorder follows lexical symbol order: inner postfixes precede outer ones.
     for (const auto& child : node->getChilds()) indexQuantifiers(child);
     const auto type = node->getType();
-    if (type == tGTokensTypes::QOM || type == tGTokensTypes::QZM || type == tGTokensTypes::QZO)
+    if (isQuantifier(type))
         mQuantifierIndices.emplace(node.get(), mQuantifierIndices.size() + 1);
 }
 
 std::shared_ptr<TransitionGraph> PGInterpreterTG::quantify(
-    std::shared_ptr<TransitionGraph> body, std::size_t index, char symbol) {
+    std::shared_ptr<TransitionGraph> body, std::size_t index, const Repetition& repetition) {
     const auto starts = body->getStartStates();
     const auto ends = body->getValidStates();
     if (starts.size() != 1 || ends.size() != 1)
@@ -295,18 +292,32 @@ std::shared_ptr<TransitionGraph> PGInterpreterTG::quantify(
     first->unStart();
     last->unValid();
     auto trace = [&](auto from, auto to, TraceAction action) {
-        auto edge = std::make_shared<TransitionTrace>(from, to, action, index, symbol);
+        auto edge = std::make_shared<TransitionTrace>(from, to, action, index, repetition);
         edge->updateWeak();
         body->addTransition(edge);
     };
-    trace(entry, first, TraceAction::Begin);
-    trace(last, completed, TraceAction::Iteration);
-    trace(completed, exit, TraceAction::End);
-    if (symbol != '?') {
-        auto type = body->containCommonTransition() ? TransitionTypes::REF : TransitionTypes::EMPTY;
-        body->addTransition(TransitionFactory::make(completed, first, type));
+    if (repetition.maximum != 0) {
+        trace(entry, first, TraceAction::Begin);
+        trace(last, completed, TraceAction::Iteration);
+        trace(completed, exit, TraceAction::End);
     }
-    if (symbol != '+') trace(entry, exit, TraceAction::Skip);
+    if (repetition.mayRepeat()) {
+        const bool anchored = body->containCommonTransition();
+        if (!anchored && !repetition.notation.empty()) {
+            // Brace ranges can require empty iterations even at graph end.
+            trace(completed, first, TraceAction::Repeat);
+        } else {
+            auto restart = completed;
+            if (repetition.maximum) {
+                restart = std::make_shared<State>(false, false);
+                restart->setGroupe(mActGroupe);
+                trace(completed, restart, TraceAction::Repeat);
+            }
+            const auto type = anchored ? TransitionTypes::REF : TransitionTypes::EMPTY;
+            body->addTransition(TransitionFactory::make(restart, first, type));
+        }
+    }
+    if (repetition.minimum == 0) trace(entry, exit, TraceAction::Skip);
     return body;
 }
 

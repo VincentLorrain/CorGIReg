@@ -1,4 +1,5 @@
 #include "CompileTool/Common/CommonKey.hpp"
+#include "CompileTool/Common/Repetition.hpp"
 #include "CompileTool/PostAstOptimization/RootSelectionPass.hpp"
 #include <algorithm>
 #include <map>
@@ -11,7 +12,6 @@ using Type = tGTokensTypes;
 using Ast = std::shared_ptr<const PatternAst>;
 
 bool common(Type type) { return type == Type::CKEY || type == Type::SCKEY; }
-bool quantified(Type type) { return type == Type::QOM || type == Type::QZM || type == Type::QZO; }
 
 bool containsCommon(const Ast& node) {
     if (common(node->getType())) return true;
@@ -52,7 +52,7 @@ class Builder {
             edges.emplace(right.second, left.first);
             return {right.first, left.second};
         }
-        if (quantified(type)) {
+        if (isQuantifier(type)) {
             requireArity(node, 1);
             plan.hasQuantifiedCommon |= containsCommon(node);
         } else if (type == Type::LPAREN) {

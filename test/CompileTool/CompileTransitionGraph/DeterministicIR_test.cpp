@@ -38,6 +38,24 @@ TEST_CASE("Deterministic IR expands lexical quantifiers per invocation", "[gener
     REQUIRE(PGInterpreterTG("A->D").interpret()->test(adapter, {0}, predicates)->getMatches().empty());
 }
 
+TEST_CASE("IR generation uses exact brace counts and validates ranged values", "[generation][repetition-range]") {
+    IRGenerationOptions options;
+    REQUIRE(topology(PGInterpreterIR("(A->B){2}->C{0}", options).interpret()) ==
+            "A:1,;B:2,;A:3,;B:;");
+    REQUIRE(PGInterpreterIR("A{0}", options).interpret()->getNodes().empty());
+    REQUIRE_THROWS_AS(PGInterpreterIR("A{2,4}", options).interpret(), std::invalid_argument);
+    options.repetitions = {{1, {4}}};
+    REQUIRE(PGInterpreterIR("A{2,4}", options).interpret()->getNodes().size() == 4);
+    REQUIRE(PGInterpreterIR("A{2,}", options).interpret()->getNodes().size() == 4);
+    REQUIRE_THROWS_AS(PGInterpreterIR("A{2,3}", options).interpret(), std::invalid_argument);
+    options.repetitions = {{1, {1}}};
+    REQUIRE_THROWS_AS(PGInterpreterIR("A{2,}", options).interpret(), std::invalid_argument);
+    options.repetitions.clear();
+    options.randomMissing = true;
+    options.maxLoops = 0;
+    REQUIRE(PGInterpreterIR("A{2,4}", options).interpret()->getNodes().size() == 2);
+}
+
 TEST_CASE("Deterministic IR preserves reversed links shared anchors and cycles", "[generation]") {
     IRGenerationOptions options;
     REQUIRE(topology(PGInterpreterIR("A<-B<-C", options).interpret()) == "A:;B:0,;C:1,;");

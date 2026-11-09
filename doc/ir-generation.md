@@ -2,8 +2,8 @@
 
 `PGInterpreterIR` expands a pattern AST into a `GraphNN`. Pass
 `IRGenerationOptions` or a values-file path to select the configured generator.
-The parser and matching language are unchanged. This API generates topology;
-it does not import a network or create ONNX tensors, shapes or weights.
+It uses the same pattern parser as matching and generates example topology.
+It does not create ONNX tensors, shapes, or weights.
 
 ## Explicit values
 
@@ -27,6 +27,9 @@ not operator symbols: two distinct `+` operators have different indices.
 | `*` | Zero or more occurrences |
 | `+` | One or more occurrences, including the mandatory first occurrence |
 | `?` | Exactly 0 or 1 |
+| `{n}` | Exactly `n` |
+| `{min,}` | At least `min` |
+| `{min,max}` | From `min` through `max`, inclusive |
 
 A singleton list broadcasts its value to every invocation of that quantifier.
 A longer list is consumed in expansion order and must have exactly one value
@@ -34,7 +37,9 @@ per invocation. Nested lists are flattened: `[3, 1]` gives the inner `+` three
 occurrences during the first outer iteration and one during the second.
 Each iteration expands the AST again; it does not clone an already sampled body.
 
-Missing values are errors when the corresponding quantifier is reached.
+An exact brace count supplies its own value, so `corgireg-generate -r 'A{3}'`
+needs no values file. A reached variable quantifier requires an explicit
+value in deterministic mode.
 An inner quantifier under a skipped outer group is not reached and needs no
 value. Unknown indices, empty lists, illegal counts, exhausted lists and surplus
 multi-value lists are errors. Supplied counts are validated even in skipped groups.
@@ -84,12 +89,14 @@ that is a configuration error.
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
-| `mode` / C++ `randomMissing` | `deterministic` / `false` | Error on missing reached counts, or sample them |
+| `mode` / C++ `randomMissing` | `deterministic` / `false` | Require values for variable quantifiers, or sample them |
 | `seed` | 5489 | Unsigned 32-bit seed for a local `mt19937` |
 | `max_loops` / C++ `maxLoops` | 10 | Missing `*`: 0..limit; missing `+`: 1..limit+1 |
 | `max_nodes` / C++ `maxNodes` | 100000 | Maximum number of distinct generated nodes |
 
 Missing `?` values are sampled as 0 or 1 independently of `max_loops`.
+Missing variable brace counts are sampled from the declared minimum through
+the smaller of the declared maximum (if any) and `minimum + max_loops`.
 Each call to `interpret()` resets the generator to its configured seed, so the
 same options produce the same graph again. Increment the seed to generate a
 series of random cases. Reproduction assumes the same standard-library random

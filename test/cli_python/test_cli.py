@@ -97,6 +97,41 @@ class CliTests(unittest.TestCase):
             validate_graph({"nodes": [{"id": 0, "op": "A"}], "edges": [],
                             "connections": [{"from": 0, "to": 0, "input": 1}]})
 
+    def test_brace_quantifiers_report_counts_and_lexical_spelling(self):
+        graph = {"nodes": [{"id": i, "op": op} for i, op in enumerate("XAABY")],
+                 "edges": [[i, i + 1] for i in range(4)]}
+        self.graph.write_text(json.dumps(graph), encoding="utf-8")
+        query = "Y<-(A|B){2, 3}<-X"
+        result = self.invoke("-i", self.graph, "-r", query)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        matches = json.loads(result.stdout)["matches"]
+        self.assertEqual([match["node_ids"] for match in matches], [[0, 1, 2, 3, 4]])
+        quantifier, = matches[0]["walks"][0]["quantifiers"]
+        self.assertEqual((quantifier["symbol"], quantifier["count"]), ("{2, 3}", 3))
+        parallel = self.invoke("-i", self.graph, "-r", query, "--jobs", "4")
+        self.assertEqual(parallel.returncode, 0, parallel.stderr)
+        self.assertEqual(parallel.stdout, result.stdout)
+        for query in ["X->(A|B){2}->Y", "X->(A|B){4,}->Y"]:
+            result = self.invoke("-i", self.graph, "-r", query)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(json.loads(result.stdout)["matches"], [])
+        for query in ["A{2.5}", "A{18446744073709551616}"]:
+            result = self.invoke("-i", self.graph, "-r", query)
+            self.assertEqual(result.returncode, 2, result.stderr)
+            self.assertIn("Repetition counts must be integers", result.stderr)
+
+        # The JSON object inside an inline condition is part of the predicate,
+        # while the braces after the closing parenthesis are a quantifier.
+        graph["nodes"][1]["attributes"] = {"config": {"group": 1}}
+        graph["nodes"][2]["attributes"] = {"config": {"group": 1}}
+        query = 'X->A(config={"group":1}){2}->B->Y'
+        for group, expected in [(1, [[0, 1, 2, 3, 4]]), (2, [])]:
+            graph["nodes"][2]["attributes"]["config"]["group"] = group
+            self.graph.write_text(json.dumps(graph), encoding="utf-8")
+            result = self.invoke("-i", self.graph, "-r", query)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual([match["node_ids"] for match in json.loads(result.stdout)["matches"]], expected)
+
     def test_nullable_alternation_report_order_is_stable_between_compilations(self):
         graph = {"nodes": [{"id": 0, "op": "X"}, {"id": 1, "op": "Y"}], "edges": [[0, 1]]}
         self.graph.write_text(json.dumps(graph), encoding="utf-8")

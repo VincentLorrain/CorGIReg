@@ -64,7 +64,7 @@ using AltAst = std::shared_ptr<AstNode<tGTokensTypes>>;
 std::string shape(const AltAst& node) {
     static const std::map<tGTokensTypes, std::string> names{
         {tGTokensTypes::NEXT, "NEXT"}, {tGTokensTypes::PREC, "PREC"}, {tGTokensTypes::QOM, "+"},
-        {tGTokensTypes::QZM, "*"}, {tGTokensTypes::QZO, "?"}, {tGTokensTypes::KEY, "KEY"},
+        {tGTokensTypes::QZM, "*"}, {tGTokensTypes::QZO, "?"}, {tGTokensTypes::QRANGE, "RANGE"}, {tGTokensTypes::KEY, "KEY"},
         {tGTokensTypes::CKEY, "CKEY"}, {tGTokensTypes::SCKEY, "SCKEY"}, {tGTokensTypes::SEP, "SEP"},
         {tGTokensTypes::LPAREN, "GROUP"}, {tGTokensTypes::END, "END"}, {tGTokensTypes::ALT, "ALT"}};
     std::string out = names.at(node->getType());
@@ -74,6 +74,7 @@ std::string shape(const AltAst& node) {
     for (std::size_t i = 0; i < node->getChilds().size(); ++i) out += (i ? "," : "") + shape(node->getChilds()[i]);
     return out + ")";
 }
+
 std::string parseError(const std::string& query) {
     try { PartitionGraphParser(query).parse(); }
     catch (const std::exception& error) { return error.what(); }
@@ -82,6 +83,33 @@ std::string parseError(const std::string& query) {
 }
 }
 
+TEST_CASE("Brace quantifiers preserve their spelling and validate their bounds", "[parser][repetition-range]") {
+    using T = tGTokensTypes;
+    for (const std::string suffix : {"{3}", "{2,}", "{2, 4}", "{0}"}) {
+        INFO(suffix);
+        PartitionGraphLexer lexer("A" + suffix + "->B");
+        REQUIRE(lexer.getNextToken()->getType() == T::KEY);
+        const auto token = lexer.getNextToken();
+        REQUIRE(token->getType() == T::QRANGE);
+        REQUIRE(token->getLexeme() == suffix);
+        REQUIRE(lexer.getNextToken()->getType() == T::NEXT);
+    }
+    PartitionGraphParser parser("(A->B|C){2,4}");
+    const auto tree = parser.parse();
+    REQUIRE(shape(tree) == "RANGE(GROUP(ALT(NEXT(KEY:A,KEY:B),KEY:C)))");
+    REQUIRE(tree->getValue() == "{2,4}");
+    REQUIRE(shape(parser.parse()) == shape(tree));
+
+    for (const std::string query : {"A{}", "A{2", "A{,3}", "A{4,2}", "A{-1}", "A{1 2}",
+                                    "A{2,3,4}", "A{1000001}", "A{2}?", "A#{2}"}) {
+        INFO(query);
+        REQUIRE_THROWS(PartitionGraphParser(query).parse());
+    }
+    REQUIRE(parseError("X-1->A{0,2}").find("Illegal numbered arrow") == 0);
+    REQUIRE(parseError("(A->$){2}").find("Illegal boundary") == 0);
+    REQUIRE_NOTHROW(PartitionGraphParser("X-1->A{1,2}->$").parse());
+    REQUIRE_NOTHROW(PartitionGraphParser("(A->$){1}").parse());
+}
 TEST_CASE("Parser builds alternation groups", "[parser][alternation]") {
     // Branches are full sequences, in lexical order, under an n-ary ALT node.
     REQUIRE(shape(PartitionGraphParser("X->(A->B|C)->Y").parse()) ==

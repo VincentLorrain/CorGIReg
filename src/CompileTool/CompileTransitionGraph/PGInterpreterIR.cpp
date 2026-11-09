@@ -1,4 +1,5 @@
 #include "CompileTool/Common/CommonKey.hpp"
+#include "CompileTool/Common/Repetition.hpp"
 #include "CompileTool/CompileTransitionGraph/PGInterpreterIR.hpp"
 #include <fstream>
 #include <limits>
@@ -85,7 +86,7 @@ class ConfiguredIRGenerator {
     const IRGenerationOptions& options;
     std::mt19937 random;
     std::map<const AstNode<tGTokensTypes>*, std::size_t> indices;
-    std::map<std::size_t, tGTokensTypes> kinds;
+    std::map<std::size_t, Repetition> bounds;
     std::map<std::size_t, std::size_t> consumed;
     std::map<std::string, NodeNN::Ptr> anchors;
     std::shared_ptr<GraphNN> graph = std::make_shared<GraphNN>();
@@ -111,10 +112,10 @@ class ConfiguredIRGenerator {
         if ((type == tGTokensTypes::KEY || type == tGTokensTypes::CKEY || type == tGTokensTypes::SCKEY) &&
             !parseNodePattern(tree->getValue()).conditions.empty())
             throw std::invalid_argument("Inline node conditions are supported for matching, not graph generation");
-        if (type == tGTokensTypes::QOM || type == tGTokensTypes::QZM || type == tGTokensTypes::QZO) {
+        if (isQuantifier(type)) {
             auto id = indices.size() + 1;
             indices.emplace(tree.get(), id);
-            kinds.emplace(id, type);
+            bounds.emplace(id, parseRepetition(type, tree->getValue()));
         }
     }
     std::size_t count(const IRTree& tree) {
@@ -127,11 +128,13 @@ class ConfiguredIRGenerator {
             if (invocation < values.size()) return values[invocation];
             throw std::invalid_argument("Exhausted values for quantifier " + std::to_string(id));
         }
+        const auto& repetition = bounds.at(id);
+        if (repetition.maximum == repetition.minimum) return repetition.minimum;
         if (!options.randomMissing)
             throw std::invalid_argument("Missing value for quantifier " + std::to_string(id));
-        const auto type = tree->getType();
-        return std::uniform_int_distribution<std::size_t>(type == tGTokensTypes::QOM ? 1 : 0,
-            type == tGTokensTypes::QZO ? 1 : options.maxLoops + (type == tGTokensTypes::QOM ? 1 : 0))(random);
+        const auto limit = repetition.minimum + options.maxLoops;
+        const auto maximum = repetition.symbol == '?' ? 1 : std::min(limit, repetition.maximum.value_or(limit));
+        return std::uniform_int_distribution<std::size_t>(repetition.minimum, maximum)(random);
     }
     static void anchored(const Fragment& fragment) {
         if (fragment.boundary && fragment.first.empty())
@@ -183,7 +186,7 @@ class ConfiguredIRGenerator {
         if (type == tGTokensTypes::ALT)
             return visit(children.at(std::uniform_int_distribution<std::size_t>(0, children.size() - 1)(random)));
         if (type == tGTokensTypes::END) return {{}, {}, false, true};
-        if (type == tGTokensTypes::QOM || type == tGTokensTypes::QZM || type == tGTokensTypes::QZO) {
+        if (isQuantifier(type)) {
             const auto repetitions = count(tree);
             Fragment result;
             for (std::size_t i = 0; i < repetitions; ++i) {
@@ -224,12 +227,11 @@ public:
         index(tree);
         if (options.maxLoops > 1000000) throw std::invalid_argument("maxLoops exceeds expansion limit");
         for (const auto& item : options.repetitions) {
-            if (!kinds.count(item.first) || item.second.empty())
+            const auto repetition = bounds.find(item.first);
+            if (repetition == bounds.end() || item.second.empty())
                 throw std::invalid_argument("Unknown or empty quantifier " + std::to_string(item.first));
             for (auto value : item.second) {
-                auto type = kinds.at(item.first);
-                if (value > 1000000 || (type == tGTokensTypes::QOM && value == 0) ||
-                    (type == tGTokensTypes::QZO && value > 1))
+                if (value > 1000000 || !repetition->second.allows(value))
                     throw std::invalid_argument("Invalid value for quantifier " + std::to_string(item.first));
             }
         }

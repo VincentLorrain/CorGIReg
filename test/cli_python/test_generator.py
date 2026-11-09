@@ -31,6 +31,42 @@ class GeneratorTests(unittest.TestCase):
             self.assertEqual(process.returncode, 0, process.stderr)
             self.assertTrue(any(m["node_ids"] == list(range(7)) for m in json.loads(process.stdout)["matches"]))
 
+    def test_brace_quantifiers_generate_exact_and_nested_counts(self):
+        exact = self.generate("-r", "X->(A->B){2}->C{0}->Y")
+        self.assertEqual(exact.returncode, 0, exact.stderr)
+        graph = json.loads(exact.stdout)
+        self.assertEqual([n["op"] for n in graph["nodes"]], list("XABABY"))
+        self.assertEqual(graph["edges"], [[i, i + 1] for i in range(5)])
+        with tempfile.TemporaryDirectory() as folder:
+            values = Path(folder) / "ranges.values"
+            values.write_text("1 = 1, 3\n2 = 2\n", encoding="utf-8")
+            query = "(A{1,3}->B){2,}"
+            result = self.generate("-r", query, "-v", values)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            graph = json.loads(result.stdout)
+            self.assertEqual([n["op"] for n in graph["nodes"]], list("ABAAAB"))
+            self.assertEqual(graph["edges"], [[i, i + 1] for i in range(5)])
+            for invalid in ["1 = 0, 3\n2 = 2\n", "1 = 1, 4\n2 = 2\n",
+                            "1 = 1, 3\n2 = 1\n", "1 = 1, 2, 3\n2 = 2\n"]:
+                with self.subTest(values=invalid):
+                    values.write_text(invalid, encoding="utf-8")
+                    bad = self.generate("-r", query, "-v", values)
+                    self.assertEqual(bad.returncode, 2, bad.stderr)
+                    self.assertIn("quantifier", bad.stderr)
+
+    def test_brace_range_random_fallback_is_seeded_and_bounded(self):
+        for query, lower, upper in [("A{3,}", 3, 5), ("A{3,4}", 3, 4), ("A{0,0}", 0, 0)]:
+            with self.subTest(query=query):
+                args = ("-r", query, "--random", "--seed", 431747, "--max-loops", 2)
+                first = self.generate(*args)
+                second = self.generate(*args)
+                self.assertEqual(first.returncode, 0, first.stderr)
+                self.assertEqual(second.returncode, 0, second.stderr)
+                self.assertEqual(first.stdout, second.stdout)
+                nodes = json.loads(first.stdout)["nodes"]
+                self.assertTrue(lower <= len(nodes) <= upper)
+                self.assertTrue(all(node["op"] == "A" for node in nodes))
+
     def test_aliases_random_seeds_and_fixed_ports(self):
         fixed = self.generate("-r", "X#-1->Sub#;X#-2->Sub#")
         self.assertEqual(fixed.returncode, 0, fixed.stderr)
@@ -82,7 +118,8 @@ class GeneratorTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             output = Path(folder) / "keep.json"
             output.write_text("keep", encoding="utf-8")
-            for args in [("-r", "A+"), ("-r", "A-0->B"), ("-r", "A", "--seed", "-1"), ("-r", "A#->$;A#->B"),
+            for args in [("-r", "A+"), ("-r", "A{2,3}"), ("-r", "A{3,2}"), ("-r", "A-0->B"),
+                         ("-r", "A", "--seed", "-1"), ("-r", "A#->$;A#->B"),
                          ("-r", "A", "-v", "missing.values")]:
                 result = self.generate(*args, "-o", output)
                 self.assertEqual(result.returncode, 2, result.stderr)
