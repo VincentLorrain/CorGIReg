@@ -42,7 +42,7 @@ One JSON file defines one predicate:
 normalized into raw predicate keys. ONNX custom-domain operations use
 `domain.Op`. Names contain ASCII letters, digits or underscores. Description is
 optional; the other fields are required. Unknown fields and rule kinds are
-rejected. Version 1 supports JSON and operation types only. Version 2 adds an
+rejected. Version 1 uses only `op_types` in each format mapping. Version 2 adds an
 optional `where` condition per format, evaluated by native C++ `NodeTest`.
 Version 3 adds an optional [OpenMath symbol](#openmath-symbols). Version 4 adds
 optional `key_matching` mappings for inline attribute conditions. No version

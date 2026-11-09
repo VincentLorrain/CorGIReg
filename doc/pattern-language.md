@@ -15,14 +15,14 @@ not a list of separately executed queries. Comments are not supported.
 | `A+` | One or more occurrences. |
 | `A*` | Zero or more occurrences. |
 | `A?` | Zero or one occurrence. |
-| `(A->B)+` | Repeat the entire A-B sequence. Parenthesized groups require a postfix quantifier. |
+| `(A->B)+` | Repeat the entire A-B sequence. Groups without alternatives require a postfix quantifier. |
 | `(A->B\|C)` | [Alternation](#alternation): either the A-B sequence or C. The quantifier is optional. |
 | `B#` | Common node: occurrences of this anchor must identify the same source node. Allows branching. |
 | `B#1`, `B#2` | Separate common identities for the same predicate B. |
 | `$B` | Common node whose input neighbors must all be covered. Outputs remain free. |
 | `B$` | Common node whose output neighbors must all be covered. Inputs remain free. |
 | `$B$` | Common node requiring coverage of both input and output neighbors. |
-| `A->$` | Boundary assertion: no following source node. The standalone `$` consumes no operation. |
+| `A->$` | Boundary assertion: no successor is available after A in this walk. Standalone `$` consumes no operation. |
 | `A->B#; B#->C` | Two paths joined through their common B anchor. |
 
 Predicate keys contain ASCII letters, digits and underscores. They resolve to
@@ -61,9 +61,9 @@ under `<-`. The standalone `$` still asserts a boundary. See
 
 `(X|Y|...)` matches exactly one of its alternatives, each a complete sequence:
 `X->(A->B|C)->Y` matches X-A-B-Y and X-C-Y, but not X-A-Y. Alternatives are
-tried independently; every successful one is reported, so overlapping
-alternatives can give several matches. The group behaves as a single unit of
-its path:
+tried independently. Distinct traces can produce several matches even when
+they capture the same nodes. Equivalent traces collapse to one result. The
+group behaves as a single unit of its path.
 
 | Pattern | Meaning |
 | --- | --- |
@@ -93,7 +93,9 @@ Boundary rules see an alternation as nullable when one of its alternatives is:
 
 ## Boundary rules
 
-`$` asserts that the operation before it has no successor. The parser refuses,
+`$` asserts that the operation before it has no successor available to the
+current walk. A return to an already captured plain node is unavailable, but
+it does not hide another successor. The parser refuses,
 with an "Illegal boundary" error, patterns where that can never hold or depends
 on how many times a quantifier repeats:
 
@@ -107,21 +109,25 @@ Matching, generation and `RandomExpressionGenerator` apply the same check.
 
 ## Parsing and direction
 
-The following grammar summarizes the current parser (KEY excludes common suffixes):
+The grammar below omits token spelling details. `forward` and `reverse`
+include the numbered and wildcard forms. `key` includes inline conditions.
 
 ```text
-query      := seq (';' query | ';')?
-seq        := exp ('->' (seq | '$') | '<-' rseq)? | '$' '<-' rseq
-rseq       := exp ('<-' (rseq | '$'))?
-exp        := KEY quantifier? | COMMON | STRICT_COMMON | '(' seq ')' quantifier
+query      := seq (';' query?)?
+seq        := exp (forward (seq | '$') | reverse rseq)? | '$' reverse rseq
+rseq       := exp (reverse (rseq | '$'))?
+exp        := key quantifier? | common | strict_common | group
+group      := '(' seq ')' quantifier | '(' seq ('|' seq)+ ')' quantifier?
 quantifier := '+' | '*' | '?'
 ```
 
-Arrow sequences associate to the right. The reverse-arrow interpreter places
-the entire right subtree before the left operand. Do not treat mixed arrows as
-an arbitrary undirected drawing: `A->B<-C` follows those parser rules, and
-`A<-B->C` is rejected. For branching, use explicit paths sharing common anchors,
-such as `A->B#; C->B#`. This also makes the intended identity constraints visible.
+Arrow sequences associate to the right. A sequence of reverse arrows starts
+at its rightmost operand. At the top level, incoming arrows can meet at a
+common anchor. `X-1->A#<-B?` is shorthand for `X-1->A#; A#<-B?`.
+The number belongs to the input of `A` reached from `X`, and the path from
+`B` is optional. `X-1->A<-B?` is invalid because the meeting point has no
+anchor. Write other branching patterns as separate paths with shared anchors,
+for example `A#->B; A#->C`.
 
 ## Matching behavior
 
@@ -137,16 +143,19 @@ anchors remain disconnected constraints and can require combinations of starts.
 The CLI enumerates starting tuples over the nodes each start can accept first,
 with a `--max-starts` budget (default 100000); exceeding it is an error, not a
 partial successful report.
-The [post-AST root proposal](post-ast-root-selection.md) does not yet replace
-this enumeration.
+Eligible paths that share an anchor start together on a single candidate for
+that anchor. The CLI still enumerates one candidate per independent start
+group. See [rooted execution](post-ast-root-selection.md#rooted-execution).
 
 Quantifier results count whole-body iterations. Ambiguous allocations remain
 distinct solutions and ordering is not a greedy ranking. Nullable and repeated
 common-node patterns use finite canonical traces: after the first iteration,
-each additional iteration must cover a new source node. In a repeated group
-containing an anchor, each iteration reaches the same anchor node and may start
-at any distance from it allowed by the body: `(A?->D#)+` and `(A+->D#)+` accept
-branches of different lengths joining at D. See
+each additional iteration must cover a new source node. An iteration can restart
+at any distance allowed by the body from a previously bound anchor. Each
+visited anchor keeps the same source identity. `(A?->D#)+` and `(A+->D#)+` accept
+branches of different lengths joining at D. A skipped optional anchor does
+not prevent a restart from another bound anchor. A body that can skip all
+anchors can also continue from its current graph position. See
 [match traces](match-traces.md) for nesting, zero counts and termination.
 
 ## Practical examples
@@ -162,7 +171,7 @@ Against [the documentation graph](examples/graph.json):
 
 For reusable semantic patterns and conditional operations, start with
 [the node library](node-library.md) and [runnable scripts](../examples/matches/README.md).
-# Numbered input arrows
+## Numbered input arrows
 
 `A-1->B` constrains the connection to input 1 of B. `B<-1-A` is its reverse
 textual form. Ports start at 1 and must fit unsigned 32 bits. The plain arrows
@@ -172,8 +181,10 @@ Numeric predicate names remain legal, for example `A->123`.
 
 Matching fixed arrows requires port metadata in the source graph; an unspecified
 port does not match a fixed number. Wildcard arrows do not constrain ports.
-Quantifiers retain their existing meaning. A fixed connection requires a node
-on both sides: skipping an entire operand cannot produce a numbered-edge match.
+The parser rejects a numbered arrow if either adjacent operand can consume no
+nodes. For example, `X-1->C?->Y` and `X-1->(A|C?)->Y` are invalid, while
+`X-1->(A|C)->Y` is valid. Use `X->C?->Y` or `X-*->C?->Y` when `C` may be
+skipped without requiring a fixed input port.
 Ports label connections, not common-node identities or node IDs. Output ports
 are preserved in the graph but are not selected by pattern syntax in this version.
 

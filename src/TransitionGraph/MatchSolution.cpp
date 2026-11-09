@@ -8,11 +8,8 @@ MatchSolution::MatchSolution(std::vector<std::shared_ptr<RunTimeContext>>& prece
                              const std::string& query,
                              const std::vector<std::optional<NodeId>>& startNode, std::shared_ptr<const GraphView> graph)
     : mGraph(std::move(graph)), mQueryFrom(query), mStartNode(startNode) {
-    //TODO
-    //ASSERT all precedence must be compatible
-    //ASSERT all precedence must be valid
-
-    // Reformat the solution
+    // The caller has already checked walk compatibility and coverage.
+    // Preserve each ordered trace while indexing captures by predicate.
     for (const auto& context : precedence) {
         mWalks.push_back({context->getSubStmId(), context->getCaptures(), context->getQuantifiers()});
         for (const auto& pair : context->getValid()) {
@@ -27,10 +24,8 @@ MatchSolution::MatchSolution(std::vector<std::shared_ptr<RunTimeContext>>& prece
 }
 
 const std::set<NodeId> MatchSolution::getAll() const {
-    // Create a unique set to store all the elements
     std::set<NodeId> uniqueSet;
 
-    // Iterate through the map and insert elements from each set into the unique set
     for (const auto& pair : mSolution) {
         uniqueSet.insert(pair.second.begin(), pair.second.end());
     }
@@ -49,10 +44,6 @@ bool MatchSolution::areCompatible(const std::shared_ptr<MatchSolution>& solution
 }
 
 
-/***
- * 
- */
-
     SolutionFromStartingPoint::SolutionFromStartingPoint(const std::vector<std::shared_ptr<RunTimeContext>> validRunTime, 
     const std::set<std::size_t> allGraphOrigin,const std::string query,const std::vector<std::optional<NodeId>> startNode, std::shared_ptr<const GraphView> graph):
     mGraph(std::move(graph)),
@@ -67,8 +58,8 @@ bool MatchSolution::areCompatible(const std::shared_ptr<MatchSolution>& solution
         
         if (mAllGraphOrigin == actOrigin) {
 
-            // We have a set of RunTimeContext that are compatible
-            // and cover all the graph origin (in others words, all the sub query)
+            // These compatible walks cover every path origin. Check strict
+            // obligations against the union of their captured source IDs.
 
             std::set<NodeId> validNode;
             for (const auto& contextPtr : precedence) {
@@ -97,12 +88,11 @@ bool MatchSolution::areCompatible(const std::shared_ptr<MatchSolution>& solution
         for (const auto& oneOfAll : mValidRunTime) {
             if (!oneOfAll->getActState()->getOrigin().count(next)) continue;
             if (precedence.empty()) {
-            //if (oneOfAll->getActState()->getOrigin().empty()) {
                 precedence.push_back(oneOfAll);
                 _makeTheMatch(precedence);
             }else{
-                /* add only usfull solution that valid at leas one new origin */
-                // Warning is maybe  strict intersection
+                // A new walk must cover an uncovered origin without reusing a
+                // path already represented by another walk in this solution.
                 std::vector<std::size_t> intersection;
                 std::set_intersection(oneOfAll->getActState()->getOrigin().begin(), oneOfAll->getActState()->getOrigin().end(),
                           actOrigin.begin(), actOrigin.end(),

@@ -4,8 +4,9 @@
 
 CorGIReg is a C++ library designed to apply regular expression operations on graph structures. This library extends traditional text-based regular expressions to graphs, allowing for powerful and flexible pattern matching in complex data structures.
 
-See the [documentation index](doc/README.md) for the concepts, pattern language,
-input IRs, node definitions, complete match JSON format, C++ adapters and tooling.
+Start with the [worked matching example](doc/walkthrough.md) to see how a pattern
+becomes a graph match. The [documentation index](doc/README.md) links to the
+language, input formats, reports, C++ APIs, and development guides.
 
 The initial integrated source milestone is [V0](doc/releases/V0.md), available
 through the Git tag `V0`.
@@ -104,10 +105,11 @@ separate Release build; functional tests retain their own checks.
 A->B            A followed by B along a producer-to-consumer edge
 A+->B           one or more A, then B
 (A->B)*         repeat the whole A-B sequence zero or more times
-(A->B|C)->D     either A-B or C, then D
+(A->B|C)->D      either A-B or C, then D
 A#->B;C->A#     two paths joined through the same source node A
+X-1->A#<-B?     X feeds input 1 of A, with an optional second path from B
 $A$             common node whose inputs and outputs must all be covered
-A->$            A has no successor
+A->$            no successor is available to the walk after A
 conv(group=1)   inline attribute equality on a node
 ```
 

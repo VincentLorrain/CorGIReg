@@ -15,8 +15,8 @@ must then be version 3 (or 6) with a definition count of 0: the worker resolves
 definitions from the node documents, and its reply contains the public
 `node_definitions` object instead of `definition_nodes`. This is what the public
 CLI sends. `--list-definitions` validates the libraries, prints them as JSON
-(name to `schema_version`, `name`, `description`, `formats`, `openmath`, `source`) and exits
-without reading stdin.
+(name to `schema_version`, `name`, `description`, `formats`, `openmath`, `source`,
+and `key_matching` for schema 4) and exits without reading stdin.
 
 Whitespace separates tokens. Text tokens are hexadecimal UTF-8 bytes; `-`
 represents an empty string. IDs are unsigned 64-bit integers. The query is
@@ -25,7 +25,7 @@ retaining the original query in the public report.
 
 ## Request versions
 
-All requests start with `CORGiReg1`, `CORGiReg2` or `CORGiReg3`, followed by:
+Base requests start with `CORGiReg1`, `CORGiReg2` or `CORGiReg3`, followed by:
 
 1. Node count, then one record per node: `id hex_predicate hex_name`.
    Version 3 additionally carries a typed node document after each record.
@@ -77,7 +77,7 @@ Do not parse diagnostic wording as a stable machine-readable error schema.
 Implementation references: [encoder](../python/corgireg_cli/graph.py),
 [native request reader](../src/Cli/MatchRequest.cpp),
 [worker entry point](../src/Cli/main.cpp).
-# Numbered connections extension
+## Numbered connections extension
 
 `CORGiReg4`, `CORGiReg5`, and `CORGiReg6` extend versions 1, 2, and 3 respectively.
 All fields keep the corresponding base-version layout, except connection records:

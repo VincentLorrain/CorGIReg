@@ -13,8 +13,8 @@ matched subgraphs.
 | Operation graph | Normalized nodes, metadata and adjacency | [Graph JSON](graph-json.md) |
 | Node definitions | Map semantic predicate names to source operations and conditions | [Library](node-library.md), [rules](node-rules.md) |
 | Pattern text | Connectivity constraints and repetitions | [Language](pattern-language.md) |
-| AST | Parsed pattern structure retaining original occurrences | Compiler pipeline below |
-| Root plan | Post-AST proposal for choosing traversal roots | [Root selection](post-ast-root-selection.md) |
+| AST | Parsed pattern structure, with compact convergence expanded into paths | [Language](pattern-language.md#parsing-and-direction) |
+| Root plan | Static analysis of which paths can share a start | [Root selection](post-ast-root-selection.md) |
 | Transition graph / TGCompiled | Generated state machine and compiled executable matcher | [Adapters and C++ entry points](graph-adapters.md) |
 | MatchSolution / JSON report | Captures and execution traces mapped to source IDs | [C++ traces](match-traces.md), [JSON report](match-report-json.md) |
 
@@ -26,9 +26,9 @@ There is no additional serialized AST format or named-pattern registry.
 ## Compilation
 
 ```text
-pattern text -> PartitionGraphLexer -> PartitionGraphParser -> AST
-    -> RootSelectionPass -> root proposal
-    -> PGInterpreterTG visits original AST -> TransitionGraph -> TGCompiled
+pattern text -> PartitionGraphLexer -> PartitionGraphParser -> validated AST
+    -> RootSelectionPass -> root plan
+    -> PGInterpreterTG uses the AST and plan -> TransitionGraph -> TGCompiled
 
 source file -> importer -> normalized graph -> ImportedGraph / GraphView
 node definitions -> NodeLibrary (JSON, validation, op_types) -> compiled NodeTest rules -> predicates
@@ -37,14 +37,16 @@ TGCompiled + GraphView + predicates + starting tuple -> MatchSolution(s)
 CLI search + source metadata -> public JSON report
 ```
 
-The root pass produces plan-local node indices, directed constraints, components
-and optional roots; `interpretRooted()` uses anchor roots to start each component
-on its anchor, as the CLI does. Quantified regions remain opaque; quantified
-common anchors trigger conservative fallback to path-order starts. Both machines
-are generated from the original AST occurrences.
+The root pass produces plan-local indices, directed constraints, components,
+and root candidates. The CLI uses `interpretRooted()`, which splits eligible
+paths at their shared anchor and assigns those parts to a single start group.
+Ineligible paths retain their traversal order. Quantified regions remain
+opaque, and a quantified anchor disables rooting. Both machines compile the
+same validated AST. See the [worked example](walkthrough.md#follow-the-compiler-and-the-search).
 
-`PGInterpreterIR` is a separate AST visitor that **generates example GraphNN
-graphs** using bounded random repetition choices (default repeat limit 10).
+`PGInterpreterIR` is a separate AST visitor that generates example
+`GraphNN` graphs. It accepts explicit quantifier counts and can fall back
+to seeded choices within a configured bound.
 It is not an external importer or the matching engine. Generated examples are
 useful for exploration, but independent explicit fixtures are necessary for
 correctness tests because both visitors share the parser.
@@ -70,12 +72,22 @@ share their path origin: one alternative is taken per walk.
 
 ## Runtime responsibilities
 
-`TransitionGraph` contains states and transitions; compilation prepares start
-states and common-node constraints. Runtime contexts carry current source
-position, common-anchor bindings and trace state. Transitions test predicates,
-move through parents/children, enforce boundaries or perform internal reference
-and empty transitions. Quantifier trace actions record begin, iteration, end
-and skip events without consuming source nodes themselves.
+`TransitionGraph` is a mutable compiler representation. `TGCompiled` holds
+the machine used for search. Each transition owns its endpoint states.
+States retain weak links to transitions so this ownership does not form a cycle.
+
+A runtime context holds both a position in the machine and a position in the
+source graph. Consuming transitions validate a node and move to its neighbors.
+Internal transitions handle branching, quantified groups, port checks, and
+end-of-walk assertions. A repetition can jump back to a candidate near a
+bound anchor, then check the entire body against the same bindings. Trace
+actions record the beginning, each iteration, the end, or a skip without
+consuming an operation.
+
+Each branch receives its own context. A strict occurrence records required
+neighbors in that context. The matcher combines compatible accepting walks
+and checks these requirements against the union of their captures. A boundary
+assertion is checked earlier, against the current walk's available successors.
 
 `GraphView` provides read-only reciprocal parent/child adjacency and optional
 names. `NodePredicates` supplies callbacks by key. The graph must remain unchanged
@@ -99,12 +111,12 @@ compiler/global registry state is thread-safe without additional synchronization
 
 | Directory | Responsibility |
 | --- | --- |
-| `include/`, `src/BasicGraphIr` | NodeNN and GraphNN representation |
-| `include/`, `src/GraphAccess` | GraphView adapters and traversal helpers |
-| `include/`, `src/CompileTool` | Tokens, AST, parser, interpreters and post-AST planning |
-| `include/`, `src/TransitionGraph` | Machine construction, execution and match traces |
-| `include/`, `src/NodeTest` | Predicate registry, legacy expressions, typed rules, JSON documents and node libraries |
-| `include/`, `src/Generation` | Seeded random pattern generator for tests and fuzzing |
+| `include/BasicGraphIr`, `src/BasicGraphIr` | NodeNN and GraphNN representation |
+| `include/GraphAccess`, `include/GraphAdapters` | GraphView contract, traversal helpers, and adapters |
+| `include/CompileTool`, `src/CompileTool` | Tokens, AST, parser, interpreters and post-AST planning |
+| `include/TransitionGraph`, `src/TransitionGraph` | Machine construction, execution and match traces |
+| `include/NodeTest`, `src/NodeTest` | Predicate registry, legacy expressions, typed rules, JSON documents and node libraries |
+| `include/Generation`, `src/Generation` | Seeded random pattern generator for tests and fuzzing |
 | `include/Util` | Header-only combination and permutation iterators |
 | `src/Cli`, `python/corgireg_cli` | Native worker and public CLI/importers |
 | `test`, `benchmarks` | Functional regressions and measured workloads |

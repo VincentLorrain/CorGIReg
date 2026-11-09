@@ -12,22 +12,20 @@
 #include "TransitionGraph/Transition.hpp"
 #include "TransitionGraph/RunTimeContext.hpp"
 
-// TODO pourquoi avoir les transition et les parents dans le meme objet ???
-
 namespace CorGIReg
 {
 
 class Transition;
 
 
-/** @brief compare two weak pointer for making a set of weak pointer */
+/** @brief Order live graph objects by creation, independently of allocation. */
 template <typename T>
 struct lex_compare {
     bool operator() (const std::weak_ptr<T> &lhs, const std::weak_ptr<T> &rhs)const {
         auto lptr = lhs.lock(), rptr = rhs.lock();
         if (!rptr) return false; // nothing after expired pointer
         if (!lptr) return true;
-        return lptr < rptr;
+        return lptr->getId() < rptr->getId();
     }
 };
 
@@ -35,41 +33,27 @@ class State
 {
 private:
 
-    /**
-     * @brief use to have unique id for FSM representation
-     * @details atomic so patterns compiled on several threads never share an id
-    */
+    // Allocate unique creation IDs independently of memory addresses.
     static std::atomic<std::size_t> sID;
-    /**
-     * the unique id of the state, increasing in creation order within one compilation
-    */
+    // Creation order breaks ties when the compiler or matcher visits states.
     const std::size_t mId;
 
-    /**
-     * @brief the Transition of the node
-     * @details the Transition have a shared ref to the node so we use weak ref
-    */
+    // Transitions own their endpoint states. Weak back-links avoid ownership
+    // cycles and let a state enumerate its outgoing transitions.
     std::set<std::weak_ptr<Transition>,lex_compare<Transition>> mTransitions;
-    /**
-     * @brief the parent of the node
-    */
+    // Incoming state links support compiler updates when transitions are rewired.
     std::set<std::weak_ptr<State>,lex_compare<State>> mParents;
     
-    /** @brief the state can be a neutral a start or a valid state */
+    // Independent start and accepting flags. An intermediate state has neither.
     bool mStart = false;
     bool mValid = false;
 
-    /** @brief the id that store the origin of the state as a parte of a TransitionGraph
-     * during the construction of the graph somme state can be merged in the same state 
-     * we cumulate the origin of the states, that is useful for validation of the match werre 
-     * all the origine muste be valid
-    */
+    // Origins identify the compiled paths a walk can satisfy. A complete
+    // solution must cover every origin in the machine.
     std::set<std::size_t> mFromTransitionGraph = {0};
 
-    /** @brief the id that store the group of the state 
-     * that correspond to the sub emsenble of common node deffinition
-     * use for groupe quantification  ex : (B#>(A#>B)+)*
-     */
+    // The compiler uses the group level to guard merges across nested regions.
+    // This is separate from the start groups used to enumerate candidates.
     std::size_t mGroupId = 0;
 
 public:

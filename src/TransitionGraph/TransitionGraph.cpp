@@ -192,9 +192,7 @@ std::shared_ptr<SolutionFromStartingPoint> TGCompiled::test(
     if (!graph) throw std::invalid_argument("Null graph view");
     auto environment = std::make_shared<MatchEnvironment>(MatchEnvironment{graph, std::move(predicates)});
 
-    /*
-    create the initial walks with the start nodes on the graph NN and the start States on the TransitionGraph
-    */
+    // Pair each start state with the source position at the same tuple index.
     std::vector<std::shared_ptr<State>> startNodesFsm = getStartStates();
     if(startNodes.size() != startNodesFsm.size()){
          throw std::runtime_error("bad number of Start nodes");
@@ -219,8 +217,7 @@ std::shared_ptr<SolutionFromStartingPoint> TGCompiled::test(
     while (!walks.empty())
     {
         for(auto actContext : walks){
-            //if we are in a valid st we save it
-            //it's one solution of the possible solution of the matching
+            // Accept this walk without stopping exploration of longer matches.
             if(actContext->isOnValidState() && results.insert(actContext->key(false)).second)
                 allValidContext.push_back(actContext);
 
@@ -232,17 +229,12 @@ std::shared_ptr<SolutionFromStartingPoint> TGCompiled::test(
         walks.swap(nextWalks);
         nextWalks.clear();
     }
-    /*
-    at this point we have all the valid context, but a match is a set a valid context from starting nodes
-    */
+    // Join accepted walks that satisfy all path origins and strict obligations.
 
 
     
     return std::make_shared<SolutionFromStartingPoint>(allValidContext,mAllOrigin,mQuery,startNodes,graph);
 
-    // MatchResult allMatch(allValidContext,getNbSubFsm(),mQuery,startNodes);
-    // RunTimeContext::rst();
-    // return allMatch.getSolutions();
 
 }
 
@@ -294,7 +286,6 @@ std::shared_ptr<TransitionGraph> TransitionGraph::addTransitionStartToValid(Tran
     }
     
     if(allStart.size() != 1){
-         //throw std::logic_error("addTransitionStartToValid error" );
          return nullptr;
     }
 
@@ -316,7 +307,6 @@ std::shared_ptr<TransitionGraph> TransitionGraph::addTransitionValidToStart(Tran
 
   
     if(allStart.size() != 1){
-         //throw std::logic_error("addTransitionStartToValid error" );
          return nullptr;
     }
 
@@ -331,11 +321,9 @@ std::shared_ptr<TransitionGraph> TransitionGraph::addTransitionValidToStart(Tran
 
 void TransitionGraph::addTransition(std::shared_ptr<Transition> transition){
     
-    //mAllOrigin.insert(transition->getDestState()->getOrigin());
     mAllOrigin.insert(transition->getDestState()->getOrigin().begin(), 
                   transition->getDestState()->getOrigin().end());
 
-    //mAllOrigin.insert(transition->getSourceState()->getOrigin());
     mAllOrigin.insert(transition->getSourceState()->getOrigin().begin(), 
                   transition->getSourceState()->getOrigin().end());
 
@@ -380,35 +368,19 @@ std::shared_ptr<TransitionGraph> TransitionGraph::unionG(const std::shared_ptr<T
 }
 
 std::shared_ptr<TransitionGraph> TransitionGraph::fusionG(const std::shared_ptr<TransitionGraph> transitionGraph){
-    /**
-     * 
-     */
-     /*
-    we add all the node of the fsmGraph to this , and we can optimize using common transition 
-    the common edge are by definition the same edges in the 2 fsm graph (warning the common of the same context )
-    so if 2 state (node of the FSM) of the 2 fsm have the same input transition of a common node these 2 state can be merge; 
-    1) find the mergeable sate in the 2 fsm
-    2) append the FSM
-    3) merge the sate 
-    */
-
-
-   /**
-    * get all the FSM node (stat) that have has input a Common Edge in the two graph
-    * then  
-   */
+    // This optional merge looks for destination states reached by common
+    // transitions with equal predicate keys and one predecessor each. The
+    // pattern interpreter uses a plain union for semicolon-separated paths.
     std::vector<std::pair<std::shared_ptr<State>,std::shared_ptr<State>>> statesPairsCompat;
 
     for(auto transitionInput : transitionGraph->getTransitions()){
         if (const auto& targetEdge = transitionInput; targetEdge->isCommon()) {
             for(auto transitionSelf : getTransitions()){
                 if (const auto& actualEdge = transitionSelf; actualEdge->isCommon()) {
-                    //we get 2 edges of the 2 fsm that test the same condition 
                     if( targetEdge->getTestKey() == actualEdge->getTestKey() ){
 
                         std::shared_ptr<State> targetState = targetEdge->getDestState();
                         std::shared_ptr<State> actualState = actualEdge->getDestState();
-                        /*filter test*/
                         if (actualState->getParentStates().size() == 1 && targetState->getParentStates().size() == 1){
                             statesPairsCompat.push_back({targetState, actualState});
                         }
@@ -418,7 +390,7 @@ std::shared_ptr<TransitionGraph> TransitionGraph::fusionG(const std::shared_ptr<
             }
         }
     }
-    //add all the node to the FSM ,
+    // Import both graphs before rewiring any selected states.
     unionG(transitionGraph);
 
     for (const auto& pair : statesPairsCompat) {
@@ -435,18 +407,13 @@ std::shared_ptr<TransitionGraph> TransitionGraph::mergeOneStartOneValid(const st
 
     if (startStates.size() != 1 || validStates.size() != 1){
 
-        // std::ostringstream errorMessage;
-        // errorMessage <<"mergeOneStartOneValid  start size: " << startStates.size() << " valid size : " << validStates.size()
-        // <<" can only merge FSM 1 start 1 valid";
-        // throw std::runtime_error(errorMessage.str());
-        //throw std::runtime_error("mergeOneStartOneValid");
+        // A sequential join needs one exit on the left and one entry on the right.
         return nullptr;
     }
 
     unionG(transitionGraph);
-    //get the start and valid nodes and merge them
-    //the loop is not really necessary because the size of validStates and startStates are 1
-    //but it future version we will potentially have more than 1 start and 1 valid
+    // The shared state is internal to the new sequence. Remove the flags
+    // that marked it as an endpoint in either operand.
     for(auto valid : validStates){
         valid->unValid();
         for(auto start : startStates){
@@ -547,7 +514,7 @@ void TransitionGraph::_mergeState(std::shared_ptr<State> source,std::shared_ptr<
     }
 
 
-    //merge source to dest by replace source by dest in all EDGE
+    // Redirect transitions from the discarded state to the surviving state.
     for(auto edge : mTransitions){
         if(edge->getDestState() == source ){
             edge->reSetDestState(dest);
@@ -557,7 +524,7 @@ void TransitionGraph::_mergeState(std::shared_ptr<State> source,std::shared_ptr<
     }
 
     /*ASSERT*/
-    //check is source is not longer in the graph
+    // Verify that no transition still references the discarded state.
     const std::set<std::shared_ptr<State>> nodesEnd = getStates();
    
     if(nodesEnd.find(source) !=  nodesEnd.end() ){
@@ -589,7 +556,6 @@ const std::set<std::shared_ptr<State>> TransitionGraph::getValidStates(void){
             ValidStates.insert(state);
         }
     }
-    //may short
     return ValidStates;
 
 }

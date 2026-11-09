@@ -2,9 +2,12 @@
 #include "TransitionGraph/Transition.hpp"
 #include "GraphAccess/GraphTraversal.hpp"
 #include <deque>
+#include <tuple>
 
 
 namespace CorGIReg{
+
+std::atomic<std::size_t> Transition::sID{0};
 
 /**
  * \section Transition general
@@ -16,9 +19,7 @@ Transition::Transition(std::shared_ptr<State> source,std::shared_ptr<State> dest
     mStateSource = source;
     mStateDest   = dest;
     
-    // wen i make the Transition I init the nodes
-    // mStateSource->addTransition(shared_from_this());
-    // mStateDest->addParent(mStateSource);
+    // Endpoint links are registered by updateWeak once shared ownership exists.
 }
 
 void Transition::updateWeak(void){
@@ -52,21 +53,19 @@ void Transition::reSetSourceState(const std::shared_ptr<State> newSource){
 
 void Transition::propagateRelativePos(void){
 
-    // Get the id of common node were the transition is relative to
+    // Compare anchor metadata on each adjacent pair before propagating it.
     std::set<std::size_t> myRelativeID;
     for (const auto& kvp : mRelativeToCommon) {
         myRelativeID.insert(kvp.first);
     }
 
-    // run through all the transition recursively
     for (const auto& nextWeakTransition : mStateDest->getTransitions()){
         
         if (auto nextTransition = nextWeakTransition.lock()) {
-            //if we get the actual Transition we skip it 
+            // A self-loop has no separate neighbor to update.
             if(this == nextTransition.get()){
                 continue;
             }
-            //if we get a others Transition we look at all the common node reference
             std::set<std::size_t> nextRelativeID;
             for (const auto& kvp : nextTransition->getRelative()) {
                 nextRelativeID.insert(kvp.first);
@@ -84,12 +83,8 @@ void Transition::propagateRelativePos(void){
                                 myRelativeID.begin(), myRelativeID.end(),
                                 std::inserter(idxsToGet, idxsToGet.begin()));
 
-            //  test for integrity we look if 2 Transition refer to the same
-            //  ref and are link the ref dif is one
-            //  not working for common node
-            //  we can go deeper by find the all pass to a ref and see if the delta is good
-
-            // Find elements present in both myRelativeID and nextRelativeID
+            // A shared legacy reference must differ by one step between
+            // consecutive transitions.
             std::set<std::size_t> idxsTotest;
             for (auto idx : nextRelativeID){
                 if (myRelativeID.find(idx) != myRelativeID.end()){
@@ -99,9 +94,8 @@ void Transition::propagateRelativePos(void){
                 }
             }
             
-            // this Transition have more relative info than the next
+            // Propagate references that only this transition knows.
             std::map<size_t,int> tmpRelative;
-            // we push this info to the next 
             for(auto idxToPush :idxsToPush ){
                 tmpRelative.insert( std::make_pair(idxToPush, getRelative().at(idxToPush) +1));
             }
@@ -112,7 +106,7 @@ void Transition::propagateRelativePos(void){
             tmpRelative.clear();
 
 
-            // the next node have more info than me i need to get it
+            // Bring back references known only by the next transition.
             for(auto idxToGet :idxsToGet ){
                 tmpRelative.insert( std::make_pair(idxToGet, nextTransition->getRelative().at(idxToGet) -1));
             }
@@ -274,104 +268,118 @@ std::string TransitionCommon::strRep(void) const{
 /*
 TransitionRef
 */
-TransitionRef::TransitionRef(std::shared_ptr<State> source,std::shared_ptr<State> dest)
-:Transition(source,dest,""),mAnchor(getAnchor(dest)){   
+TransitionRef::TransitionRef(std::shared_ptr<State> source, std::shared_ptr<State> dest)
+    : Transition(source, dest, ""), mBody(analyzeBody(dest, source)) {}
 
-}
-
-
-TransitionRef::Anchor TransitionRef::getAnchor(std::shared_ptr<State>& dest) const{
-    // Find an actual common transition in the repeated body. Falling back to
-    // global ID zero made matches depend on which query was compiled first.
-    // Optional or repeated operands before the anchor give several distances:
-    // (A?->D#)+ starts its next iteration at D or at a parent of D.
-    Anchor anchor;
-    std::optional<std::size_t> commonIdx;
-    std::deque<std::pair<std::shared_ptr<State>, int>> pending{{dest, 0}};
-    std::set<std::pair<std::shared_ptr<State>, int>> visited;
+TransitionRef::Body TransitionRef::analyzeBody(const std::shared_ptr<State>& start,
+                                               const std::shared_ptr<State>& completed) {
+    Body body;
+    using Position = std::tuple<std::shared_ptr<State>, int, bool>;
+    std::deque<Position> pending{{start, 0, false}};
+    std::set<Position> visited;
+    bool childDirected = false, parentDirected = false;
     while (!pending.empty()) {
-        auto [state, delta] = pending.front();
+        auto [state, delta, anchored] = pending.front();
         pending.pop_front();
-        if (!visited.insert({state, delta}).second) continue;
+        if (!visited.emplace(state, delta, anchored).second) continue;
+        if (state == completed) {
+            body.canSkipAnchors |= !anchored;
+            continue;
+        }
         for (const auto& edge : state->getTransitions()) {
             auto transition = edge.lock();
             if (!transition) throw std::runtime_error("Expired transition while finding common anchor");
+            bool usesAnchor = anchored;
             switch (transition->getType()) {
             case TransitionTypes::COMMON:
-            case TransitionTypes::STRICTCOMMON:
-                if (!commonIdx) commonIdx = transition->getCommonIdx();
-                if (*commonIdx == transition->getCommonIdx()) anchor.deltas.insert(delta);
-                continue;
-            // Do not follow another repetition's jump when locating its body.
-            case TransitionTypes::REF:
-                continue;
-            case TransitionTypes::EMPTY:
-                pending.push_front({transition->getDestState(), delta});
-                continue;
-            case TransitionTypes::UNIQUE:
-            case TransitionTypes::NNULL:
-            case TransitionTypes::NONE:
+            case TransitionTypes::STRICTCOMMON: {
+                auto& anchor = body.anchors[transition->getCommonIdx()];
+                if (delta < -kLimit) anchor.unboundedParents = true;
+                else if (delta > kLimit) anchor.unboundedChildren = true;
+                else anchor.deltas.insert(delta);
+                usesAnchor = true;
                 break;
             }
-            const int next = delta + (transition->isDirectionIsChildren() ? -1 : 1);
-            if (next < -kLimit) anchor.unboundedParents = true;
-            else if (next > kLimit) anchor.unboundedChildren = true;
-            else pending.push_back({transition->getDestState(), next});
+            // Do not follow another repetition's jump when locating its body.
+            case TransitionTypes::REF:
+            case TransitionTypes::NONE:
+                continue;
+            case TransitionTypes::EMPTY:
+            case TransitionTypes::NNULL:
+                pending.emplace_back(transition->getDestState(), delta, anchored);
+                continue;
+            case TransitionTypes::UNIQUE:
+                break;
+            }
+            const bool children = transition->isDirectionIsChildren();
+            childDirected |= children;
+            parentDirected |= !children;
+            // Keep following long paths so distant anchors are still found.
+            const int next = std::abs(delta) > kLimit ? delta : delta + (children ? -1 : 1);
+            pending.emplace_back(transition->getDestState(), next, usesAnchor);
         }
     }
-    if (!commonIdx) throw std::runtime_error("No common anchor reachable in repeated body");
-    anchor.commonIdx = *commonIdx;
-    return anchor;
+    if (childDirected && parentDirected) {
+        for (auto& entry : body.anchors) {
+            auto& anchor = entry.second;
+            if (anchor.unboundedParents || anchor.unboundedChildren)
+                anchor.unboundedParents = anchor.unboundedChildren = true;
+        }
+    }
+    return body;
 }
 
-const TransitionResult TransitionRef::test(const std::shared_ptr<RunTimeContext>& context){
-    //from all common node defined in the context we try to get the anchor
-    std::optional<NodeId> refNode = context->getCommonNodeFromIdx(mAnchor.commonIdx);
-    if (!refNode) return {false,std::set<NodeId>()};
-    // Candidate starts of the next iteration. Distances count walk steps; the
-    // repeated body then checks each candidate up to the same anchor.
+const TransitionResult TransitionRef::test(const std::shared_ptr<RunTimeContext>& context) {
+    // A skipped optional anchor has no binding. Other bound anchors can
+    // still locate a start, and the body checks all bindings during the walk.
     const auto& graph = context->graph();
     NodeIds result;
-    if (mAnchor.deltas.count(0)) result.insert(*refNode);
-    for (const bool parents : {true, false}) {
-        const bool unbounded = parents ? mAnchor.unboundedParents : mAnchor.unboundedChildren;
-        int last = 0;
-        for (int delta : mAnchor.deltas) if (parents ? delta < 0 : delta > 0) last = std::max(last, std::abs(delta));
-        NodeIds layer{*refNode}, seen;
-        for (int step = 1; !layer.empty() && (unbounded || step <= last); ++step) {
-            NodeIds next;
-            for (NodeId node : layer)
-                for (NodeId neighbor : parents ? graph.parents(node) : graph.children(node)) next.insert(neighbor);
-            if (unbounded) {
-                // Every node on an unbounded side is a candidate.
-                for (auto it = next.begin(); it != next.end();) it = seen.insert(*it).second ? std::next(it) : next.erase(it);
-                result.insert(next.begin(), next.end());
-            } else if (mAnchor.deltas.count(parents ? -step : step)) {
-                result.insert(next.begin(), next.end());
+    if (mBody.canSkipAnchors) {
+        if (auto next = context->getActNode()) result.insert(*next);
+    }
+    for (const auto& [identity, anchor] : mBody.anchors) {
+        const auto refNode = context->getCommonNodeFromIdx(identity);
+        if (!refNode) continue;
+        if (anchor.deltas.count(0)) result.insert(*refNode);
+        for (const bool parents : {true, false}) {
+            const bool unbounded = parents ? anchor.unboundedParents : anchor.unboundedChildren;
+            int last = 0;
+            for (int delta : anchor.deltas)
+                if (parents ? delta < 0 : delta > 0) last = std::max(last, std::abs(delta));
+            NodeIds layer{*refNode}, seen;
+            for (int step = 1; !layer.empty() && (unbounded || step <= last); ++step) {
+                NodeIds next;
+                for (NodeId node : layer)
+                    for (NodeId neighbor : parents ? graph.parents(node) : graph.children(node)) next.insert(neighbor);
+                if (unbounded) {
+                    for (auto it = next.begin(); it != next.end();)
+                        it = seen.insert(*it).second ? std::next(it) : next.erase(it);
+                    result.insert(next.begin(), next.end());
+                } else if (anchor.deltas.count(parents ? -step : step)) {
+                    result.insert(next.begin(), next.end());
+                }
+                layer = std::move(next);
             }
-            layer = std::move(next);
         }
     }
-    return {true, result};
+    return {!result.empty() || mBody.canSkipAnchors, std::move(result)};
 }
-std::string TransitionRef::strRep(void) const{
+
+std::string TransitionRef::strRep(void) const {
     std::stringstream ss;
-    ss << mStateSource->getId();
-    ss << fmt::format("-->|REF{} {}{}{}|", mAnchor.commonIdx, fmt::join(mAnchor.deltas, ","),
-                      mAnchor.unboundedParents ? " -inf" : "", mAnchor.unboundedChildren ? " +inf" : "");
-    ss << mStateDest->getId();
+    ss << mStateSource->getId() << "-->|REF";
+    for (const auto& [identity, anchor] : mBody.anchors)
+        ss << fmt::format(" {} [{}{}{}]", identity, fmt::join(anchor.deltas, ","),
+                          anchor.unboundedParents ? " -inf" : "", anchor.unboundedChildren ? " +inf" : "");
+    if (mBody.canSkipAnchors) ss << " or next";
+    ss << '|' << mStateDest->getId();
     return ss.str();
 }
-/*
-TransitionEmpty
-*/
-TransitionEmpty::TransitionEmpty(std::shared_ptr<State> source,std::shared_ptr<State> dest)
-:Transition(source,dest,"")
-{}
-const TransitionResult TransitionEmpty::test(const std::shared_ptr<RunTimeContext>& context){
-    /**
-     * accept all type of nodes if there existing in the graph
-     */
+
+TransitionEmpty::TransitionEmpty(std::shared_ptr<State> source, std::shared_ptr<State> dest)
+    : Transition(source, dest, "") {}
+
+const TransitionResult TransitionEmpty::test(const std::shared_ptr<RunTimeContext>& context) {
     auto opNode = context->getActNode();
     if(!opNode){
         return {false,std::set<NodeId>()};
@@ -414,7 +422,7 @@ TransitionNull::TransitionNull(std::shared_ptr<State> source,std::shared_ptr<Sta
 :Transition(source,dest,""){
 }
 
-// TODO check if the context can be pass as ref ??
+// A boundary tests the cursor after unavailable successors have been removed.
 const TransitionResult TransitionNull::test(const std::shared_ptr<RunTimeContext>& context) {
     const auto current_node = context->getActNode();
     if (!current_node) {

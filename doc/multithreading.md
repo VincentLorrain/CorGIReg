@@ -1,7 +1,7 @@
 # Parallel starting-tuple search
 
-The `multithreading` branch experiments with parallel execution of independent
-starting tuples. The default remains one worker:
+The CLI can evaluate independent starting tuples in parallel. It uses one
+worker by default.
 
 ```sh
 corgireg -i doc/examples/graph.json -r 'A+->B->$' --jobs 4 -o matches.json
@@ -42,8 +42,9 @@ the native subprocess, and failed requests do not replace an existing report.
 
 For the same compiled machine, graph and starting sequence, parallel execution
 preserves sequential tuple and match order, duplicate solutions, source names,
-walks, origins and quantifier captures. Separate compilations can still order
-start states differently; this experiment does not change that existing behavior.
+walks, origins and quantifier captures. Start states and outgoing transitions
+are ordered by creation rather than allocation address. This keeps repeated
+runs of the same query and input stable for the same build.
 The public report schema and wire protocol versions remain unchanged. The native
 worker accepts `--jobs N` as a process argument; C++ callers can pass a third
 `jobs` argument to `matchRequest(input, output, jobs)`.
@@ -55,9 +56,10 @@ Custom GraphView implementations and predicates must support concurrent reads
 before using them with a parallel executor. Do not parallelize individual branches
 that share one runtime context.
 
-The Cartesian starting-tuple count and `--max-starts` check are unchanged.
-Root selection is still a planning pass. Parallelism distributes existing work;
-it does not remove combinatorial growth.
+The engine applies `--max-starts` to the Cartesian product of the candidate
+groups before running workers. [Rooted execution](post-ast-root-selection.md)
+can reduce that product by tying eligible paths to a shared anchor. A single
+tuple can still yield many results when a pattern has ambiguous allocations.
 
 ## Verification and measurements
 

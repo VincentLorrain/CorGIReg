@@ -52,17 +52,14 @@ const std::vector<std::shared_ptr<RunTimeContext>> State::test( std::shared_ptr<
             TransitionResult edgeRes = sharedTransition->test(newContext);
             
             if(edgeRes.success){
-                if(edgeRes.node.size() != 0){
-                    for(auto nextNode :edgeRes.node ){
-                        if(!newContext->isAlreadyValid(nextNode)|| newContext->isCommonDefined(nextNode) ){
-                            out.push_back( std::make_shared<RunTimeContext>(newContext,nextState,nextNode));
-                           
-                        }else{
-                            out.push_back( std::make_shared<RunTimeContext>(newContext,nextState,std::nullopt));
-                        }
-
-                    }
-                }else{
+                const auto before = out.size();
+                for (auto nextNode : edgeRes.node) {
+                    if (!newContext->isAlreadyValid(nextNode) || newContext->isCommonDefined(nextNode))
+                        out.push_back(std::make_shared<RunTimeContext>(newContext, nextState, nextNode));
+                }
+                // A discarded successor is not an end of the walk while another
+                // successor can still be visited.
+                if (out.size() == before) {
                     out.push_back( std::make_shared<RunTimeContext>(newContext,nextState,std::nullopt));
                 }
             }

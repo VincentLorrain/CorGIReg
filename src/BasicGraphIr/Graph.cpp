@@ -151,10 +151,10 @@ NodeNN::Ptr GraphNN::_copyNode(const NodeNN::Ptr& node,
     // Create a new node
     auto newNode = std::make_shared<NodeNN>();
 
-    // Copy the info_ data (assuming info_ is accessible)
+    // Copy the node metadata before reconnecting its edges.
     newNode->copyInfoFrom(node); 
 
-    // Map the original node to the new node
+    // Record the copy before recursion so cycles and shared neighbors reuse it.
     copiedNodes[node] = newNode;
 
     // Copy and set parents

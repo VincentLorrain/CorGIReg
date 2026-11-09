@@ -102,7 +102,9 @@ once as B1 then B2 and again as B2 then B1. The search explores a walk once
 per state, position, captures, anchors and completed iterations (compared as a
 set), so every distinct count, split and grouping of nodes into iterations is
 still reported. The kept trace lists iterations in the order the search first
-found them. Walks that end at different positions but report the same trace
+found them. The matcher visits outgoing transitions in creation order so
+allocation addresses do not decide which trace is kept. Walks that end at
+different positions but report the same trace
 also give one match.
 
 Zero occurrences are supported at graph end. To avoid infinitely many traces

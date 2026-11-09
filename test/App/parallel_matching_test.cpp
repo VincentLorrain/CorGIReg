@@ -7,7 +7,7 @@ using namespace CorGIReg;
 namespace {
 void compareSearch(const std::shared_ptr<ImportedGraph>& graph, const std::string& query,
                    bool expectedMatch) {
-    // Compile once: pointer-based start ordering can differ between compilations.
+    // Use the same machine to isolate the effect of parallel tuple execution.
     auto pattern = PGInterpreterTG(query).interpret();
     NodePredicates predicates;
     std::vector<std::optional<NodeId>> candidates;

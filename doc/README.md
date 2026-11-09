@@ -1,8 +1,8 @@
 # CorGIReg documentation
 
-Start with [concepts and architecture](architecture.md), then use the reference
-for the representation or API you work with. Commands below assume the repository
-root as the working directory.
+Start with [a complete worked example](walkthrough.md) if you are learning the
+language. Use [architecture](architecture.md) to follow the compiler and matcher
+in the code. Commands assume the repository root as the working directory.
 
 ## Install and run
 
@@ -29,8 +29,8 @@ root as the working directory.
 - [Graph adapters](graph-adapters.md): minimal C++ topology interface and matching entry points.
 - [Library integration](library-integration.md): installed CMake SDK, standalone consumer and transformation integration test.
 - [JSON transformation recipes](../examples/rewrite/README.md): external prototype, capture expressions, boundary mappings and end-to-end tests.
-- [Post-AST root selection](post-ast-root-selection.md): current proposal, selection rules and execution limits.
-- [Multithreading experiment](multithreading.md): worker isolation, ordered results, `$` regressions and performance comparisons.
+- [Post-AST root selection](post-ast-root-selection.md): how the CLI chooses and shares starts.
+- [Parallel search](multithreading.md): worker isolation, ordered results, and performance comparisons.
 - [Native protocol](native-protocol.md): Python-to-worker transport versions and typed values.
 - [Development and performance](development.md): tests, benchmark references, CI and troubleshooting.
 - [Performance report details](../benchmarks/README.md): measurements, JSON provenance and commit comparisons.
